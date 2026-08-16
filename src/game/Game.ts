@@ -3,6 +3,7 @@ import { CameraController } from '../camera/CameraController';
 import { CandidateAnnotations } from '../course/CandidateAnnotations';
 import { GeoTransform } from '../course/GeoTransform';
 import { HoleConfig, HoleData } from '../course/HoleData';
+import { SurfaceQuery, SurfacePolygon } from '../course/SurfaceQuery';
 import { TerrainData } from '../course/TerrainData';
 import { TerrainLoader } from '../course/TerrainLoader';
 import { TerrainQuery } from '../course/TerrainQuery';
@@ -17,6 +18,7 @@ import { BallRenderer } from '../rendering/BallRenderer';
 import { FlagRenderer } from '../rendering/FlagRenderer';
 import { RetroRenderer } from '../rendering/RetroRenderer';
 import { SceneManager } from '../rendering/SceneManager';
+import { SurfaceMeshOverlay } from '../rendering/SurfaceMeshOverlay';
 import { TerrainMeshBuilder } from '../rendering/TerrainMeshBuilder';
 import { AnnotationTool } from '../ui/AnnotationTool';
 import { DebugOverlay } from '../ui/DebugOverlay';
@@ -36,6 +38,7 @@ export class Game {
   private terrainMeshBuilder?: TerrainMeshBuilder;
   private terrainQuery?: TerrainQuery;
   private geoTransform?: GeoTransform;
+  private surfaceQuery: SurfaceQuery;
   
   // Systems
   private stateManager: GameStateManager;
@@ -49,6 +52,7 @@ export class Game {
   private ballRenderer?: BallRenderer;
   private flagRenderer?: FlagRenderer;
   private aimingGuideRenderer?: AimingGuideRenderer;
+  private surfaceMeshOverlay?: SurfaceMeshOverlay;
   private alignmentGridOverlay?: AlignmentGridOverlay;
   private candidateStore: CandidateAnnotations;
   private raycaster?: MouseRaycaster;
@@ -75,6 +79,7 @@ export class Game {
     this.stateManager = new GameStateManager();
     this.clubManager = new ClubManager();
     this.swingMeter = new SwingMeter();
+    this.surfaceQuery = new SurfaceQuery();
     this.candidateStore = new CandidateAnnotations();
   }
 
@@ -84,18 +89,21 @@ export class Game {
       this.terrainData = await this.terrainLoader.load(courseHolePath);
       this.holeConfig = await HoleData.load(courseHolePath);
 
-      // 2. Initialize Terrain Query System & GeoTransform
+      // 2. Initialize Terrain & Surface Query Systems
       this.terrainQuery = new TerrainQuery(this.terrainData);
       this.geoTransform = new GeoTransform(this.terrainData);
-      this.ballPhysics = new BallPhysics(this.terrainQuery);
+      this.ballPhysics = new BallPhysics(this.terrainQuery, this.surfaceQuery);
 
       // 3. Initialize Camera Controller
       this.cameraController = new CameraController(this.canvas, this.terrainData, this.terrainQuery);
 
-      // 4. Build 3D Terrain Mesh
+      // 4. Build 3D Terrain Mesh & 3D Surface Overlays
       this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
       const mesh = this.terrainMeshBuilder.getMesh();
       this.sceneManager.scene.add(mesh);
+
+      this.surfaceMeshOverlay = new SurfaceMeshOverlay(this.terrainQuery);
+      this.sceneManager.scene.add(this.surfaceMeshOverlay.getGroup());
 
       // 5. Build Game Objects
       this.ballRenderer = new BallRenderer(this.terrainQuery);
@@ -151,6 +159,11 @@ export class Game {
 
   private initPlaytestLayout(layout: PlaytestLayoutConfig): void {
     this.playtestLayout = layout;
+
+    // Generate 3D surface polygons for Playtest Layout (Tee, Fairway Corridor, Green, Bunkers)
+    const playtestSurfaces: SurfacePolygon[] = HoleData.generatePlaytestSurfaces(layout.tee, layout.hole);
+    this.surfaceQuery.setPolygons(playtestSurfaces);
+    this.surfaceMeshOverlay?.rebuild(playtestSurfaces);
 
     // Cup position
     const cupY = this.terrainQuery!.getTerrainHeight(layout.hole.x, layout.hole.z, true);
@@ -456,10 +469,13 @@ export class Game {
         this.ballPhysics.position.x - this.cupPosition.x,
         this.ballPhysics.position.z - this.cupPosition.z
       );
+      const currentLie = this.ballPhysics.getCurrentLie();
+
       this.gameHUD.updateHUD(
         this.strokeCount,
         distToCup,
         this.clubManager.getCurrentClub(),
+        currentLie,
         this.cameraController.getMode()
       );
       this.gameHUD.updateSwingMeter(this.swingMeter);

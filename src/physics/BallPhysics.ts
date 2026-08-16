@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { SurfaceQuery, LieInfo, SURFACE_PROPERTIES } from '../course/SurfaceQuery';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingResult } from '../golf/SwingMeter';
@@ -11,6 +12,9 @@ export class BallPhysics {
   public state: BallState = 'REST';
 
   private terrainQuery: TerrainQuery;
+  private surfaceQuery?: SurfaceQuery;
+  private currentLie: LieInfo = SURFACE_PROPERTIES.TEE;
+
   private readonly ballRadius: number = 0.043; // Standard golf ball radius in metres
 
   // Physical constants
@@ -19,11 +23,18 @@ export class BallPhysics {
   private readonly dragCoeff: number = 0.23;    // Golf ball drag coefficient
   private readonly ballMass: number = 0.0459;   // kg
   private readonly ballArea: number = Math.PI * 0.02135 * 0.02135; // m^2
-  private readonly restitution: number = 0.42;  // Turf bounce elasticity
-  private readonly rollingFriction: number = 0.14; // Grass rolling friction
 
-  constructor(terrainQuery: TerrainQuery) {
+  constructor(terrainQuery: TerrainQuery, surfaceQuery?: SurfaceQuery) {
     this.terrainQuery = terrainQuery;
+    this.surfaceQuery = surfaceQuery;
+  }
+
+  public setSurfaceQuery(surfaceQuery: SurfaceQuery): void {
+    this.surfaceQuery = surfaceQuery;
+  }
+
+  public getCurrentLie(): LieInfo {
+    return this.currentLie;
   }
 
   public setPosition(x: number, z: number): void {
@@ -31,22 +42,35 @@ export class BallPhysics {
     this.position.set(x, y, z);
     this.velocity.set(0, 0, 0);
     this.state = 'REST';
+    this.updateCurrentLie();
+  }
+
+  public updateCurrentLie(): LieInfo {
+    if (this.surfaceQuery) {
+      this.currentLie = this.surfaceQuery.getLieAt(this.position.x, this.position.z);
+    }
+    return this.currentLie;
   }
 
   /**
-   * Launch golf ball with given club, swing result, and aim angle (radians).
-   * Aim angle 0 = facing +X down the course, Math.PI/2 = facing +Z.
+   * Launch golf ball with lie penalties applied.
    */
   public launch(club: ClubConfig, swing: SwingResult, aimAngleRadians: number): void {
-    const power = swing.powerRatio;
-    const targetDistance = club.maxDistanceMetres * power;
+    this.updateCurrentLie();
 
-    // Apply hook/slice horizontal deviation angle
-    const totalAimAngle = aimAngleRadians + (swing.hookSliceAngleDegrees * Math.PI / 180);
+    // Lie multipliers
+    const lieDistMult = this.currentLie.distanceMultiplier;
+    const lieCtrlMult = this.currentLie.controlMultiplier;
+
+    const power = swing.powerRatio;
+    const targetDistance = club.maxDistanceMetres * power * lieDistMult;
+
+    // Apply accuracy deviation scaled by control multiplier
+    const deviationAngle = (swing.hookSliceAngleDegrees / Math.max(0.2, lieCtrlMult)) * Math.PI / 180;
+    const totalAimAngle = aimAngleRadians + deviationAngle;
 
     if (club.isPutter) {
-      // Putter: Pure ground roll velocity
-      const putterSpeed = Math.sqrt(2 * this.rollingFriction * this.gravity * targetDistance);
+      const putterSpeed = Math.sqrt(2 * this.currentLie.rollingFriction * this.gravity * targetDistance);
       this.velocity.x = Math.cos(totalAimAngle) * putterSpeed;
       this.velocity.y = 0;
       this.velocity.z = Math.sin(totalAimAngle) * putterSpeed;
@@ -54,10 +78,7 @@ export class BallPhysics {
       return;
     }
 
-    // Lofted shot: calculate launch speed and flight velocity
     const loftRad = (club.loftDegrees * Math.PI) / 180;
-
-    // Estimate initial launch speed required to achieve target distance considering drag
     const sin2Loft = Math.sin(2 * loftRad);
     const vacuumSpeed = Math.sqrt((targetDistance * this.gravity) / Math.max(0.1, sin2Loft));
     const launchSpeed = vacuumSpeed * (1 + targetDistance * 0.0012);
@@ -80,7 +101,6 @@ export class BallPhysics {
       return this.state;
     }
 
-    // Sub-stepping for collision accuracy
     const subSteps = 4;
     const subDt = dt / subSteps;
 
@@ -101,11 +121,11 @@ export class BallPhysics {
 
       const speed = this.velocity.length();
 
-      // Cup capture radius ~0.55m, speed threshold < 3.2m/s
       if (distToCup < 0.55 && speed < 3.2 && this.position.y <= cupPosition.y + 0.5) {
         this.position.set(cupPosition.x, cupPosition.y + this.ballRadius, cupPosition.z);
         this.velocity.set(0, 0, 0);
         this.state = 'HOLED';
+        this.updateCurrentLie();
         return 'HOLED';
       }
 
@@ -113,11 +133,11 @@ export class BallPhysics {
       if (checkState === 'REST' || checkState === 'HOLED') break;
     }
 
+    this.updateCurrentLie();
     return this.state;
   }
 
   private stepAirborne(dt: number): void {
-    // 1. Aerodynamic drag force
     const vMag = this.velocity.length();
     if (vMag > 0.01) {
       const dragMag = 0.5 * this.airDensity * this.dragCoeff * this.ballArea * vMag * vMag;
@@ -133,25 +153,24 @@ export class BallPhysics {
       this.velocity.y -= this.gravity * dt;
     }
 
-    // 2. Position update
     this.position.x += this.velocity.x * dt;
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;
 
-    // 3. Terrain collision check
     const terrainY = this.terrainQuery.getTerrainHeight(this.position.x, this.position.z, true);
     const minHeight = terrainY + this.ballRadius;
 
     if (this.position.y <= minHeight) {
       this.position.y = minHeight;
 
-      // Surface normal reflection
+      // Update surface lie at bounce point
+      this.updateCurrentLie();
+
       const normal = this.terrainQuery.getTerrainNormal(this.position.x, this.position.z);
-      
       const vDotN = this.velocity.dot(normal);
 
       if (vDotN < 0) {
-        const bounceImpulse = normal.clone().multiplyScalar(-(1 + this.restitution) * vDotN);
+        const bounceImpulse = normal.clone().multiplyScalar(-(1 + this.currentLie.restitution) * vDotN);
         this.velocity.add(bounceImpulse);
       }
 
@@ -167,19 +186,19 @@ export class BallPhysics {
     const terrainY = this.terrainQuery.getTerrainHeight(this.position.x, this.position.z, true);
     this.position.y = terrainY + this.ballRadius;
 
+    this.updateCurrentLie();
+
     const normal = this.terrainQuery.getTerrainNormal(this.position.x, this.position.z);
 
-    // Slope acceleration along X and Z
     const slopeAccX = -this.gravity * normal.x;
     const slopeAccZ = -this.gravity * normal.z;
 
     this.velocity.x += slopeAccX * dt;
     this.velocity.z += slopeAccZ * dt;
 
-    // Rolling friction deceleration
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
     if (speed > 0.05) {
-      const frictionAcc = this.rollingFriction * this.gravity;
+      const frictionAcc = this.currentLie.rollingFriction * this.gravity;
       const newSpeed = Math.max(0, speed - frictionAcc * dt);
       const ratio = newSpeed / speed;
       this.velocity.x *= ratio;
@@ -189,7 +208,6 @@ export class BallPhysics {
       this.state = 'REST';
     }
 
-    // Position update
     this.position.x += this.velocity.x * dt;
     this.position.z += this.velocity.z * dt;
   }

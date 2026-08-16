@@ -1,3 +1,4 @@
+import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
 
@@ -20,6 +21,7 @@ export class GameHUD {
   // Dynamic elements
   private strokeElem!: HTMLElement;
   private distElem!: HTMLElement;
+  private lieElem!: HTMLElement;
   private clubNameElem!: HTMLElement;
   private clubDetailElem!: HTMLElement;
   private cameraBtnElem!: HTMLElement;
@@ -68,12 +70,20 @@ export class GameHUD {
     this.swingMeterContainer.style.display = visible ? 'block' : 'none';
   }
 
-  public updateHUD(strokes: number, distToCupMetres: number, club: ClubConfig, cameraMode: string): void {
+  public updateHUD(strokes: number, distToCupMetres: number, club: ClubConfig, lie: LieInfo, cameraMode: string): void {
     if (this.strokeElem) {
       this.strokeElem.textContent = `STROKE ${strokes}`;
     }
     if (this.distElem) {
       this.distElem.textContent = `${distToCupMetres.toFixed(1)} m TO PIN`;
+    }
+    if (this.lieElem) {
+      const pct = Math.round(lie.distanceMultiplier * 100);
+      let color = '#55ff55';
+      if (lie.type === 'ROUGH' || lie.type === 'DEEP_ROUGH') color = '#ffcc44';
+      if (lie.type === 'BUNKER') color = '#ffaa33';
+      if (lie.type === 'OUT_OF_BOUNDS' || lie.type === 'WATER') color = '#ff5555';
+      this.lieElem.innerHTML = `LIE: <span style="color: ${color}; font-weight: bold;">${lie.name.toUpperCase()} (${pct}%)</span>`;
     }
     if (this.clubNameElem) {
       this.clubNameElem.textContent = `${club.code} - ${club.name}`;
@@ -161,7 +171,7 @@ export class GameHUD {
 
   private buildHTML(): void {
     this.container.innerHTML = `
-      <div style="position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-space-between; align-items: flex-start; pointer-events: auto;">
+      <div style="position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: auto;">
         
         <div style="background: rgba(10, 24, 12, 0.9); border: 2px solid #44aa44; border-radius: 6px; padding: 10px 16px; color: #d5ffd5; font-family: 'Courier New', monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.6);">
           <div style="font-weight: bold; font-size: 14px; color: #55ff55;">⛳ SOPHIE GOLF — HOLE 6</div>
@@ -169,6 +179,9 @@ export class GameHUD {
           <div style="display: flex; gap: 16px; margin-top: 4px; font-weight: bold;">
             <span id="hud-stroke" style="color: #ffff55; font-size: 15px;">STROKE 1</span>
             <span id="hud-dist" style="color: #77ffff; font-size: 15px;">248 m TO PIN</span>
+          </div>
+          <div id="hud-lie" style="font-size: 12px; margin-top: 2px;">
+            LIE: <span style="color: #55ff55; font-weight: bold;">TEE (100%)</span>
           </div>
         </div>
 
@@ -232,6 +245,7 @@ export class GameHUD {
 
     this.strokeElem = this.container.querySelector('#hud-stroke')!;
     this.distElem = this.container.querySelector('#hud-dist')!;
+    this.lieElem = this.container.querySelector('#hud-lie')!;
     this.clubNameElem = this.container.querySelector('#hud-club-name')!;
     this.clubDetailElem = this.container.querySelector('#hud-club-detail')!;
     this.cameraBtnElem = this.container.querySelector('#btn-hud-cam')!;
