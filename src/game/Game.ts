@@ -66,7 +66,7 @@ export class Game {
 
   // Gameplay State Variables
   private strokeCount: number = 0;
-  private aimAngleRadians: number = 0; // 0 = facing +X
+  private aimAngleRadians: number = 0;
   private cupPosition: Vector3 = new Vector3();
   private lastFrameTime: number = performance.now();
   private isRunning: boolean = false;
@@ -74,7 +74,8 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.sceneManager = new SceneManager(this.canvas);
-    this.retroRenderer = new RetroRenderer({ targetWidth: 426, targetHeight: 240, enabled: true });
+    // RetroRenderer preserved for later phases, disabled by default for Phase 0 native resolution
+    this.retroRenderer = new RetroRenderer({ targetWidth: 426, targetHeight: 240, enabled: false });
     
     this.stateManager = new GameStateManager();
     this.clubManager = new ClubManager();
@@ -85,11 +86,11 @@ export class Game {
 
   public async start(courseHolePath: string): Promise<void> {
     try {
-      // 1. Load course DEM data
+      // 1. Fully metadata-driven course DEM loading
       this.terrainData = await this.terrainLoader.load(courseHolePath);
       this.holeConfig = await HoleData.load(courseHolePath);
 
-      // 2. Initialize Terrain & Surface Query Systems
+      // 2. Initialize Terrain Query System & GeoTransform
       this.terrainQuery = new TerrainQuery(this.terrainData);
       this.geoTransform = new GeoTransform(this.terrainData);
       this.ballPhysics = new BallPhysics(this.terrainQuery, this.surfaceQuery);
@@ -97,7 +98,7 @@ export class Game {
       // 3. Initialize Camera Controller
       this.cameraController = new CameraController(this.canvas, this.terrainData, this.terrainQuery);
 
-      // 4. Build 3D Terrain Mesh & 3D Surface Overlays
+      // 4. Build 3D Terrain Mesh & Surface Overlays
       this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
       const mesh = this.terrainMeshBuilder.getMesh();
       this.sceneManager.scene.add(mesh);
@@ -118,7 +119,7 @@ export class Game {
       this.sophieGolfer = new SophieGolfer();
       this.sceneManager.scene.add(this.sophieGolfer.getGroup());
 
-      // 6. Build Alignment Grid & Marker Overlay
+      // 6. Build Alignment Grid Overlay
       this.alignmentGridOverlay = new AlignmentGridOverlay(this.terrainData, this.terrainQuery);
       this.sceneManager.scene.add(this.alignmentGridOverlay.getGroup());
 
@@ -128,20 +129,15 @@ export class Game {
       this.setupHUDs();
       this.setupKeyboardEvents();
 
-      // Check URL parameters for dev alignment mode (?debug=alignment)
-      const urlParams = new URLSearchParams(window.location.search);
-      const isDevUrl = urlParams.get('debug') === 'alignment';
-
-      // 8. Check Playtest Layout
+      // 8. Phase 0 Primary Experience: Default directly to DEV_ALIGNMENT (Terrain Alignment Viewer)
       this.playtestLayout = PlaytestLayoutManager.load();
-
-      if (isDevUrl) {
-        this.stateManager.setState('DEV_ALIGNMENT');
-      } else if (!this.playtestLayout) {
-        this.stateManager.setState('LAYOUT_SELECTION');
-      } else {
-        this.initPlaytestLayout(this.playtestLayout);
+      if (this.playtestLayout) {
+        const playtestSurfaces: SurfacePolygon[] = HoleData.generatePlaytestSurfaces(this.playtestLayout.tee, this.playtestLayout.hole);
+        this.surfaceQuery.setPolygons(playtestSurfaces);
+        this.surfaceMeshOverlay?.rebuild(playtestSurfaces);
       }
+
+      this.stateManager.setState('DEV_ALIGNMENT');
 
       // Hide loading screen
       const loadingScreen = document.getElementById('loading-screen');
@@ -160,26 +156,21 @@ export class Game {
   private initPlaytestLayout(layout: PlaytestLayoutConfig): void {
     this.playtestLayout = layout;
 
-    // Generate 3D surface polygons for Playtest Layout (Tee, Fairway Corridor, Green, Bunkers)
     const playtestSurfaces: SurfacePolygon[] = HoleData.generatePlaytestSurfaces(layout.tee, layout.hole);
     this.surfaceQuery.setPolygons(playtestSurfaces);
     this.surfaceMeshOverlay?.rebuild(playtestSurfaces);
 
-    // Cup position
     const cupY = this.terrainQuery!.getTerrainHeight(layout.hole.x, layout.hole.z, true);
     this.cupPosition.set(layout.hole.x, cupY, layout.hole.z);
     this.flagRenderer?.setPosition(this.cupPosition);
 
-    // Ball position at Tee
     this.strokeCount = 0;
     this.ballPhysics!.setPosition(layout.tee.x, layout.tee.z);
 
-    // Aim angle pointing from Tee directly to Hole
     const dx = layout.hole.x - layout.tee.x;
     const dz = layout.hole.z - layout.tee.z;
     this.aimAngleRadians = Math.atan2(dz, dx);
 
-    // Auto-select club for distance
     const distToCup = Math.hypot(dx, dz);
     this.clubManager.autoSelectClubForDistance(distToCup);
 
@@ -187,7 +178,6 @@ export class Game {
   }
 
   private setupHUDs(): void {
-    // 1. Playable Game HUD
     this.gameHUD = new GameHUD({
       onAimLeft: () => this.adjustAim(-0.06),
       onAimRight: () => this.adjustAim(0.06),
@@ -204,14 +194,12 @@ export class Game {
       }
     });
 
-    // 2. Playtest Layout HUD
     this.layoutHUD = new PlaytestLayoutHUD((tee, hole) => {
       const saved = PlaytestLayoutManager.save(tee, hole);
       this.initPlaytestLayout(saved);
       this.layoutHUD?.setVisible(false);
     });
 
-    // 3. Developer Debug Overlay (F2 / Dev Mode)
     this.debugOverlay = new DebugOverlay(
       this.terrainData!,
       this.holeConfig!,
@@ -228,7 +216,6 @@ export class Game {
       }
     );
 
-    // 4. Developer Annotation Tool
     this.annotationTool = new AnnotationTool(
       this.candidateStore,
       this.terrainData!,
@@ -239,7 +226,6 @@ export class Game {
       }
     );
 
-    // Listen to state changes
     this.stateManager.subscribe((newState) => this.handleStateChange(newState));
   }
 
@@ -251,7 +237,9 @@ export class Game {
     this.gameHUD?.setVisible(isGameplay);
     this.layoutHUD?.setVisible(isLayoutSel);
     
-    // Dev overlay & annotation tool visible ONLY in DEV_ALIGNMENT mode
+    // In Phase 0, native resolution is used in DEV_ALIGNMENT mode
+    this.retroRenderer.setEnabled(isGameplay);
+
     const devOverlayElem = (this.debugOverlay as any)?.container;
     const annToolElem = (this.annotationTool as any)?.container;
     const compassElem = (this.debugOverlay as any)?.compassContainer;
@@ -297,7 +285,6 @@ export class Game {
       }
     });
 
-    // Canvas click event for Layout selection / Dev annotation
     this.canvas.addEventListener('click', () => {
       const state = this.stateManager.getState();
       const hit = this.raycaster?.getHit();
@@ -360,7 +347,7 @@ export class Game {
     if (state === 'ADDRESS') {
       this.stateManager.setState('SWINGING');
       this.swingMeter.reset();
-      this.swingMeter.trigger(); // Start power rising
+      this.swingMeter.trigger();
     } else if (state === 'SWINGING') {
       const meterState = this.swingMeter.trigger();
       if (meterState === 'COMPLETE') {
@@ -375,11 +362,8 @@ export class Game {
 
     this.strokeCount++;
 
-    // Trigger Sophie procedural swing animation
     this.sophieGolfer.startProceduralSwing(() => {
       const club = this.clubManager.getCurrentClub();
-      
-      // Launch ball physics
       this.ballPhysics!.launch(club, swingResult, this.aimAngleRadians);
       this.stateManager.setState('BALL_FLIGHT');
     });
@@ -396,7 +380,6 @@ export class Game {
 
     const state = this.stateManager.getState();
 
-    // 1. Raycaster update
     let mouseHit = null;
     if (this.raycaster && this.terrainMeshBuilder) {
       mouseHit = this.raycaster.update(
@@ -405,7 +388,6 @@ export class Game {
       );
     }
 
-    // 2. Physics & State Machine update
     if (state === 'SWINGING') {
       this.swingMeter.update(dt);
       if (this.swingMeter.getState() === 'COMPLETE' && this.ballPhysics?.state === 'REST') {
@@ -424,7 +406,6 @@ export class Game {
       }
     }
 
-    // 3. Update Camera View
     if (state === 'ADDRESS' || state === 'SWINGING') {
       if (this.cameraController.getMode() === 'GOLF') {
         this.cameraController.updateGolfAddressView(this.ballPhysics!.position, this.aimAngleRadians);
@@ -441,7 +422,6 @@ export class Game {
       this.cameraController.update();
     }
 
-    // 4. Update 3D Object Renderers
     if (this.ballRenderer && this.ballPhysics) {
       this.ballRenderer.update(this.ballPhysics.position);
     }
@@ -463,7 +443,6 @@ export class Game {
       this.aimingGuideRenderer.setVisible(state === 'ADDRESS' || state === 'SWINGING');
     }
 
-    // 5. Update HUDs & Readouts
     if (this.gameHUD && this.ballPhysics) {
       const distToCup = Math.hypot(
         this.ballPhysics.position.x - this.cupPosition.x,
@@ -486,7 +465,6 @@ export class Game {
       this.debugOverlay.updateMouseHitInfo(mouseHit);
     }
 
-    // 6. Render Scene (via 2-pass pixel upscaling RetroRenderer)
     this.retroRenderer.render(
       this.sceneManager.renderer,
       this.sceneManager.scene,

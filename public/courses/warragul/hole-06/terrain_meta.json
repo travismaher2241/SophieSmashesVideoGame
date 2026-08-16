@@ -20,7 +20,8 @@
     "rows": "worldZ",
     "worldXExtentMetres": 778.0,
     "worldZExtentMetres": 318.0,
-    "note": "Extent between sample centres is (samples-1)*spacing. Do not report 780x320 as exact mesh span unless treating cells rather than sample centres."
+    "isNorthingProven": false,
+    "note": "Extent between sample centres is (samples-1)*spacing (778m x 318m). Establishing row 0 as North vs South from raw GeoTIFF source data is BLOCKED as the original GeoTIFF/GIS file is not present in runtime workspace."
   },
   "baseElevationMetres": 114.87749481201172,
   "minElevationMetres": 114.87749481201172,
