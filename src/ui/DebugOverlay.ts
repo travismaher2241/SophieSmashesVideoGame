@@ -157,7 +157,8 @@ export class DebugOverlay {
       <div style="margin-bottom: 8px;">
         <div><b>Course:</b> ${meta.courseName}</div>
         <div><b>Hole:</b> ${meta.holeNumber} (Par ${this.holeConfig.par}, ${this.holeConfig.publishedLengthMetres}m)</div>
-        <div><b>CRS:</b> ${meta.sourceCRS} | <b>Easting Span:</b> 405040..405820</div>
+        <div><b>CRS:</b> ${meta.sourceCRS}</div>
+        <div><b>Source Bounds:</b> E ${meta.sourceBoundsMGA55 ? `${meta.sourceBoundsMGA55.minEasting}..${meta.sourceBoundsMGA55.maxEasting}` : 'N/A'} | N ${meta.sourceBoundsMGA55 ? `${meta.sourceBoundsMGA55.minNorthing}..${meta.sourceBoundsMGA55.maxNorthing}` : 'N/A'}</div>
       </div>
 
       <div style="margin-bottom: 8px; background: rgba(0, 40, 0, 0.4); padding: 6px; border-left: 3px solid #55cc55;">

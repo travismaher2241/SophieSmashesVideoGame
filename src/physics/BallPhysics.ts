@@ -11,11 +11,24 @@ export class BallPhysics {
   public velocity: Vector3 = new Vector3();
   public state: BallState = 'REST';
 
+  /**
+   * True when the ball travelled beyond the mapped DEM extent. Blueprint §14 requires
+   * that off-grid coordinates are not silently given a plausible-looking height, so
+   * physics stops the ball at the terrain edge rather than clamping and continuing.
+   */
+  public leftTerrain: boolean = false;
+
   private terrainQuery: TerrainQuery;
   private surfaceQuery?: SurfaceQuery;
   private currentLie: LieInfo = SURFACE_PROPERTIES.TEE;
 
   private readonly ballRadius: number = 0.043; // Standard golf ball radius in metres
+
+  /**
+   * Floor on the effective lie distance multiplier. No lie may reduce a swing to zero
+   * launch speed — that would leave the ball frozen while strokes accumulate.
+   */
+  private readonly minEffectiveDistanceMultiplier: number = 0.25;
 
   // Physical constants
   private readonly gravity: number = 9.81;
@@ -37,15 +50,34 @@ export class BallPhysics {
     return this.currentLie;
   }
 
+  /**
+   * Place the ball at a known-good course position (tee, or a rules drop).
+   *
+   * Throws on out-of-bounds input: callers own valid coordinates, and §94 requires a
+   * useful error rather than a silently relocated ball.
+   */
   public setPosition(x: number, z: number): void {
-    const y = this.terrainQuery.getTerrainHeight(x, z, true) + this.ballRadius;
-    this.position.set(x, y, z);
+    const query = this.terrainQuery.queryTerrainHeight(x, z);
+    if (query.isOutOfBounds) {
+      throw new RangeError(
+        `Cannot place ball at (${x.toFixed(1)}, ${z.toFixed(1)}): position is outside the loaded terrain extent.`
+      );
+    }
+
+    this.position.set(x, query.height + this.ballRadius, z);
     this.velocity.set(0, 0, 0);
     this.state = 'REST';
+    this.leftTerrain = false;
     this.updateCurrentLie();
   }
 
   public updateCurrentLie(): LieInfo {
+    if (this.leftTerrain) {
+      // Beyond the mapped course there is no surface to classify.
+      this.currentLie = SURFACE_PROPERTIES.OUT_OF_BOUNDS;
+      return this.currentLie;
+    }
+
     if (this.surfaceQuery) {
       this.currentLie = this.surfaceQuery.getLieAt(this.position.x, this.position.z);
     }
@@ -59,7 +91,7 @@ export class BallPhysics {
     this.updateCurrentLie();
 
     // Lie multipliers
-    const lieDistMult = this.currentLie.distanceMultiplier;
+    const lieDistMult = Math.max(this.minEffectiveDistanceMultiplier, this.currentLie.distanceMultiplier);
     const lieCtrlMult = this.currentLie.controlMultiplier;
 
     const power = swing.powerRatio;
@@ -68,6 +100,8 @@ export class BallPhysics {
     // Apply accuracy deviation scaled by control multiplier
     const deviationAngle = (swing.hookSliceAngleDegrees / Math.max(0.2, lieCtrlMult)) * Math.PI / 180;
     const totalAimAngle = aimAngleRadians + deviationAngle;
+
+    this.leftTerrain = false;
 
     if (club.isPutter) {
       const putterSpeed = Math.sqrt(2 * this.currentLie.rollingFriction * this.gravity * targetDistance);
@@ -113,6 +147,11 @@ export class BallPhysics {
         this.stepRolling(subDt);
       }
 
+      if (this.leftTerrain) {
+        this.updateCurrentLie();
+        return this.state;
+      }
+
       // Check distance to cup
       const distToCup = Math.hypot(
         this.position.x - cupPosition.x,
@@ -153,12 +192,20 @@ export class BallPhysics {
       this.velocity.y -= this.gravity * dt;
     }
 
+    const prevX = this.position.x;
+    const prevZ = this.position.z;
+
     this.position.x += this.velocity.x * dt;
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;
 
-    const terrainY = this.terrainQuery.getTerrainHeight(this.position.x, this.position.z, true);
-    const minHeight = terrainY + this.ballRadius;
+    const query = this.terrainQuery.queryTerrainHeight(this.position.x, this.position.z);
+    if (query.isOutOfBounds) {
+      this.stopAtTerrainEdge(prevX, prevZ);
+      return;
+    }
+
+    const minHeight = query.height + this.ballRadius;
 
     if (this.position.y <= minHeight) {
       this.position.y = minHeight;
@@ -183,7 +230,7 @@ export class BallPhysics {
   }
 
   private stepRolling(dt: number): void {
-    const terrainY = this.terrainQuery.getTerrainHeight(this.position.x, this.position.z, true);
+    const terrainY = this.terrainQuery.getTerrainHeight(this.position.x, this.position.z);
     this.position.y = terrainY + this.ballRadius;
 
     this.updateCurrentLie();
@@ -206,9 +253,30 @@ export class BallPhysics {
     } else {
       this.velocity.set(0, 0, 0);
       this.state = 'REST';
+      return;
     }
+
+    const prevX = this.position.x;
+    const prevZ = this.position.z;
 
     this.position.x += this.velocity.x * dt;
     this.position.z += this.velocity.z * dt;
+
+    if (this.terrainQuery.queryTerrainHeight(this.position.x, this.position.z).isOutOfBounds) {
+      this.stopAtTerrainEdge(prevX, prevZ);
+    }
+  }
+
+  /**
+   * Bring the ball to rest at the last position that was actually on the terrain and
+   * flag it as having left the course. The rules layer decides what that costs.
+   */
+  private stopAtTerrainEdge(lastInBoundsX: number, lastInBoundsZ: number): void {
+    const height = this.terrainQuery.getTerrainHeight(lastInBoundsX, lastInBoundsZ, true);
+    this.position.set(lastInBoundsX, height + this.ballRadius, lastInBoundsZ);
+    this.velocity.set(0, 0, 0);
+    this.state = 'REST';
+    this.leftTerrain = true;
+    this.updateCurrentLie();
   }
 }

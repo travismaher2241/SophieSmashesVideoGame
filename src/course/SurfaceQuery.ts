@@ -1,3 +1,11 @@
+/**
+ * Course surface classification and lie lookup.
+ *
+ * Blueprint §17 defines the full surface vocabulary, §18 defines lie detection by
+ * polygon containment. This module holds no course geometry of its own — polygons
+ * arrive from course data via setPolygons() (§15).
+ */
+
 export type SurfaceType =
   | 'TEE'
   | 'FAIRWAY'
@@ -9,7 +17,36 @@ export type SurfaceType =
   | 'BUNKER'
   | 'WATER'
   | 'PATH'
-  | 'OUT_OF_BOUNDS';
+  | 'GROUND_UNDER_REPAIR'
+  | 'OUT_OF_BOUNDS'
+  | 'GENERAL_AREA';
+
+/** Every §17 surface type, used for course-data validation. */
+export const SURFACE_TYPES: readonly SurfaceType[] = [
+  'TEE',
+  'FAIRWAY',
+  'FIRST_CUT',
+  'ROUGH',
+  'DEEP_ROUGH',
+  'FRINGE',
+  'GREEN',
+  'BUNKER',
+  'WATER',
+  'PATH',
+  'GROUND_UNDER_REPAIR',
+  'OUT_OF_BOUNDS',
+  'GENERAL_AREA'
+];
+
+/**
+ * What the rules require when a ball comes to rest on this surface.
+ *
+ * NONE                 play the ball as it lies
+ * FREE_DROP            reposition to the nearest playable point, no penalty stroke
+ * LATERAL_DROP         reposition to the nearest playable point, one penalty stroke
+ * STROKE_AND_DISTANCE  replay from where the previous stroke was played, one penalty stroke
+ */
+export type ReliefRule = 'NONE' | 'FREE_DROP' | 'LATERAL_DROP' | 'STROKE_AND_DISTANCE';
 
 export interface SurfacePoint {
   x: number;
@@ -21,6 +58,11 @@ export interface SurfacePolygon {
   type: SurfaceType;
   name: string;
   points: SurfacePoint[];
+  /**
+   * True for development placeholder geometry that has not been traced from the
+   * real course. Verified course data omits this. See blueprint §60.
+   */
+  provisional?: boolean;
 }
 
 export interface LieInfo {
@@ -30,8 +72,13 @@ export interface LieInfo {
   controlMultiplier: number;  // e.g. 1.0 for Fairway, 0.75 for Rough
   restitution: number;        // Bounce elasticity (0.45 fairway, 0.15 bunker, 0.35 green)
   rollingFriction: number;    // Ground friction (0.12 fairway, 0.45 bunker, 0.06 green)
+  relief: ReliefRule;         // Rules outcome when the ball rests here
 }
 
+/**
+ * Blueprint §38 requires these to be tuneable rather than buried in physics code.
+ * They live here for now; moving them into per-course data is R05 work.
+ */
 export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   TEE: {
     type: 'TEE',
@@ -39,7 +86,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
     restitution: 0.45,
-    rollingFriction: 0.12
+    rollingFriction: 0.12,
+    relief: 'NONE'
   },
   FAIRWAY: {
     type: 'FAIRWAY',
@@ -47,7 +95,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
     restitution: 0.42,
-    rollingFriction: 0.12
+    rollingFriction: 0.12,
+    relief: 'NONE'
   },
   FIRST_CUT: {
     type: 'FIRST_CUT',
@@ -55,7 +104,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 0.95,
     controlMultiplier: 0.92,
     restitution: 0.38,
-    rollingFriction: 0.16
+    rollingFriction: 0.16,
+    relief: 'NONE'
   },
   ROUGH: {
     type: 'ROUGH',
@@ -63,7 +113,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 0.82,
     controlMultiplier: 0.75,
     restitution: 0.28,
-    rollingFriction: 0.24
+    rollingFriction: 0.24,
+    relief: 'NONE'
   },
   DEEP_ROUGH: {
     type: 'DEEP_ROUGH',
@@ -71,7 +122,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 0.65,
     controlMultiplier: 0.50,
     restitution: 0.18,
-    rollingFriction: 0.38
+    rollingFriction: 0.38,
+    relief: 'NONE'
   },
   FRINGE: {
     type: 'FRINGE',
@@ -79,7 +131,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 0.98,
     controlMultiplier: 0.95,
     restitution: 0.38,
-    rollingFriction: 0.10
+    rollingFriction: 0.10,
+    relief: 'NONE'
   },
   GREEN: {
     type: 'GREEN',
@@ -87,7 +140,8 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
     restitution: 0.35,
-    rollingFriction: 0.06 // Smooth green fast roll
+    rollingFriction: 0.06, // Smooth green fast roll
+    relief: 'NONE'
   },
   BUNKER: {
     type: 'BUNKER',
@@ -95,15 +149,19 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 0.60,
     controlMultiplier: 0.55,
     restitution: 0.12, // Heavy sand damping
-    rollingFriction: 0.48 // High sand resistance
+    rollingFriction: 0.48, // High sand resistance
+    relief: 'NONE'
   },
   WATER: {
     type: 'WATER',
     name: 'Water Hazard',
-    distanceMultiplier: 0.0,
-    controlMultiplier: 0.0,
-    restitution: 0.0,
-    rollingFriction: 1.0
+    // The ball is never played from here — a lateral drop is taken first — but these
+    // stay playable rather than zero so no code path can produce a zero-speed launch.
+    distanceMultiplier: 0.55,
+    controlMultiplier: 0.45,
+    restitution: 0.05,
+    rollingFriction: 0.90,
+    relief: 'LATERAL_DROP'
   },
   PATH: {
     type: 'PATH',
@@ -111,60 +169,118 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     distanceMultiplier: 1.05,
     controlMultiplier: 0.85,
     restitution: 0.75, // Hard asphalt bounce
-    rollingFriction: 0.08
+    rollingFriction: 0.08,
+    relief: 'NONE'
+  },
+  GROUND_UNDER_REPAIR: {
+    type: 'GROUND_UNDER_REPAIR',
+    name: 'Ground Under Repair',
+    distanceMultiplier: 0.85,
+    controlMultiplier: 0.70,
+    restitution: 0.25,
+    rollingFriction: 0.30,
+    relief: 'FREE_DROP'
   },
   OUT_OF_BOUNDS: {
     type: 'OUT_OF_BOUNDS',
     name: 'Out of Bounds',
-    distanceMultiplier: 0.0,
-    controlMultiplier: 0.0,
+    distanceMultiplier: 0.70,
+    controlMultiplier: 0.60,
     restitution: 0.30,
-    rollingFriction: 0.30
+    rollingFriction: 0.30,
+    relief: 'STROKE_AND_DISTANCE'
+  },
+  GENERAL_AREA: {
+    type: 'GENERAL_AREA',
+    name: 'General Area',
+    // The honest answer for a point no traced polygon covers: playable ground of
+    // unknown quality, pitched between first cut and primary rough.
+    distanceMultiplier: 0.90,
+    controlMultiplier: 0.85,
+    restitution: 0.32,
+    rollingFriction: 0.20,
+    relief: 'NONE'
   }
 };
+
+/**
+ * Containment scan order for overlapping features.
+ *
+ * §18 offers a starting priority but notes it "should later account for overlapping
+ * features". Rulings are scanned before playing surfaces: a point inside a GUR,
+ * out-of-bounds or penalty-area polygon takes that ruling regardless of the
+ * fairway or green polygon it may also sit inside.
+ */
+export const SURFACE_PRIORITY: readonly SurfaceType[] = [
+  'GROUND_UNDER_REPAIR',
+  'OUT_OF_BOUNDS',
+  'WATER',
+  'GREEN',
+  'BUNKER',
+  'TEE',
+  'FRINGE',
+  'FAIRWAY',
+  'PATH',
+  'FIRST_CUT',
+  'DEEP_ROUGH',
+  'ROUGH',
+  'GENERAL_AREA'
+];
 
 export class SurfaceQuery {
   private polygons: SurfacePolygon[] = [];
 
+  /** Polygons bucketed by type so a lie query does not re-scan the whole set per type. */
+  private byType: Map<SurfaceType, SurfacePolygon[]> = new Map();
+
   constructor(polygons: SurfacePolygon[] = []) {
-    this.polygons = polygons;
+    this.setPolygons(polygons);
   }
 
   public setPolygons(polygons: SurfacePolygon[]): void {
     this.polygons = polygons;
+    this.byType = new Map();
+
+    for (const poly of polygons) {
+      const bucket = this.byType.get(poly.type);
+      if (bucket) {
+        bucket.push(poly);
+      } else {
+        this.byType.set(poly.type, [poly]);
+      }
+    }
+  }
+
+  public getPolygons(): readonly SurfacePolygon[] {
+    return this.polygons;
+  }
+
+  /** True when any loaded polygon is development placeholder geometry (§60). */
+  public hasProvisionalGeometry(): boolean {
+    return this.polygons.some((p) => p.provisional === true);
   }
 
   /**
    * Determine course surface lie at continuous 3D world coordinate (x, z).
-   * Uses Ray-Casting point-in-polygon containment test.
+   * Uses Ray-Casting point-in-polygon containment in SURFACE_PRIORITY order.
+   *
+   * A point covered by no polygon returns GENERAL_AREA — unclassified playable
+   * ground. It deliberately does not claim to be rough, which would be a specific
+   * classification the course data has not made.
    */
   public getLieAt(x: number, z: number): LieInfo {
-    // Priority order: GREEN > BUNKER > TEE > FRINGE > FAIRWAY > PATH > WATER > OUT_OF_BOUNDS > ROUGH
-    const priorityOrder: SurfaceType[] = [
-      'GREEN',
-      'BUNKER',
-      'TEE',
-      'FRINGE',
-      'FAIRWAY',
-      'PATH',
-      'WATER',
-      'OUT_OF_BOUNDS',
-      'FIRST_CUT',
-      'DEEP_ROUGH',
-      'ROUGH'
-    ];
+    for (const surfaceType of SURFACE_PRIORITY) {
+      const bucket = this.byType.get(surfaceType);
+      if (!bucket) continue;
 
-    for (const surfaceType of priorityOrder) {
-      const matchingPolys = this.polygons.filter((p) => p.type === surfaceType);
-      for (const poly of matchingPolys) {
+      for (const poly of bucket) {
         if (this.isPointInPolygon(x, z, poly.points)) {
           return SURFACE_PROPERTIES[surfaceType];
         }
       }
     }
 
-    // Default ground lie outside defined polygons is Primary Rough
-    return SURFACE_PROPERTIES.ROUGH;
+    return SURFACE_PROPERTIES.GENERAL_AREA;
   }
 
   /**
