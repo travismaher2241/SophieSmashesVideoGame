@@ -1,0 +1,39 @@
+{
+  "courseId": "warragul",
+  "courseName": "Warragul Country Club",
+  "holeId": "hole-06",
+  "holeNumber": 6,
+  "status": "provisional-crop-real-dem",
+  "source": "Victorian Government 3D Regional Towns LiDAR-derived DEM",
+  "sourceCRS": "EPSG:7855",
+  "sourceBoundsMGA55": {
+    "minEasting": 405040,
+    "minNorthing": 5777260,
+    "maxEasting": 405820,
+    "maxNorthing": 5777580
+  },
+  "gridSpacingMetres": 2.0,
+  "widthSamples": 390,
+  "heightSamples": 160,
+  "axisMapping": {
+    "columns": "worldX",
+    "rows": "worldZ",
+    "worldXExtentMetres": 778.0,
+    "worldZExtentMetres": 318.0,
+    "note": "Extent between sample centres is (samples-1)*spacing. Do not report 780x320 as exact mesh span unless treating cells rather than sample centres."
+  },
+  "baseElevationMetres": 114.87749481201172,
+  "minElevationMetres": 114.87749481201172,
+  "maxElevationMetres": 152.15750122070312,
+  "binary": {
+    "file": "terrain.bin",
+    "type": "Float32",
+    "endianness": "little",
+    "order": "row-major",
+    "valueMeaning": "metres above baseElevationMetres",
+    "expectedValues": 62400,
+    "expectedBytes": 249600
+  },
+  "verticalScaleDefault": 1.0,
+  "warning": "This is real DEM data from the downloaded Warragul dataset, but the Hole 6 crop/orientation is still provisional until tee and green positions are verified. Do not invent synthetic elevation or label provisional markers as surveyed."
+}

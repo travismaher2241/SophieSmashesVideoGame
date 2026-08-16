@@ -1,0 +1,15 @@
+{
+  "courseId": "warragul",
+  "holeId": "hole-06",
+  "holeNumber": 6,
+  "par": 4,
+  "publishedLengthMetres": 248,
+  "status": "provisional-orientation",
+  "tee": null,
+  "greenCentre": null,
+  "features": [],
+  "notes": [
+    "Real terrain is loaded. Tee, green, fairway, bunker and path geometry must be verified before use.",
+    "Do not generate fake tee/green coordinates as if they are real."
+  ]
+}
