@@ -1,0 +1,37 @@
+export type GameStateType =
+  | 'LAYOUT_SELECTION'
+  | 'ADDRESS'
+  | 'SWINGING'
+  | 'BALL_FLIGHT'
+  | 'BALL_ROLLING'
+  | 'HOLED'
+  | 'DEV_ALIGNMENT';
+
+export class GameStateManager {
+  private currentState: GameStateType = 'ADDRESS';
+  private previousState: GameStateType = 'ADDRESS';
+  private onStateChangeCallbacks: ((newState: GameStateType, prevState: GameStateType) => void)[] = [];
+
+  public getState(): GameStateType {
+    return this.currentState;
+  }
+
+  public setState(newState: GameStateType): void {
+    if (this.currentState === newState) return;
+    this.previousState = this.currentState;
+    this.currentState = newState;
+
+    this.onStateChangeCallbacks.forEach((cb) => cb(newState, this.previousState));
+  }
+
+  public restorePreviousState(): void {
+    this.setState(this.previousState);
+  }
+
+  public subscribe(callback: (newState: GameStateType, prevState: GameStateType) => void): () => void {
+    this.onStateChangeCallbacks.push(callback);
+    return () => {
+      this.onStateChangeCallbacks = this.onStateChangeCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+}

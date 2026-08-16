@@ -7,6 +7,9 @@ dist/
 build/
 artifacts/
 
+# Test scripts
+capture_screenshots.js
+
 # Logs
 *.log
 npm-debug.log*

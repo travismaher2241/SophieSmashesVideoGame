@@ -1,5 +1,10 @@
 import {
+  BufferAttribute,
+  BufferGeometry,
+  Mesh,
+  MeshBasicMaterial,
   NearestFilter,
+  OrthographicCamera,
   PerspectiveCamera,
   Scene,
   WebGLRenderer,
@@ -7,8 +12,8 @@ import {
 } from 'three';
 
 export interface RetroRendererConfig {
-  targetWidth: number;  // e.g. 426
-  targetHeight: number; // e.g. 240
+  targetWidth: number;  // Default: 426
+  targetHeight: number; // Default: 240
   enabled: boolean;
 }
 
@@ -16,16 +21,53 @@ export class RetroRenderer {
   private config: RetroRendererConfig;
   private renderTarget: WebGLRenderTarget | null = null;
 
+  // Quad rendering resources for 2nd upscaling pass
+  private quadScene: Scene;
+  private quadCamera: OrthographicCamera;
+  private quadMesh: Mesh;
+  private quadMaterial: MeshBasicMaterial;
+
   constructor(config: Partial<RetroRendererConfig> = {}) {
     this.config = {
       targetWidth: config.targetWidth || 426,
       targetHeight: config.targetHeight || 240,
-      enabled: config.enabled ?? false
+      enabled: config.enabled ?? true // Default enabled for 16-bit retro look
     };
 
-    if (this.config.enabled) {
-      this.initRenderTarget();
-    }
+    // Build orthographic quad for screen pass
+    this.quadScene = new Scene();
+    this.quadCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    const quadGeo = new BufferGeometry();
+    const positions = new Float32Array([
+      -1, -1, 0,
+       1, -1, 0,
+      -1,  1, 0,
+      -1,  1, 0,
+       1, -1, 0,
+       1,  1, 0
+    ]);
+    const uvs = new Float32Array([
+      0, 0,
+      1, 0,
+      0, 1,
+      0, 1,
+      1, 0,
+      1, 1
+    ]);
+
+    quadGeo.setAttribute('position', new BufferAttribute(positions, 3));
+    quadGeo.setAttribute('uv', new BufferAttribute(uvs, 2));
+
+    this.quadMaterial = new MeshBasicMaterial({
+      depthTest: false,
+      depthWrite: false
+    });
+
+    this.quadMesh = new Mesh(quadGeo, this.quadMaterial);
+    this.quadScene.add(this.quadMesh);
+
+    this.initRenderTarget();
   }
 
   public isEnabled(): boolean {
@@ -34,12 +76,26 @@ export class RetroRenderer {
 
   public setEnabled(enabled: boolean): void {
     this.config.enabled = enabled;
-    if (enabled && !this.renderTarget) {
-      this.initRenderTarget();
-    }
+  }
+
+  public getResolution(): { width: number; height: number } {
+    return {
+      width: this.config.targetWidth,
+      height: this.config.targetHeight
+    };
+  }
+
+  public setResolution(width: number, height: number): void {
+    this.config.targetWidth = width;
+    this.config.targetHeight = height;
+    this.initRenderTarget();
   }
 
   private initRenderTarget(): void {
+    if (this.renderTarget) {
+      this.renderTarget.dispose();
+    }
+
     this.renderTarget = new WebGLRenderTarget(
       this.config.targetWidth,
       this.config.targetHeight,
@@ -48,18 +104,31 @@ export class RetroRenderer {
         magFilter: NearestFilter
       }
     );
+
+    this.quadMaterial.map = this.renderTarget.texture;
+    this.quadMaterial.needsUpdate = true;
   }
 
   /**
-   * Render entry point preparing for future offscreen pixel-art upscaling pass.
+   * Complete 2-pass low-res pixel upscaling render pipeline.
+   * Pass 1: Render 3D scene into 426x240 WebGLRenderTarget with NearestFilter.
+   * Pass 2: Draw render target texture onto full-screen orthographic quad canvas with nearest-neighbor scaling.
    */
   public render(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera): void {
     if (this.config.enabled && this.renderTarget) {
+      // Pass 1: Render 3D scene to low-res render target
       renderer.setRenderTarget(this.renderTarget);
+      renderer.clear();
       renderer.render(scene, camera);
+
+      // Pass 2: Upscale low-res texture to screen canvas
       renderer.setRenderTarget(null);
-      // Future pass: render low-res texture quad to screen canvas with nearest-neighbor scaling
+      renderer.clear();
+      this.quadMaterial.map = this.renderTarget.texture;
+      renderer.render(this.quadScene, this.quadCamera);
     } else {
+      // Direct high-res rendering
+      renderer.setRenderTarget(null);
       renderer.render(scene, camera);
     }
   }

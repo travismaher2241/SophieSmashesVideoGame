@@ -2,23 +2,23 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { TerrainData } from '../course/TerrainData';
 import { TerrainQuery } from '../course/TerrainQuery';
 
-export type CameraMode = 'FREE' | 'GOLF' | 'OVERHEAD';
+export type CameraMode = 'FREE' | 'GOLF' | 'OVERHEAD' | 'BALL_FOLLOW';
 
 export class CameraController {
   public readonly camera: PerspectiveCamera;
-  private mode: CameraMode = 'FREE';
+  private mode: CameraMode = 'GOLF';
 
-  // Orbit / Pan target
+  // Target look-at vector
   private target: Vector3 = new Vector3();
   
-  // Spherical coordinates relative to target
+  // Spherical controls for Orbit mode
   private distance: number = 400;
-  private azimuth: number = Math.PI / 4;   // Horizontal angle around target
-  private elevation: number = Math.PI / 4; // Vertical angle above target
+  private azimuth: number = Math.PI / 4;
+  private elevation: number = Math.PI / 4;
 
-  // Mouse interaction state
+  // Interaction
   private isMouseDown: boolean = false;
-  private mouseButton: number = 0; // 0=left (orbit), 2=right (pan)
+  private mouseButton: number = 0;
   private prevMouseX: number = 0;
   private prevMouseY: number = 0;
 
@@ -40,7 +40,7 @@ export class CameraController {
     );
 
     this.setupEvents();
-    this.setMode('FREE');
+    this.setMode('GOLF');
   }
 
   public getMode(): CameraMode {
@@ -66,53 +66,91 @@ export class CameraController {
       ) * 0.68;
       this.azimuth = -Math.PI / 4;
       this.elevation = Math.PI / 5;
-    } else if (mode === 'GOLF') {
-      // Generic source-grid inspection view. It does not imply a verified tee or hole direction.
-      const startX = this.terrainData.vertexExtentX * 0.08;
-      const centreZ = this.terrainData.vertexExtentZ / 2;
-      const lookDistance = Math.min(100, this.terrainData.vertexExtentX * 0.3);
-      const targetX = Math.min(this.terrainData.vertexExtentX, startX + lookDistance);
-      const targetY = this.getDisplayHeight(targetX, centreZ);
-
-      this.target.set(targetX, targetY, centreZ);
-      this.distance = lookDistance;
-      this.azimuth = -Math.PI / 2; // Facing +X
-      this.elevation = Math.asin(Math.min(1, 1.8 / lookDistance));
     } else if (mode === 'OVERHEAD') {
       const centreX = this.terrainData.vertexExtentX / 2;
       const centreZ = this.terrainData.vertexExtentZ / 2;
       this.target.set(centreX, this.getDisplayHeight(centreX, centreZ), centreZ);
       this.distance = Math.max(this.terrainData.vertexExtentX, this.terrainData.vertexExtentZ) * 0.78;
       this.azimuth = 0;
-      this.elevation = Math.PI / 2 - 0.01; // Top-down
+      this.elevation = Math.PI / 2 - 0.01;
     }
 
     this.updateCameraTransform();
   }
 
+  /**
+   * Set behind-golfer camera position given ball position and aim angle (radians).
+   */
+  public updateGolfAddressView(ballPos: Vector3, aimAngleRad: number): void {
+    if (this.mode !== 'GOLF') return;
+
+    const camDist = 6.5;
+    const camHeight = 2.2;
+
+    const camX = ballPos.x - Math.cos(aimAngleRad) * camDist;
+    const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist;
+
+    const terrainY = this.getDisplayHeight(camX, camZ);
+    const camY = Math.max(terrainY + 1.2, ballPos.y + camHeight);
+
+    this.camera.position.set(camX, camY, camZ);
+
+    // Look at target point down aiming line
+    const lookX = ballPos.x + Math.cos(aimAngleRad) * 40;
+    const lookZ = ballPos.z + Math.sin(aimAngleRad) * 40;
+    const lookY = this.getDisplayHeight(lookX, lookZ) + 1.0;
+
+    this.target.set(lookX, lookY, lookZ);
+    this.camera.lookAt(this.target);
+  }
+
+  /**
+   * Smoothly follow ball during flight and rolling.
+   */
+  public updateBallFollowView(ballPos: Vector3, velocity: Vector3, aimAngleRad: number): void {
+    const camDist = 12.0;
+    const camHeight = 4.5;
+
+    // Follow direction based on aim angle or horizontal velocity
+    let dirX = Math.cos(aimAngleRad);
+    let dirZ = Math.sin(aimAngleRad);
+
+    const hSpeed = Math.hypot(velocity.x, velocity.z);
+    if (hSpeed > 2.0) {
+      dirX = velocity.x / hSpeed;
+      dirZ = velocity.z / hSpeed;
+    }
+
+    const targetCamX = ballPos.x - dirX * camDist;
+    const targetCamZ = ballPos.z - dirZ * camDist;
+
+    const terrainY = this.getDisplayHeight(targetCamX, targetCamZ);
+    const targetCamY = Math.max(terrainY + 1.5, ballPos.y + camHeight);
+
+    // Smooth lerp camera position
+    this.camera.position.x += (targetCamX - this.camera.position.x) * 0.15;
+    this.camera.position.y += (targetCamY - this.camera.position.y) * 0.15;
+    this.camera.position.z += (targetCamZ - this.camera.position.z) * 0.15;
+
+    this.target.copy(ballPos);
+    this.camera.lookAt(this.target);
+  }
+
   public update(): void {
-    // Keep golf camera ground clearance
-    if (this.mode === 'GOLF') {
-      const terrainY = this.getDisplayHeight(this.camera.position.x, this.camera.position.z);
-      const minCamY = terrainY + 1.8; // 1.8m eye level above ground
-      if (this.camera.position.y < minCamY) {
-        this.camera.position.y = minCamY;
-      }
+    if (this.mode === 'FREE' || this.mode === 'OVERHEAD') {
+      this.updateCameraTransform();
     }
   }
 
   public updateCameraTransform(): void {
-    // Restrain vertical angle
-    const minElevation = this.mode === 'GOLF' ? 0.005 : 0.05;
+    const minElevation = 0.05;
     const maxElevation = this.mode === 'OVERHEAD' ? Math.PI / 2 - 0.001 : Math.PI / 2 - 0.05;
     this.elevation = Math.max(minElevation, Math.min(maxElevation, this.elevation));
 
-    // Restrain distance
-    const minDist = this.mode === 'GOLF' ? 5 : 10;
+    const minDist = 10;
     const maxDist = 1500;
     this.distance = Math.max(minDist, Math.min(maxDist, this.distance));
 
-    // Spherical to Cartesian
     const x = this.target.x + this.distance * Math.cos(this.elevation) * Math.sin(this.azimuth);
     const y = this.target.y + this.distance * Math.sin(this.elevation);
     const z = this.target.z + this.distance * Math.cos(this.elevation) * Math.cos(this.azimuth);
@@ -132,6 +170,7 @@ export class CameraController {
     });
 
     this.domElement.addEventListener('pointerdown', (e) => {
+      if (this.mode !== 'FREE' && this.mode !== 'OVERHEAD') return;
       this.isMouseDown = true;
       this.mouseButton = e.button;
       this.prevMouseX = e.clientX;
@@ -139,7 +178,7 @@ export class CameraController {
     });
 
     window.addEventListener('pointermove', (e) => {
-      if (!this.isMouseDown) return;
+      if (!this.isMouseDown || (this.mode !== 'FREE' && this.mode !== 'OVERHEAD')) return;
 
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
@@ -147,12 +186,10 @@ export class CameraController {
       this.prevMouseY = e.clientY;
 
       if (this.mouseButton === 0) {
-        // Orbit rotate
         const rotateSpeed = 0.005;
         this.azimuth -= deltaX * rotateSpeed;
         this.elevation += deltaY * rotateSpeed;
       } else if (this.mouseButton === 2 || e.shiftKey) {
-        // Pan target
         const panSpeed = this.distance * 0.0015;
         const forward = new Vector3();
         this.camera.getWorldDirection(forward);
@@ -173,9 +210,8 @@ export class CameraController {
       this.isMouseDown = false;
     });
 
-    this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
-
     this.domElement.addEventListener('wheel', (e) => {
+      if (this.mode !== 'FREE' && this.mode !== 'OVERHEAD') return;
       const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
       this.distance *= zoomFactor;
       this.updateCameraTransform();
