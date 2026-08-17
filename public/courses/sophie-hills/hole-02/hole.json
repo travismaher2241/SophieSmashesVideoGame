@@ -1,0 +1,122 @@
+{
+  "courseId": "sophie-hills",
+  "holeId": "hole-02",
+  "holeNumber": 2,
+  "par": 3,
+  "publishedLengthMetres": 177,
+  "status": "fictional-gameplay-course",
+  "tee": { "x": 520, "y": 0, "z": 90 },
+  "greenCentre": { "x": 385, "y": 0, "z": 205 },
+  "surfaces": [
+    {
+      "id": "creekside-rough",
+      "type": "ROUGH",
+      "name": "Creekside Rough",
+      "points": [
+        { "x": 325, "z": 42 },
+        { "x": 575, "z": 42 },
+        { "x": 575, "z": 272 },
+        { "x": 325, "z": 272 }
+      ]
+    },
+    {
+      "id": "creekside-fairway",
+      "type": "FAIRWAY",
+      "name": "Creekside Approach",
+      "points": [
+        { "x": 510, "z": 77 },
+        { "x": 533, "z": 99 },
+        { "x": 475, "z": 151 },
+        { "x": 416, "z": 205 },
+        { "x": 396, "z": 183 },
+        { "x": 454, "z": 131 }
+      ]
+    },
+    {
+      "id": "creekside-tee",
+      "type": "TEE",
+      "name": "Creekside Tee",
+      "points": [
+        { "x": 511, "z": 81 },
+        { "x": 527, "z": 81 },
+        { "x": 527, "z": 98 },
+        { "x": 511, "z": 98 }
+      ]
+    },
+    {
+      "id": "creekside-green",
+      "type": "GREEN",
+      "name": "Creekside Green",
+      "points": [
+        { "x": 404, "z": 205 },
+        { "x": 402.6, "z": 213.4 },
+        { "x": 398.4, "z": 220.6 },
+        { "x": 392.3, "z": 225.3 },
+        { "x": 385, "z": 227 },
+        { "x": 377.7, "z": 225.3 },
+        { "x": 371.6, "z": 220.6 },
+        { "x": 367.4, "z": 213.4 },
+        { "x": 366, "z": 205 },
+        { "x": 367.4, "z": 196.6 },
+        { "x": 371.6, "z": 189.4 },
+        { "x": 377.7, "z": 184.7 },
+        { "x": 385, "z": 183 },
+        { "x": 392.3, "z": 184.7 },
+        { "x": 398.4, "z": 189.4 },
+        { "x": 402.6, "z": 196.6 }
+      ]
+    },
+    {
+      "id": "creekside-water",
+      "type": "WATER",
+      "name": "Sophie Creek Crossing",
+      "points": [
+        { "x": 438, "z": 137 },
+        { "x": 449, "z": 128 },
+        { "x": 485, "z": 168 },
+        { "x": 474, "z": 180 }
+      ]
+    },
+    {
+      "id": "creekside-bunker-left",
+      "type": "BUNKER",
+      "name": "Creekside Left Bunker",
+      "points": [
+        { "x": 358, "z": 210 },
+        { "x": 368, "z": 216 },
+        { "x": 371, "z": 229 },
+        { "x": 360, "z": 234 },
+        { "x": 352, "z": 224 }
+      ]
+    },
+    {
+      "id": "creekside-bunker-right",
+      "type": "BUNKER",
+      "name": "Creekside Right Bunker",
+      "points": [
+        { "x": 401, "z": 177 },
+        { "x": 414, "z": 181 },
+        { "x": 418, "z": 192 },
+        { "x": 407, "z": 197 },
+        { "x": 398, "z": 190 }
+      ]
+    },
+    {
+      "id": "creekside-path",
+      "type": "PATH",
+      "name": "Creekside Cart Path",
+      "points": [
+        { "x": 546, "z": 71 },
+        { "x": 555, "z": 76 },
+        { "x": 429, "z": 228 },
+        { "x": 420, "z": 222 }
+      ]
+    }
+  ],
+  "features": [],
+  "notes": [
+    "Creekside Carry is the fictional second hole in the Sophie Hills gameplay preview.",
+    "Its layout must never be presented as Warragul Country Club.",
+    "The prototype currently reuses the installed elevation terrain while the fictional course terrain pipeline is prepared."
+  ]
+}

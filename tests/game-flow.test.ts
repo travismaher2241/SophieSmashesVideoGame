@@ -32,6 +32,8 @@ describe('playable game flow', () => {
 describe('Sophie Hills fictional hole data', () => {
   const holePath = new URL('../public/courses/sophie-hills/hole-01/hole.json', import.meta.url);
   const hole = JSON.parse(readFileSync(holePath, 'utf8')) as HoleConfig;
+  const secondHolePath = new URL('../public/courses/sophie-hills/hole-02/hole.json', import.meta.url);
+  const secondHole = JSON.parse(readFileSync(secondHolePath, 'utf8')) as HoleConfig;
 
   it('is clearly identified as fictional rather than Warragul', () => {
     expect(hole.courseId).toBe('sophie-hills');
@@ -45,13 +47,31 @@ describe('Sophie Hills fictional hole data', () => {
     expect(hole.greenCentre).not.toBeNull();
     expect(hole.surfaces.length).toBeGreaterThanOrEqual(7);
     expect(() => HoleData.validateSurfaces(hole.surfaces, hole, holePath.pathname)).not.toThrow();
+    expect(secondHole.tee).not.toBeNull();
+    expect(secondHole.greenCentre).not.toBeNull();
+    expect(secondHole.surfaces.length).toBeGreaterThanOrEqual(7);
+    expect(() => HoleData.validateSurfaces(
+      secondHole.surfaces,
+      secondHole,
+      secondHolePath.pathname
+    )).not.toThrow();
+  });
+
+  it('ships a two-hole par-7 fictional preview', () => {
+    expect([hole.holeNumber, secondHole.holeNumber]).toEqual([1, 2]);
+    expect(hole.par + secondHole.par).toBe(7);
+    expect(secondHole.status).toBe('fictional-gameplay-course');
+    expect(secondHole.notes?.join(' ')).toMatch(/never be presented as Warragul/i);
   });
 
   it('keeps every gameplay coordinate inside the installed terrain extent', () => {
     const points = [
       { x: hole.tee!.x, z: hole.tee!.z },
       { x: hole.greenCentre!.x, z: hole.greenCentre!.z },
-      ...hole.surfaces.flatMap((surface) => surface.points)
+      ...hole.surfaces.flatMap((surface) => surface.points),
+      { x: secondHole.tee!.x, z: secondHole.tee!.z },
+      { x: secondHole.greenCentre!.x, z: secondHole.greenCentre!.z },
+      ...secondHole.surfaces.flatMap((surface) => surface.points)
     ];
 
     for (const point of points) {

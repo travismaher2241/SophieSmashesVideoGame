@@ -2,9 +2,10 @@
 
 **SOPHIE GOLF** is a web-based retro 16-bit-inspired golf game built with **TypeScript**, **Vite**, and **Three.js**.
 
-The default game is now **Sophie Hills — Sunset Run**, a fictional fixed par-4
-hole with a title screen, authored playing surfaces, penalties, hole completion,
-a to-par scorecard, replay, and main-menu flow. Warragul Country Club remains
+The default game is now a two-hole **Sophie Hills** fictional preview: the par-4
+**Sunset Run** followed by the par-3 **Creekside Carry**. It includes a title
+screen, authored playing surfaces, penalties, hole progression, cumulative
+course scoring, replay, and main-menu flow. Warragul Country Club remains
 available as an explicitly labelled research mode until its real hole geometry
 has been verified; fictional Sophie Hills data must never be presented as
 Warragul course data.

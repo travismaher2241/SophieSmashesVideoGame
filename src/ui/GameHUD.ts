@@ -35,6 +35,8 @@ export class GameHUD {
   private celebrationResultElem!: HTMLElement;
   private celebrationScoreElem!: HTMLElement;
   private celebrationCourseElem!: HTMLElement;
+  private celebrationProgressElem!: HTMLElement;
+  private celebrationActionBtn!: HTMLButtonElement;
 
   private meterPowerBar!: HTMLElement;
   private meterAccMarker!: HTMLElement;
@@ -100,6 +102,10 @@ export class GameHUD {
     this.menuBtnElem.textContent = options.menuLabel;
     this.celebrationCourseElem.textContent =
       `${options.courseName} — ${options.holeName} · Hole ${options.holeNumber} · Par ${options.par} · ${options.distanceMetres}m`;
+  }
+
+  public configureCompletionAction(label: string): void {
+    this.celebrationActionBtn.textContent = label;
   }
 
   public updateHUD(
@@ -171,7 +177,12 @@ export class GameHUD {
     }
   }
 
-  public showCelebration(totalStrokes: number, penaltyStrokes: number = 0, par: number = 4): void {
+  public showCelebration(
+    totalStrokes: number,
+    penaltyStrokes: number = 0,
+    par: number = 4,
+    courseProgress?: { holesPlayed: number; holeCount: number; totalStrokes: number; totalPar: number }
+  ): void {
     const summary = summarizeRoundScore(totalStrokes, penaltyStrokes, par);
     const strokeText = document.getElementById('celeb-stroke-text');
     if (strokeText) {
@@ -187,6 +198,15 @@ export class GameHUD {
       <div><span>SCORE</span><strong>${summary.totalStrokes}</strong></div>
       <div><span>TO PAR</span><strong>${summary.relativeLabel}</strong></div>
     `;
+    if (courseProgress) {
+      const courseSummary = summarizeRoundScore(courseProgress.totalStrokes, 0, courseProgress.totalPar);
+      this.celebrationProgressElem.style.display = 'block';
+      this.celebrationProgressElem.textContent =
+        `COURSE ${courseSummary.relativeLabel} · ${courseProgress.totalStrokes} STROKES · ` +
+        `${courseProgress.holesPlayed}/${courseProgress.holeCount} HOLES`;
+    } else {
+      this.celebrationProgressElem.style.display = 'none';
+    }
     this.celebrationModal.style.display = 'flex';
   }
 
@@ -399,6 +419,7 @@ export class GameHUD {
           <div><span>PAR</span><strong>4</strong></div><div><span>SCORE</span><strong>4</strong></div><div><span>TO PAR</span><strong>E</strong></div>
         </div>
         <p id="celeb-course" style="font-size: 11px; color: #aaffaa; margin-bottom: 22px;">Sophie Hills — Sunset Run</p>
+        <p id="celeb-progress" style="display: none; font-size: 11px; font-weight: bold; color: #ffe66d; margin: -10px 0 20px; letter-spacing: 1px;"></p>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <button id="btn-celeb-play-again" style="background: #22aa22; border: 2px solid #77ff77; color: #ffffff; padding: 12px; font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 6px;">↻ PLAY AGAIN</button>
@@ -415,6 +436,8 @@ export class GameHUD {
     this.celebrationResultElem = this.celebrationModal.querySelector('#celeb-result')!;
     this.celebrationScoreElem = this.celebrationModal.querySelector('#celeb-score')!;
     this.celebrationCourseElem = this.celebrationModal.querySelector('#celeb-course')!;
+    this.celebrationProgressElem = this.celebrationModal.querySelector('#celeb-progress')!;
+    this.celebrationActionBtn = this.celebrationModal.querySelector('#btn-celeb-play-again')!;
 
     this.celebrationModal.querySelector('#btn-celeb-play-again')?.addEventListener('click', () => {
       this.hideCelebration();

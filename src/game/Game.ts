@@ -30,11 +30,17 @@ import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
 
+export interface GameHoleSource {
+  holePath: string;
+  holeName: string;
+}
+
 export interface GameSource {
   terrainPath: string;
-  holePath: string;
   courseName: string;
-  holeName: string;
+  courseSubtitle: string;
+  totalPar: number;
+  holes: GameHoleSource[];
 }
 
 export class Game {
@@ -91,6 +97,8 @@ export class Game {
   private configuredLayout: PlaytestLayoutConfig | null = null;
   private isPracticeMode: boolean = false;
   private isRoundActive: boolean = false;
+  private holeIndex: number = 0;
+  private completedHoleScores: Array<{ strokes: number; penaltyStrokes: number; par: number }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -107,12 +115,22 @@ export class Game {
   public async start(source: string | GameSource): Promise<void> {
     try {
       this.source = typeof source === 'string'
-        ? { terrainPath: source, holePath: source, courseName: 'Warragul Country Club', holeName: 'Playtest Layout' }
+        ? {
+            terrainPath: source,
+            courseName: 'Warragul Country Club',
+            courseSubtitle: 'Playtest Layout',
+            totalPar: 4,
+            holes: [{ holePath: source, holeName: 'Playtest Layout' }]
+          }
         : source;
+
+      if (this.source.holes.length === 0) {
+        throw new Error('Sophie Golf needs at least one hole in the course playlist.');
+      }
 
       // 1. Load course DEM data
       this.terrainData = await this.terrainLoader.load(this.source.terrainPath);
-      this.holeConfig = await HoleData.load(this.source.holePath);
+      this.holeConfig = await HoleData.load(this.source.holes[0].holePath);
 
       // 2. Initialize Terrain & Surface Query Systems
       this.terrainQuery = new TerrainQuery(this.terrainData);
@@ -158,6 +176,7 @@ export class Game {
       // Check URL parameters for dev alignment mode (?debug=alignment)
       const urlParams = new URLSearchParams(window.location.search);
       const isDevUrl = urlParams.get('debug') === 'alignment';
+      const isScorecardDebug = urlParams.get('debug') === 'scorecard';
 
       // 8. Prepare either the fixed fictional hole or the legacy research layout.
       this.playtestLayout = this.configuredLayout ?? PlaytestLayoutManager.load();
@@ -166,8 +185,12 @@ export class Game {
         this.stateManager.setState('DEV_ALIGNMENT');
       } else if (this.configuredLayout) {
         this.initPlaytestLayout(this.configuredLayout);
-        this.isRoundActive = false;
-        this.stateManager.setState('TITLE');
+        if (isScorecardDebug) {
+          this.finishHoleForScorecard(this.holeConfig?.par ?? 4, 0);
+        } else {
+          this.isRoundActive = false;
+          this.stateManager.setState('TITLE');
+        }
       } else if (!this.playtestLayout) {
         this.stateManager.setState('LAYOUT_SELECTION');
       } else {
@@ -283,17 +306,13 @@ export class Game {
       onCameraToggle: () => this.toggleCameraMode(),
       onResetLayout: () => this.handleMenuAction(),
       onDevModeToggle: () => this.toggleDevAlignmentMode(),
-      onPlayAgain: () => {
-        if (this.playtestLayout) {
-          this.initPlaytestLayout(this.playtestLayout);
-        }
-      },
+      onPlayAgain: () => void this.handleScorecardAction(),
       onReturnToTitle: () => this.returnToTitle()
     });
 
     this.gameHUD.configureHole({
       courseName: this.source?.courseName ?? 'Sophie Golf',
-      holeName: this.source?.holeName ?? 'Playtest Hole',
+      holeName: this.getCurrentHoleName(),
       holeNumber: this.holeConfig?.holeNumber ?? 1,
       par: this.holeConfig?.par ?? 4,
       distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
@@ -302,11 +321,10 @@ export class Game {
 
     this.titleScreen = new TitleScreen({
       courseName: this.source?.courseName ?? 'Sophie Hills',
-      holeName: this.source?.holeName ?? 'Sunset Run',
-      holeNumber: this.holeConfig?.holeNumber ?? 1,
-      par: this.holeConfig?.par ?? 4,
-      distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
-      onStart: () => this.startConfiguredRound(),
+      courseSubtitle: this.source?.courseSubtitle ?? 'Course Preview',
+      holeCount: this.source?.holes.length ?? 1,
+      totalPar: this.source?.totalPar ?? (this.holeConfig?.par ?? 4),
+      onStart: () => void this.startConfiguredRound(),
       onOpenPractice: () => this.openPracticeMode()
     });
 
@@ -392,7 +410,7 @@ export class Game {
 
       if (state === 'TITLE') {
         if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
-          this.startConfiguredRound();
+          void this.startConfiguredRound();
           e.preventDefault();
         }
         return;
@@ -453,11 +471,48 @@ export class Game {
     this.cameraController.setMode(current === 'GOLF' ? 'OVERHEAD' : 'GOLF');
   }
 
-  private startConfiguredRound(): void {
-    if (!this.configuredLayout) return;
+  private async startConfiguredRound(): Promise<void> {
     this.isPracticeMode = false;
+    this.completedHoleScores = [];
+
+    if (this.holeIndex !== 0) {
+      await this.loadCourseHole(0);
+    }
+
+    if (!this.configuredLayout) return;
     this.configureGameHUD();
     this.initPlaytestLayout(this.configuredLayout);
+  }
+
+  private async loadCourseHole(index: number): Promise<void> {
+    const holeSource = this.source?.holes[index];
+    if (!holeSource) {
+      throw new Error(`Cannot load Sophie Hills hole index ${index}: it is not in the course playlist.`);
+    }
+
+    this.holeConfig = await HoleData.load(holeSource.holePath);
+    this.holeIndex = index;
+    this.configuredLayout = this.getConfiguredLayout();
+    this.playtestLayout = this.configuredLayout;
+    this.configureGameHUD();
+  }
+
+  private async handleScorecardAction(): Promise<void> {
+    this.gameHUD?.hideCelebration();
+
+    if (this.isPracticeMode) {
+      if (this.playtestLayout) this.initPlaytestLayout(this.playtestLayout);
+      return;
+    }
+
+    const nextHoleIndex = this.holeIndex + 1;
+    if (nextHoleIndex < (this.source?.holes.length ?? 0)) {
+      await this.loadCourseHole(nextHoleIndex);
+      if (this.configuredLayout) this.initPlaytestLayout(this.configuredLayout);
+      return;
+    }
+
+    await this.startConfiguredRound();
   }
 
   private openPracticeMode(): void {
@@ -498,12 +553,16 @@ export class Game {
 
     this.gameHUD?.configureHole({
       courseName: this.source?.courseName ?? 'Sophie Hills',
-      holeName: this.source?.holeName ?? 'Sunset Run',
+      holeName: this.getCurrentHoleName(),
       holeNumber: this.holeConfig?.holeNumber ?? 1,
       par: this.holeConfig?.par ?? 4,
       distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
       menuLabel: '⌂ MAIN MENU'
     });
+  }
+
+  private getCurrentHoleName(): string {
+    return this.source?.holes[this.holeIndex]?.holeName ?? 'Playtest Hole';
   }
 
   private resetLayout(): void {
@@ -605,13 +664,8 @@ export class Game {
       if (ballState === 'ROLLING') {
         this.stateManager.setState('BALL_ROLLING');
       } else if (ballState === 'HOLED') {
-        this.stateManager.setState('HOLED');
-        this.isRoundActive = false;
-        this.gameHUD?.showCelebration(
-          this.strokeCount + this.penaltyStrokes,
-          this.penaltyStrokes,
-          this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4)
-        );
+        const holeTotal = this.strokeCount + this.penaltyStrokes;
+        this.finishHoleForScorecard(holeTotal, this.penaltyStrokes);
       } else if (ballState === 'REST') {
         this.onBallStoppedAtRest();
       }
@@ -701,6 +755,33 @@ export class Game {
     this.clubManager.autoSelectClubForDistance(remainingDist);
 
     this.stateManager.setState('ADDRESS');
+  }
+
+  private finishHoleForScorecard(holeTotal: number, penaltyStrokes: number): void {
+    this.stateManager.setState('HOLED');
+    this.isRoundActive = false;
+    const holePar = this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4);
+
+    if (this.isPracticeMode) {
+      this.gameHUD?.configureCompletionAction('↻ PLAY AGAIN');
+    } else {
+      this.completedHoleScores[this.holeIndex] = {
+        strokes: holeTotal,
+        penaltyStrokes,
+        par: holePar
+      };
+      const isFinalHole = this.holeIndex === (this.source?.holes.length ?? 1) - 1;
+      this.gameHUD?.configureCompletionAction(isFinalHole ? '↻ PLAY COURSE AGAIN' : 'NEXT HOLE →');
+    }
+
+    const completedScores = this.completedHoleScores.filter(Boolean);
+    const courseProgress = this.isPracticeMode ? undefined : {
+      holesPlayed: completedScores.length,
+      holeCount: this.source?.holes.length ?? 1,
+      totalStrokes: completedScores.reduce((sum, score) => sum + score.strokes, 0),
+      totalPar: completedScores.reduce((sum, score) => sum + score.par, 0)
+    };
+    this.gameHUD?.showCelebration(holeTotal, penaltyStrokes, holePar, courseProgress);
   }
 
   /**

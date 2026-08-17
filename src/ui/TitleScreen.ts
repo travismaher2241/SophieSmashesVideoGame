@@ -1,9 +1,8 @@
 export interface TitleScreenOptions {
   courseName: string;
-  holeName: string;
-  holeNumber: number;
-  par: number;
-  distanceMetres: number;
+  courseSubtitle: string;
+  holeCount: number;
+  totalPar: number;
   onStart: () => void;
   onOpenPractice: () => void;
 }
@@ -21,11 +20,11 @@ export class TitleScreen {
         <h1>SOPHIE<br/><span>GOLF</span></h1>
         <div class="title-divider"></div>
         <div class="title-course">${options.courseName}</div>
-        <div class="title-hole">${options.holeName}</div>
+        <div class="title-hole">${options.courseSubtitle}</div>
         <div class="title-stats">
-          <span>HOLE ${options.holeNumber}</span>
-          <span>PAR ${options.par}</span>
-          <span>${options.distanceMetres} M</span>
+          <span>${options.holeCount} HOLES</span>
+          <span>PAR ${options.totalPar}</span>
+          <span>PREVIEW</span>
         </div>
         <button id="btn-title-start" class="title-primary">START ROUND</button>
         <button id="btn-title-practice" class="title-secondary">WARRAGUL RESEARCH MODE</button>
