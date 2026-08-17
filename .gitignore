@@ -11,6 +11,7 @@ artifacts/
 capture_screenshots.js
 capture_phase0_screenshots.js
 test_playable_hole_flow.js
+capture_alignment_review.js
 
 # Logs
 *.log

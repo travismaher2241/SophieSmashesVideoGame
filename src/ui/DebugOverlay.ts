@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { CameraMode } from '../camera/CameraController';
+import { CandidateHole6Alignment } from '../course/CandidateHoleAlignment';
 import { GeoTransform } from '../course/GeoTransform';
 import { HoleConfig } from '../course/HoleData';
 import { TerrainData } from '../course/TerrainData';
@@ -15,11 +16,13 @@ export class DebugOverlay {
   private holeConfig: HoleConfig;
   private terrainQuery: TerrainQuery;
   private geoTransform: GeoTransform;
+  private candidateAlignment?: CandidateHole6Alignment;
 
   // Callbacks for UI actions
   private onCameraModeChange?: (mode: CameraMode) => void;
   private onVerticalScaleChange?: (scale: number) => void;
   private onToggleGridLines?: (visible: boolean) => void;
+  private onToggleCandidateReview?: (visible: boolean) => void;
 
   // Dynamic text elements
   private camPosElem!: HTMLElement;
@@ -27,8 +30,10 @@ export class DebugOverlay {
   private currentModeElem!: HTMLElement;
   private currentScaleElem!: HTMLElement;
   private gridBtnElem!: HTMLElement;
+  private candidateBtnElem!: HTMLElement;
 
-  private gridLinesVisible: boolean = true;
+  private gridLinesVisible: boolean = false;
+  private candidateReviewVisible: boolean = true;
 
   constructor(
     terrainData: TerrainData,
@@ -39,16 +44,20 @@ export class DebugOverlay {
       onCameraModeChange?: (mode: CameraMode) => void;
       onVerticalScaleChange?: (scale: number) => void;
       onToggleGridLines?: (visible: boolean) => void;
-    }
+      onToggleCandidateReview?: (visible: boolean) => void;
+    },
+    candidateAlignment?: CandidateHole6Alignment
   ) {
     this.terrainData = terrainData;
     this.holeConfig = holeConfig;
     this.terrainQuery = terrainQuery;
     this.geoTransform = geoTransform;
+    this.candidateAlignment = candidateAlignment;
 
     this.onCameraModeChange = callbacks.onCameraModeChange;
     this.onVerticalScaleChange = callbacks.onVerticalScaleChange;
     this.onToggleGridLines = callbacks.onToggleGridLines;
+    this.onToggleCandidateReview = callbacks.onToggleCandidateReview;
 
     this.container = document.createElement('div');
     this.scaleBarContainer = document.createElement('div');
@@ -64,7 +73,6 @@ export class DebugOverlay {
     document.body.appendChild(this.compassContainer);
   }
 
-  /** Show or hide the developer panel, scale bar and compass together. */
   public setVisible(visible: boolean): void {
     const display = visible ? 'block' : 'none';
     this.container.style.display = display;
@@ -104,9 +112,7 @@ export class DebugOverlay {
       <div><b>Absolute Elevation:</b> <b>${absoluteElevation.toFixed(2)} m</b> (above sea level)</div>
       <div style="margin-top: 4px; border-top: 1px dotted #337733; padding-top: 3px; color: #77ffff;">
         <div><b>EPSG:7855 Easting:</b> ${geo.eastingMGA55.toFixed(1)} m E</div>
-        <div><b>Northing (Option A - Row 0 North):</b> ${geo.northingOptionA.toFixed(1)} m N</div>
-        <div><b>Northing (Option B - Row 0 South):</b> ${geo.northingOptionB.toFixed(1)} m N</div>
-        <div style="font-size: 10px; color: #ff9977;">⚠️ Row-to-Northing orientation UNVERIFIED</div>
+        <div><b>EPSG:7855 Northing:</b> ${geo.northingOptionA.toFixed(1)} m N</div>
       </div>
       <div><b>Surface Normal:</b> (${normal.x.toFixed(2)}, ${normal.y.toFixed(2)}, ${normal.z.toFixed(2)})</div>
     `;
@@ -123,15 +129,17 @@ export class DebugOverlay {
     this.container.style.top = '12px';
     this.container.style.left = '12px';
     this.container.style.padding = '14px 18px';
-    this.container.style.backgroundColor = 'rgba(10, 24, 12, 0.9)';
+    this.container.style.backgroundColor = 'rgba(10, 24, 12, 0.94)';
     this.container.style.border = '2px solid #44aa44';
     this.container.style.borderRadius = '6px';
     this.container.style.color = '#d5ffd5';
     this.container.style.fontFamily = "'Courier New', Courier, monospace";
-    this.container.style.fontSize = '12px';
+    this.container.style.fontSize = '11px';
     this.container.style.lineHeight = '1.45';
-    this.container.style.maxWidth = '420px';
-    this.container.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.6)';
+    this.container.style.maxWidth = '460px';
+    this.container.style.maxHeight = '90vh';
+    this.container.style.overflowY = 'auto';
+    this.container.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.7)';
     this.container.style.zIndex = '50';
 
     this.scaleBarContainer.style.position = 'absolute';
@@ -150,70 +158,69 @@ export class DebugOverlay {
 
   private buildHTML(): void {
     const meta = this.terrainData.meta;
-    const teeText = this.holeConfig.tee
-      ? `X: ${this.holeConfig.tee.x}m, Z: ${this.holeConfig.tee.z}m`
-      : 'TEE — NOT VERIFIED';
-    const greenText = this.holeConfig.greenCentre
-      ? `X: ${this.holeConfig.greenCentre.x}m, Z: ${this.holeConfig.greenCentre.z}m`
-      : 'GREEN — NOT VERIFIED';
+    const cand = this.candidateAlignment;
+
+    const candHTML = cand ? `
+      <div style="margin-bottom: 8px; background: rgba(30, 45, 15, 0.7); border: 1px solid #ccaa44; border-radius: 4px; padding: 8px; color: #ffffcc;">
+        <div style="font-weight: bold; color: #ffdd55; font-size: 12px; margin-bottom: 4px;">
+          📍 HOLE 6 CANDIDATE ALIGNMENT (ESTIMATED):
+        </div>
+        <div><b>Tee (Estimated):</b> E ${cand.tee.sourcePosition.easting.toFixed(1)} | N ${cand.tee.sourcePosition.northing.toFixed(1)} (Local: ${cand.tee.localPosition.x}m, ${cand.tee.localPosition.z}m) @ ${cand.calculatedMetrics.teeElevationMetres.toFixed(2)}m</div>
+        <div><b>Green (Estimated):</b> E ${cand.greenCentre.sourcePosition.easting.toFixed(1)} | N ${cand.greenCentre.sourcePosition.northing.toFixed(1)} (Local: ${cand.greenCentre.localPosition.x}m, ${cand.greenCentre.localPosition.z}m) @ ${cand.calculatedMetrics.greenElevationMetres.toFixed(2)}m</div>
+        <div style="margin-top: 4px; border-top: 1px dashed #887722; padding-top: 3px;">
+          <div><b>Calculated Plan Distance:</b> <span style="color: #55ffff; font-weight: bold;">${cand.calculatedMetrics.planDistanceMetres.toFixed(1)} m</span> (Official: ${cand.calculatedMetrics.officialDistanceMetres}m, Delta: ${cand.calculatedMetrics.distanceDeltaMetres.toFixed(1)}m)</div>
+          <div><b>Elevation Difference:</b> <span style="color: #ffaa55; font-weight: bold;">+${cand.calculatedMetrics.elevationChangeMetres.toFixed(2)} m uphill</span></div>
+          <div><b>Identified Bunkers:</b> ${cand.evidenceSummary.bunkersIdentified} Greenside Traps (h06-bunker-01, h06-bunker-02)</div>
+          <div><b>Identified Path:</b> ${cand.evidenceSummary.pathIdentified}</div>
+          <div style="font-size: 10px; color: #ffbb77; margin-top: 3px;"><i>Verification: ESTIMATED-FROM-OFFICIAL-MAP</i></div>
+        </div>
+      </div>
+    ` : '';
 
     this.container.innerHTML = `
-      <div style="font-weight: bold; font-size: 15px; color: #55ff55; margin-bottom: 6px; border-bottom: 1px solid #337733; padding-bottom: 4px;">
-        ⛳ SOPHIE GOLF — TERRAIN ALIGNMENT TOOL
+      <div style="font-weight: bold; font-size: 14px; color: #55ff55; margin-bottom: 6px; border-bottom: 1px solid #337733; padding-bottom: 4px;">
+        ⛳ WARRAGUL HOLE 6 — ALIGNMENT & GIS REVIEW
       </div>
 
       <div style="margin-bottom: 8px;">
-        <div><b>Course:</b> ${meta.courseName}</div>
-        <div><b>Hole:</b> ${meta.holeNumber} (Par ${this.holeConfig.par}, ${this.holeConfig.publishedLengthMetres}m)</div>
-        <div><b>CRS:</b> ${meta.sourceCRS}</div>
-        <div><b>Source Bounds:</b> E ${meta.sourceBoundsMGA55 ? `${meta.sourceBoundsMGA55.minEasting}..${meta.sourceBoundsMGA55.maxEasting}` : 'N/A'} | N ${meta.sourceBoundsMGA55 ? `${meta.sourceBoundsMGA55.minNorthing}..${meta.sourceBoundsMGA55.maxNorthing}` : 'N/A'}</div>
+        <div><b>Course:</b> ${meta.courseName} (Hole ${meta.holeNumber}, Par ${this.holeConfig.par}, ${this.holeConfig.publishedLengthMetres}m)</div>
+        <div><b>Source CRS:</b> ${meta.sourceCRS} (GDA2020 / MGA Zone 55)</div>
+        <div><b>Raster Bounds:</b> E ${meta.sourceBoundsMGA55?.minEasting}..${meta.sourceBoundsMGA55?.maxEasting} | N ${meta.sourceBoundsMGA55?.minNorthing}..${meta.sourceBoundsMGA55?.maxNorthing}</div>
+        <div><b>Sample-Centre Span:</b> ${this.terrainData.vertexExtentX.toFixed(0)}m × ${this.terrainData.vertexExtentZ.toFixed(0)}m (${meta.widthSamples}×${meta.heightSamples} @ ${meta.gridSpacingMetres}m)</div>
       </div>
 
-      <div style="margin-bottom: 8px; background: rgba(0, 40, 0, 0.4); padding: 6px; border-left: 3px solid #55cc55;">
-        <div><b>Grid Samples:</b> ${meta.widthSamples} × ${meta.heightSamples} (${meta.gridSpacingMetres}m spacing)</div>
-        <div><b>Vertex Span:</b> ${this.terrainData.vertexExtentX.toFixed(0)}m × ${this.terrainData.vertexExtentZ.toFixed(0)}m</div>
-        <div><b>Cell Extent:</b> ${this.terrainData.cellExtentX.toFixed(0)}m × ${this.terrainData.cellExtentZ.toFixed(0)}m</div>
-        <div><b>Base Elevation:</b> ${meta.baseElevationMetres.toFixed(2)}m</div>
-        <div><b>Max Elevation:</b> ${meta.maxElevationMetres.toFixed(2)}m</div>
-      </div>
-
-      <div style="margin-bottom: 8px; color: #ffdd77;">
-        <div><b>Verified Tee:</b> ${teeText}</div>
-        <div><b>Verified Green:</b> ${greenText}</div>
-      </div>
+      ${candHTML}
 
       <div style="margin-bottom: 8px; border-top: 1px solid #225522; padding-top: 6px;">
-        <div><b>Camera Mode:</b> <span id="dbg-mode" style="color: #77ffff; font-weight: bold;">FREE</span></div>
+        <div><b>Camera View:</b> <span id="dbg-mode" style="color: #77ffff; font-weight: bold;">FREE</span></div>
         <div><b>Camera Pos:</b> <span id="dbg-cam-pos">Initializing...</span></div>
       </div>
 
-      <div style="margin-bottom: 10px; border-top: 1px solid #225522; padding-top: 6px;">
+      <div style="margin-bottom: 8px; border-top: 1px solid #225522; padding-top: 6px;">
         <div><b>Cursor GIS Readout:</b></div>
-        <div id="dbg-mouse-pos" style="color: #ffff88; min-height: 80px;">Move mouse over terrain...</div>
+        <div id="dbg-mouse-pos" style="color: #ffff88; min-height: 70px;">Move mouse over terrain...</div>
       </div>
 
       <div style="border-top: 1px dashed #448844; padding-top: 8px;">
-        <div style="margin-bottom: 6px; font-weight: bold; color: #aaffaa;">CAMERA VIEW:</div>
-        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <div style="margin-bottom: 6px; font-weight: bold; color: #aaffaa;">REVIEW CONTROLS:</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
           <button id="btn-cam-free" class="retro-btn">FREE</button>
           <button id="btn-cam-golf" class="retro-btn">GOLF</button>
           <button id="btn-cam-overhead" class="retro-btn">OVERHEAD</button>
         </div>
 
-        <div style="margin-bottom: 6px; font-weight: bold; color: #aaffaa;">
-          ALIGNMENT GRID & SCALE:
-        </div>
-        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-          <button id="btn-toggle-grid" class="retro-btn">Toggle 50m Grid (ON)</button>
+        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+          <button id="btn-toggle-cand" class="retro-btn" style="border-color: #ffaa33; color: #ffddaa;">Candidate Alignment (ON)</button>
+          <button id="btn-toggle-grid" class="retro-btn">50m Grid (OFF)</button>
         </div>
 
-        <div style="margin-bottom: 6px; font-weight: bold; color: #aaffaa;">
+        <div style="margin-bottom: 4px; font-weight: bold; color: #aaffaa;">
           VERTICAL SCALE: <span id="dbg-scale" style="color: #ff9955;">1.0× (Physically Accurate)</span>
         </div>
         <div style="display: flex; gap: 6px;">
           <button id="btn-scale-1" class="retro-btn">1.0× (Physically Accurate)</button>
-          <button id="btn-scale-15" class="retro-btn">1.5× Inspection</button>
-          <button id="btn-scale-2" class="retro-btn">2× Inspection</button>
+          <button id="btn-scale-15" class="retro-btn">1.5×</button>
+          <button id="btn-scale-2" class="retro-btn">2×</button>
         </div>
       </div>
     `;
@@ -223,6 +230,7 @@ export class DebugOverlay {
     this.currentModeElem = this.container.querySelector('#dbg-mode')!;
     this.currentScaleElem = this.container.querySelector('#dbg-scale')!;
     this.gridBtnElem = this.container.querySelector('#btn-toggle-grid')!;
+    this.candidateBtnElem = this.container.querySelector('#btn-toggle-cand')!;
 
     this.container.querySelector('#btn-cam-free')?.addEventListener('click', () => this.onCameraModeChange?.('FREE'));
     this.container.querySelector('#btn-cam-golf')?.addEventListener('click', () => this.onCameraModeChange?.('GOLF'));
@@ -234,8 +242,14 @@ export class DebugOverlay {
 
     this.gridBtnElem.addEventListener('click', () => {
       this.gridLinesVisible = !this.gridLinesVisible;
-      this.gridBtnElem.textContent = `Toggle 50m Grid (${this.gridLinesVisible ? 'ON' : 'OFF'})`;
+      this.gridBtnElem.textContent = `50m Grid (${this.gridLinesVisible ? 'ON' : 'OFF'})`;
       this.onToggleGridLines?.(this.gridLinesVisible);
+    });
+
+    this.candidateBtnElem?.addEventListener('click', () => {
+      this.candidateReviewVisible = !this.candidateReviewVisible;
+      this.candidateBtnElem.textContent = `Candidate Alignment (${this.candidateReviewVisible ? 'ON' : 'OFF'})`;
+      this.onToggleCandidateReview?.(this.candidateReviewVisible);
     });
   }
 
@@ -254,9 +268,9 @@ export class DebugOverlay {
 
   private buildCompassHTML(): void {
     this.compassContainer.innerHTML = `
-      <div style="background: rgba(10, 24, 12, 0.88); border: 2px solid #ffaa33; border-radius: 6px; padding: 6px 14px; color: #ffddaa; font-family: monospace; font-size: 11px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-        <div style="font-weight: bold; font-size: 13px; color: #ffaa33;">⬆ PROVISIONAL NORTH</div>
-        <div style="font-size: 10px; color: #ff8888;">ROW ORIENTATION UNVERIFIED</div>
+      <div style="background: rgba(10, 24, 12, 0.88); border: 2px solid #55cc55; border-radius: 6px; padding: 6px 14px; color: #ddffdd; font-family: monospace; font-size: 11px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="font-weight: bold; font-size: 13px; color: #55ff55;">⬆ NORTH (EPSG:7855)</div>
+        <div style="font-size: 10px; color: #aaffaa;">ROW 0 = NORTHING 5777580</div>
       </div>
     `;
   }

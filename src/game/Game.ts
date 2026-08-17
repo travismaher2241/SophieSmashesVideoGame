@@ -1,8 +1,10 @@
 import { Vector3 } from 'three';
 import { CameraController } from '../camera/CameraController';
 import { CandidateAnnotations } from '../course/CandidateAnnotations';
+import { CandidateHole6Alignment, getCandidateHole6Alignment } from '../course/CandidateHoleAlignment';
 import { GeoTransform } from '../course/GeoTransform';
 import { HoleConfig, HoleData } from '../course/HoleData';
+import { HoleTransform } from '../course/HoleTransform';
 import { SurfaceQuery, SurfacePolygon } from '../course/SurfaceQuery';
 import { TerrainData } from '../course/TerrainData';
 import { TerrainLoader } from '../course/TerrainLoader';
@@ -14,6 +16,7 @@ import { SophieGolfer } from '../golfer/SophieGolfer';
 import { BallPhysics } from '../physics/BallPhysics';
 import { AimingGuideRenderer } from '../rendering/AimingGuideRenderer';
 import { AlignmentGridOverlay } from '../rendering/AlignmentGridOverlay';
+import { AlignmentReviewRenderer } from '../rendering/AlignmentReviewRenderer';
 import { BallRenderer } from '../rendering/BallRenderer';
 import { FlagRenderer } from '../rendering/FlagRenderer';
 import { SceneManager } from '../rendering/SceneManager';
@@ -35,6 +38,7 @@ export class Game {
   private terrainMeshBuilder?: TerrainMeshBuilder;
   private terrainQuery?: TerrainQuery;
   private geoTransform?: GeoTransform;
+  private holeTransform?: HoleTransform;
   private surfaceQuery: SurfaceQuery;
 
   // Gameplay Core Systems
@@ -50,6 +54,8 @@ export class Game {
   private aimingGuideRenderer?: AimingGuideRenderer;
   private surfaceMeshOverlay?: SurfaceMeshOverlay;
   private alignmentGridOverlay?: AlignmentGridOverlay;
+  private alignmentReviewRenderer?: AlignmentReviewRenderer;
+  private candidateAlignment?: CandidateHole6Alignment;
   private candidateStore: CandidateAnnotations;
   private raycaster?: MouseRaycaster;
 
@@ -83,16 +89,20 @@ export class Game {
       this.terrainData = await this.terrainLoader.load(courseHolePath);
       this.holeConfig = await HoleData.load(courseHolePath);
 
-      // 2. Initialize Terrain Query & Physics
+      // 2. Initialize Terrain Query, HoleTransform, and Physics
       this.terrainQuery = new TerrainQuery(this.terrainData);
       this.geoTransform = new GeoTransform(this.terrainData);
+      this.holeTransform = new HoleTransform(this.terrainData.meta);
       this.ballPhysics = new BallPhysics(this.terrainQuery, this.surfaceQuery);
 
-      // 3. Load course surface polygons
+      // 3. Candidate Alignment Analysis for Developer Review
+      this.candidateAlignment = getCandidateHole6Alignment(this.holeTransform);
+
+      // 4. Load course surface polygons
       const courseSurfaces: SurfacePolygon[] = this.holeConfig.surfaces || [];
       this.surfaceQuery.setPolygons(courseSurfaces);
 
-      // 4. Setup Tee and Cup Positions from Course Data
+      // 5. Setup Tee and Cup Positions from Course Data
       if (this.holeConfig.tee) {
         this.teePosition.set(this.holeConfig.tee.x, 0, this.holeConfig.tee.z);
       }
@@ -103,11 +113,11 @@ export class Game {
       const cupY = this.terrainQuery.getTerrainHeight(this.cupPosition.x, this.cupPosition.z, true);
       this.cupPosition.y = cupY;
 
-      // 5. Initialize Camera Controller (Default: GOLF behind-player camera)
+      // 6. Initialize Camera Controller (Default: GOLF behind-player camera)
       this.cameraController = new CameraController(this.canvas, this.terrainData, this.terrainQuery);
       this.cameraController.setMode('GOLF');
 
-      // 6. Build 3D Terrain Mesh & Surface Overlays
+      // 7. Build 3D Terrain Mesh & Surface Overlays
       this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
       const mesh = this.terrainMeshBuilder.getMesh();
       this.sceneManager.scene.add(mesh);
@@ -116,7 +126,7 @@ export class Game {
       this.surfaceMeshOverlay.rebuild(courseSurfaces);
       this.sceneManager.scene.add(this.surfaceMeshOverlay.getGroup());
 
-      // 7. Build Golf Objects (Sophie 2D Pixel-Art Golfer, Ball, Pin/Flag, Aim Line)
+      // 8. Build Golf Objects (Sophie 2D Pixel-Art Golfer, Ball, Pin/Flag, Aim Line)
       this.sophieGolfer = new SophieGolfer();
       this.sceneManager.scene.add(this.sophieGolfer.getGroup());
 
@@ -130,25 +140,30 @@ export class Game {
       this.aimingGuideRenderer = new AimingGuideRenderer(this.terrainQuery);
       this.sceneManager.scene.add(this.aimingGuideRenderer.getGroup());
 
-      // 8. Build Alignment Grid & Dev Raycaster (Hidden behind F2)
+      // 9. Build Alignment Review Renderer (Candidate geometry overlay in F2 Dev Mode)
+      this.alignmentReviewRenderer = new AlignmentReviewRenderer(this.terrainQuery, this.candidateAlignment);
+      this.alignmentReviewRenderer.setVisible(false);
+      this.sceneManager.scene.add(this.alignmentReviewRenderer.getGroup());
+
+      // 10. Build Alignment Grid & Dev Raycaster (Hidden behind F2)
       this.alignmentGridOverlay = new AlignmentGridOverlay(this.terrainData, this.terrainQuery);
       this.alignmentGridOverlay.setGridVisible(false);
       this.sceneManager.scene.add(this.alignmentGridOverlay.getGroup());
 
       this.raycaster = new MouseRaycaster(this.canvas);
 
-      // 9. Setup UI HUDs
+      // 11. Setup UI HUDs
       this.setupHUDs();
       this.setupKeyboardEvents();
 
-      // 10. Start Round on the Tee
+      // 12. Start Round on the Tee
       this.initRoundOnTee();
 
       // Hide loading screen
       const loadingScreen = document.getElementById('loading-screen');
       if (loadingScreen) loadingScreen.style.display = 'none';
 
-      // 11. Start Render Loop
+      // 13. Start Render Loop
       this.isRunning = true;
       this.lastFrameTime = performance.now();
       this.animate();
@@ -210,8 +225,10 @@ export class Game {
           this.cameraController?.setRenderVerticalScale(scale);
           this.debugOverlay?.setVerticalScaleDisplay(scale);
         },
-        onToggleGridLines: (visible) => this.alignmentGridOverlay?.setGridVisible(visible)
-      }
+        onToggleGridLines: (visible) => this.alignmentGridOverlay?.setGridVisible(visible),
+        onToggleCandidateReview: (visible) => this.alignmentReviewRenderer?.setVisible(visible)
+      },
+      this.candidateAlignment
     );
 
     this.annotationTool = new AnnotationTool(
@@ -271,7 +288,6 @@ export class Game {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     const lie = this.ballPhysics?.getCurrentLie();
 
-    // If on green, restrict to Putter
     if (lie?.type === 'GREEN') return;
 
     this.clubManager.selectNextClub();
@@ -282,7 +298,6 @@ export class Game {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     const lie = this.ballPhysics?.getCurrentLie();
 
-    // If on green, restrict to Putter
     if (lie?.type === 'GREEN') return;
 
     this.clubManager.selectPrevClub();
@@ -292,7 +307,6 @@ export class Game {
   private enforceClubRestrictions(): void {
     const lie = this.ballPhysics?.getCurrentLie();
     if (lie?.type === 'BUNKER') {
-      // In bunker, force wedge
       const current = this.clubManager.getCurrentClub();
       if (current.id !== 'wedge') {
         while (this.clubManager.getCurrentClub().id !== 'wedge') {
@@ -300,7 +314,6 @@ export class Game {
         }
       }
     } else if (lie?.type === 'GREEN') {
-      // On green, force putter
       while (!this.clubManager.getCurrentClub().isPutter) {
         this.clubManager.selectNextClub();
       }
@@ -317,10 +330,12 @@ export class Game {
     this.isDevMode = !this.isDevMode;
     this.updateDevModeVisibility();
     if (this.isDevMode) {
-      this.cameraController?.setMode('FREE');
-      this.alignmentGridOverlay?.setGridVisible(true);
+      this.cameraController?.setMode('OVERHEAD');
+      this.alignmentReviewRenderer?.setVisible(true);
+      this.alignmentGridOverlay?.setGridVisible(false);
     } else {
       this.cameraController?.setMode('GOLF');
+      this.alignmentReviewRenderer?.setVisible(false);
       this.alignmentGridOverlay?.setGridVisible(false);
     }
   }
