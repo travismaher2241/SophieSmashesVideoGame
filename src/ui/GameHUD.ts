@@ -1,4 +1,5 @@
 import { LieInfo } from '../course/SurfaceQuery';
+import { summarizeRoundScore } from '../game/RoundScore';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
 
@@ -19,6 +20,7 @@ export class GameHUD {
   private onResetLayout?: () => void;
   private onDevModeToggle?: () => void;
   private onPlayAgain?: () => void;
+  private onReturnToTitle?: () => void;
 
   // Dynamic elements
   private strokeElem!: HTMLElement;
@@ -27,6 +29,12 @@ export class GameHUD {
   private clubNameElem!: HTMLElement;
   private clubDetailElem!: HTMLElement;
   private cameraBtnElem!: HTMLElement;
+  private headerTitleElem!: HTMLElement;
+  private headerSubtitleElem!: HTMLElement;
+  private menuBtnElem!: HTMLElement;
+  private celebrationResultElem!: HTMLElement;
+  private celebrationScoreElem!: HTMLElement;
+  private celebrationCourseElem!: HTMLElement;
 
   private meterPowerBar!: HTMLElement;
   private meterAccMarker!: HTMLElement;
@@ -42,6 +50,7 @@ export class GameHUD {
     onResetLayout?: () => void;
     onDevModeToggle?: () => void;
     onPlayAgain?: () => void;
+    onReturnToTitle?: () => void;
   }) {
     this.onAimLeft = callbacks.onAimLeft;
     this.onAimRight = callbacks.onAimRight;
@@ -52,6 +61,7 @@ export class GameHUD {
     this.onResetLayout = callbacks.onResetLayout;
     this.onDevModeToggle = callbacks.onDevModeToggle;
     this.onPlayAgain = callbacks.onPlayAgain;
+    this.onReturnToTitle = callbacks.onReturnToTitle;
 
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
@@ -75,6 +85,21 @@ export class GameHUD {
     if (!visible) {
       this.penaltyBanner.style.display = 'none';
     }
+  }
+
+  public configureHole(options: {
+    courseName: string;
+    holeName: string;
+    holeNumber: number;
+    par: number;
+    distanceMetres: number;
+    menuLabel: string;
+  }): void {
+    this.headerTitleElem.textContent = `⛳ SOPHIE GOLF — HOLE ${options.holeNumber}`;
+    this.headerSubtitleElem.textContent = `${options.courseName} — ${options.holeName} · PAR ${options.par}`;
+    this.menuBtnElem.textContent = options.menuLabel;
+    this.celebrationCourseElem.textContent =
+      `${options.courseName} — ${options.holeName} · Hole ${options.holeNumber} · Par ${options.par} · ${options.distanceMetres}m`;
   }
 
   public updateHUD(
@@ -138,15 +163,16 @@ export class GameHUD {
         if (res?.isPerfect) {
           this.meterStatusElem.innerHTML = `<span style="color: #55ffff; font-weight: bold;">🎯 PERFECT SWING!</span>`;
         } else if (res && res.hookSliceAngleDegrees < 0) {
-          this.meterStatusElem.innerHTML = `<span style="color: #ff7777;">◀ SLICE / RIGHT DEVIATION</span>`;
+          this.meterStatusElem.innerHTML = `<span style="color: #ff7777;">◀ HOOK / LEFT DEVIATION</span>`;
         } else if (res) {
-          this.meterStatusElem.innerHTML = `<span style="color: #ff7777;">▶ HOOK / LEFT DEVIATION</span>`;
+          this.meterStatusElem.innerHTML = `<span style="color: #ff7777;">▶ SLICE / RIGHT DEVIATION</span>`;
         }
       }
     }
   }
 
-  public showCelebration(totalStrokes: number, penaltyStrokes: number = 0): void {
+  public showCelebration(totalStrokes: number, penaltyStrokes: number = 0, par: number = 4): void {
+    const summary = summarizeRoundScore(totalStrokes, penaltyStrokes, par);
     const strokeText = document.getElementById('celeb-stroke-text');
     if (strokeText) {
       const penaltyNote = penaltyStrokes > 0
@@ -155,6 +181,12 @@ export class GameHUD {
       strokeText.textContent =
         `Sophie holed the ball in ${totalStrokes} stroke${totalStrokes > 1 ? 's' : ''}${penaltyNote}!`;
     }
+    this.celebrationResultElem.textContent = summary.resultName;
+    this.celebrationScoreElem.innerHTML = `
+      <div><span>PAR</span><strong>${summary.par}</strong></div>
+      <div><span>SCORE</span><strong>${summary.totalStrokes}</strong></div>
+      <div><span>TO PAR</span><strong>${summary.relativeLabel}</strong></div>
+    `;
     this.celebrationModal.style.display = 'flex';
   }
 
@@ -231,8 +263,8 @@ export class GameHUD {
       <div style="position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: auto;">
         
         <div style="background: rgba(10, 24, 12, 0.9); border: 2px solid #44aa44; border-radius: 6px; padding: 10px 16px; color: #d5ffd5; font-family: 'Courier New', monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.6);">
-          <div style="font-weight: bold; font-size: 14px; color: #55ff55;">⛳ SOPHIE GOLF — HOLE 6</div>
-          <div style="font-size: 11px; color: #aadbba;">Warragul Country Club (Playtest Layout)</div>
+          <div id="hud-title" style="font-weight: bold; font-size: 14px; color: #55ff55;">⛳ SOPHIE GOLF — HOLE 1</div>
+          <div id="hud-subtitle" style="font-size: 11px; color: #aadbba;">Sophie Hills — Sunset Run · PAR 4</div>
           <div style="display: flex; gap: 16px; margin-top: 4px; font-weight: bold;">
             <span id="hud-stroke" style="color: #ffff55; font-size: 15px;">STROKE 1</span>
             <span id="hud-dist" style="color: #77ffff; font-size: 15px;">248 m TO PIN</span>
@@ -244,7 +276,7 @@ export class GameHUD {
 
         <div style="display: flex; gap: 8px;">
           <button id="btn-hud-cam" class="retro-hud-btn">📷 VIEW: GOLF</button>
-          <button id="btn-hud-layout" class="retro-hud-btn" style="border-color: #ffaa33; color: #ffddaa;">⛳ CHANGE LAYOUT</button>
+          <button id="btn-hud-layout" class="retro-hud-btn" style="border-color: #ffaa33; color: #ffddaa;">⌂ MAIN MENU</button>
           <button id="btn-hud-dev" class="retro-hud-btn" style="border-color: #77aaff; color: #aaddff;">🛠️ DEV (F2)</button>
         </div>
       </div>
@@ -306,6 +338,9 @@ export class GameHUD {
     this.clubNameElem = this.container.querySelector('#hud-club-name')!;
     this.clubDetailElem = this.container.querySelector('#hud-club-detail')!;
     this.cameraBtnElem = this.container.querySelector('#btn-hud-cam')!;
+    this.headerTitleElem = this.container.querySelector('#hud-title')!;
+    this.headerSubtitleElem = this.container.querySelector('#hud-subtitle')!;
+    this.menuBtnElem = this.container.querySelector('#btn-hud-layout')!;
 
     this.container.querySelector('#btn-hud-cam')?.addEventListener('click', () => this.onCameraToggle?.());
     this.container.querySelector('#btn-hud-layout')?.addEventListener('click', () => this.onResetLayout?.());
@@ -357,19 +392,37 @@ export class GameHUD {
   private buildCelebrationModalHTML(): void {
     this.celebrationModal.innerHTML = `
       <div style="background: #0f2b11; border: 4px solid #55ff55; border-radius: 12px; padding: 32px; text-align: center; max-width: 480px; box-shadow: 0 0 30px rgba(85, 255, 85, 0.5); font-family: 'Courier New', monospace; color: #ffffff;">
-        <h1 style="color: #ffff55; font-size: 32px; margin-bottom: 12px; text-shadow: 3px 3px #003300;">🎉 HOLED! 🎉</h1>
+        <div style="color: #8ee89b; font-size: 11px; letter-spacing: 4px;">HOLE COMPLETE</div>
+        <h1 id="celeb-result" style="color: #ffff55; font-size: 34px; margin: 8px 0 10px; text-shadow: 3px 3px #003300;">PAR</h1>
         <h2 id="celeb-stroke-text" style="color: #77ffff; font-size: 18px; margin-bottom: 16px;">Sophie holed the ball in 3 strokes!</h2>
-        <p style="font-size: 13px; color: #aaffaa; margin-bottom: 24px;">Warragul Country Club — Hole 6 (Playtest Layout)</p>
+        <div id="celeb-score" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 auto 16px;">
+          <div><span>PAR</span><strong>4</strong></div><div><span>SCORE</span><strong>4</strong></div><div><span>TO PAR</span><strong>E</strong></div>
+        </div>
+        <p id="celeb-course" style="font-size: 11px; color: #aaffaa; margin-bottom: 22px;">Sophie Hills — Sunset Run</p>
         
-        <button id="btn-celeb-play-again" style="background: #22aa22; border: 2px solid #77ff77; color: #ffffff; padding: 12px 24px; font-family: inherit; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 6px;">
-          🔄 PLAY AGAIN
-        </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <button id="btn-celeb-play-again" style="background: #22aa22; border: 2px solid #77ff77; color: #ffffff; padding: 12px; font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 6px;">↻ PLAY AGAIN</button>
+          <button id="btn-celeb-title" style="background: #18331a; border: 2px solid #77aa77; color: #ddffdd; padding: 12px; font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 6px;">⌂ MAIN MENU</button>
+        </div>
+        <style>
+          #celeb-score > div { border: 1px solid #4c9b59; background: #091d0d; padding: 8px; }
+          #celeb-score span { display: block; color: #8fbe97; font-size: 9px; }
+          #celeb-score strong { display: block; color: #fff07a; font-size: 22px; margin-top: 2px; }
+        </style>
       </div>
     `;
+
+    this.celebrationResultElem = this.celebrationModal.querySelector('#celeb-result')!;
+    this.celebrationScoreElem = this.celebrationModal.querySelector('#celeb-score')!;
+    this.celebrationCourseElem = this.celebrationModal.querySelector('#celeb-course')!;
 
     this.celebrationModal.querySelector('#btn-celeb-play-again')?.addEventListener('click', () => {
       this.hideCelebration();
       this.onPlayAgain?.();
+    });
+    this.celebrationModal.querySelector('#btn-celeb-title')?.addEventListener('click', () => {
+      this.hideCelebration();
+      this.onReturnToTitle?.();
     });
   }
 }

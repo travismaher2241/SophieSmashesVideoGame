@@ -8,5 +8,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const game = new Game(canvas);
-  game.start('/courses/warragul/hole-06');
+  game.start({
+    terrainPath: '/courses/warragul/hole-06',
+    holePath: '/courses/sophie-hills/hole-01',
+    courseName: 'Sophie Hills',
+    holeName: 'Sunset Run'
+  });
 });

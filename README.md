@@ -2,6 +2,13 @@
 
 **SOPHIE GOLF** is a web-based retro 16-bit-inspired golf game built with **TypeScript**, **Vite**, and **Three.js**.
 
+The default game is now **Sophie Hills — Sunset Run**, a fictional fixed par-4
+hole with a title screen, authored playing surfaces, penalties, hole completion,
+a to-par scorecard, replay, and main-menu flow. Warragul Country Club remains
+available as an explicitly labelled research mode until its real hole geometry
+has been verified; fictional Sophie Hills data must never be presented as
+Warragul course data.
+
 The playable vertical slice features **Sophie** as a 2D billboard sprite on real 3D LiDAR elevation terrain (**Warragul Country Club — Hole 6**), a 2-pass pixel-art upscaling renderer ($426 \times 240$), classic three-click swing meter, real 3D ball physics (aerodynamic drag, gravity, terrain normal bouncing and rolling), club selection, and playtest layout customization.
 
 ---

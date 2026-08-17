@@ -10,13 +10,18 @@ export class PlaytestLayoutHUD {
   private tempHole: Vector2D | null = null;
 
   private onConfirmLayout?: (tee: Vector2D, hole: Vector2D) => void;
+  private onBackToTitle?: () => void;
 
   private stepInstructionElem!: HTMLElement;
   private distanceElem!: HTMLElement;
   private confirmBtn!: HTMLButtonElement;
 
-  constructor(onConfirmLayout: (tee: Vector2D, hole: Vector2D) => void) {
+  constructor(
+    onConfirmLayout: (tee: Vector2D, hole: Vector2D) => void,
+    onBackToTitle?: () => void
+  ) {
     this.onConfirmLayout = onConfirmLayout;
+    this.onBackToTitle = onBackToTitle;
 
     this.container = document.createElement('div');
     this.setupStyles();
@@ -128,6 +133,9 @@ export class PlaytestLayoutHUD {
         <button id="btn-layout-reset" style="background: #441111; border: 1px solid #ff5555; color: #ffcccc; padding: 10px 14px; font-family: inherit; font-size: 12px; cursor: pointer; border-radius: 5px;">
           Reset Selection
         </button>
+        <button id="btn-layout-back" style="background: #18271b; border: 1px solid #88aa88; color: #ddffdd; padding: 10px 14px; font-family: inherit; font-size: 12px; cursor: pointer; border-radius: 5px;">
+          Main Menu
+        </button>
       </div>
     `;
 
@@ -136,6 +144,7 @@ export class PlaytestLayoutHUD {
     this.confirmBtn = this.container.querySelector('#btn-layout-confirm')!;
 
     this.container.querySelector('#btn-layout-reset')?.addEventListener('click', () => this.resetSelection());
+    this.container.querySelector('#btn-layout-back')?.addEventListener('click', () => this.onBackToTitle?.());
     
     this.confirmBtn.addEventListener('click', () => {
       if (this.tempTee && this.tempHole) {

@@ -26,8 +26,16 @@ import { AnnotationTool } from '../ui/AnnotationTool';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { GameHUD } from '../ui/GameHUD';
 import { PlaytestLayoutHUD } from '../ui/PlaytestLayoutHUD';
+import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
+
+export interface GameSource {
+  terrainPath: string;
+  holePath: string;
+  courseName: string;
+  holeName: string;
+}
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -66,6 +74,7 @@ export class Game {
   private layoutHUD?: PlaytestLayoutHUD;
   private debugOverlay?: DebugOverlay;
   private annotationTool?: AnnotationTool;
+  private titleScreen?: TitleScreen;
 
   // Gameplay State Variables
   private strokeCount: number = 0;
@@ -78,6 +87,10 @@ export class Game {
   private cupPosition: Vector3 = new Vector3();
   private lastFrameTime: number = performance.now();
   private isRunning: boolean = false;
+  private source?: GameSource;
+  private configuredLayout: PlaytestLayoutConfig | null = null;
+  private isPracticeMode: boolean = false;
+  private isRoundActive: boolean = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -91,17 +104,22 @@ export class Game {
     this.candidateStore = new CandidateAnnotations();
   }
 
-  public async start(courseHolePath: string): Promise<void> {
+  public async start(source: string | GameSource): Promise<void> {
     try {
+      this.source = typeof source === 'string'
+        ? { terrainPath: source, holePath: source, courseName: 'Warragul Country Club', holeName: 'Playtest Layout' }
+        : source;
+
       // 1. Load course DEM data
-      this.terrainData = await this.terrainLoader.load(courseHolePath);
-      this.holeConfig = await HoleData.load(courseHolePath);
+      this.terrainData = await this.terrainLoader.load(this.source.terrainPath);
+      this.holeConfig = await HoleData.load(this.source.holePath);
 
       // 2. Initialize Terrain & Surface Query Systems
       this.terrainQuery = new TerrainQuery(this.terrainData);
       this.geoTransform = new GeoTransform(this.terrainData);
       this.ballPhysics = new BallPhysics(this.terrainQuery, this.surfaceQuery);
       this.penaltyRules = new PenaltyRules(this.terrainQuery, this.surfaceQuery);
+      this.configuredLayout = this.getConfiguredLayout();
 
       // 3. Initialize Camera Controller
       this.cameraController = new CameraController(this.canvas, this.terrainData, this.terrainQuery);
@@ -141,11 +159,15 @@ export class Game {
       const urlParams = new URLSearchParams(window.location.search);
       const isDevUrl = urlParams.get('debug') === 'alignment';
 
-      // 8. Check Playtest Layout
-      this.playtestLayout = PlaytestLayoutManager.load();
+      // 8. Prepare either the fixed fictional hole or the legacy research layout.
+      this.playtestLayout = this.configuredLayout ?? PlaytestLayoutManager.load();
 
       if (isDevUrl) {
         this.stateManager.setState('DEV_ALIGNMENT');
+      } else if (this.configuredLayout) {
+        this.initPlaytestLayout(this.configuredLayout);
+        this.isRoundActive = false;
+        this.stateManager.setState('TITLE');
       } else if (!this.playtestLayout) {
         this.stateManager.setState('LAYOUT_SELECTION');
       } else {
@@ -175,6 +197,7 @@ export class Game {
     }
 
     this.playtestLayout = layout;
+    this.isRoundActive = true;
 
     const surfaces = this.resolveSurfaces(layout);
     this.surfaceQuery.setPolygons(surfaces);
@@ -204,6 +227,22 @@ export class Game {
     this.stateManager.setState('ADDRESS');
   }
 
+  private getConfiguredLayout(): PlaytestLayoutConfig | null {
+    const tee = this.holeConfig?.tee;
+    const green = this.holeConfig?.greenCentre;
+    if (!tee || !green || !this.terrainQuery) return null;
+
+    const teeElevation = this.terrainQuery.getTerrainHeight(tee.x, tee.z, true);
+    const greenElevation = this.terrainQuery.getTerrainHeight(green.x, green.z, true);
+    return {
+      tee: { x: tee.x, z: tee.z, elevation: teeElevation },
+      hole: { x: green.x, z: green.z, elevation: greenElevation },
+      distanceMetres: Math.round(Math.hypot(green.x - tee.x, green.z - tee.z)),
+      isConfigured: true,
+      savedAt: 'course-data'
+    };
+  }
+
   /**
    * Resolve the course surfaces for play.
    *
@@ -214,7 +253,7 @@ export class Game {
    */
   private resolveSurfaces(layout: PlaytestLayoutConfig): SurfacePolygon[] {
     const authored = this.holeConfig?.surfaces ?? [];
-    if (authored.length > 0) {
+    if (!this.isPracticeMode && authored.length > 0) {
       return authored;
     }
 
@@ -242,21 +281,45 @@ export class Game {
       onClubNext: () => this.selectNextClub(),
       onSwingTrigger: () => this.triggerSwingMeter(),
       onCameraToggle: () => this.toggleCameraMode(),
-      onResetLayout: () => this.resetLayout(),
+      onResetLayout: () => this.handleMenuAction(),
       onDevModeToggle: () => this.toggleDevAlignmentMode(),
       onPlayAgain: () => {
         if (this.playtestLayout) {
           this.initPlaytestLayout(this.playtestLayout);
         }
-      }
+      },
+      onReturnToTitle: () => this.returnToTitle()
+    });
+
+    this.gameHUD.configureHole({
+      courseName: this.source?.courseName ?? 'Sophie Golf',
+      holeName: this.source?.holeName ?? 'Playtest Hole',
+      holeNumber: this.holeConfig?.holeNumber ?? 1,
+      par: this.holeConfig?.par ?? 4,
+      distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
+      menuLabel: this.configuredLayout ? '⌂ MAIN MENU' : '⛳ CHANGE LAYOUT'
+    });
+
+    this.titleScreen = new TitleScreen({
+      courseName: this.source?.courseName ?? 'Sophie Hills',
+      holeName: this.source?.holeName ?? 'Sunset Run',
+      holeNumber: this.holeConfig?.holeNumber ?? 1,
+      par: this.holeConfig?.par ?? 4,
+      distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
+      onStart: () => this.startConfiguredRound(),
+      onOpenPractice: () => this.openPracticeMode()
     });
 
     // 2. Playtest Layout HUD
-    this.layoutHUD = new PlaytestLayoutHUD((tee, hole) => {
-      const saved = PlaytestLayoutManager.save(tee, hole);
-      this.initPlaytestLayout(saved);
-      this.layoutHUD?.setVisible(false);
-    });
+    this.layoutHUD = new PlaytestLayoutHUD(
+      (tee, hole) => {
+        const saved = PlaytestLayoutManager.save(tee, hole);
+        this.initPlaytestLayout(saved);
+        this.configureGameHUD();
+        this.layoutHUD?.setVisible(false);
+      },
+      () => this.returnToTitle()
+    );
 
     // 3. Developer Debug Overlay (F2 / Dev Mode)
     this.debugOverlay = new DebugOverlay(
@@ -298,9 +361,11 @@ export class Game {
     const isGameplay = newState === 'ADDRESS' || newState === 'SWINGING' || newState === 'BALL_FLIGHT' || newState === 'BALL_ROLLING' || newState === 'HOLED';
     const isLayoutSel = newState === 'LAYOUT_SELECTION';
     const isDev = newState === 'DEV_ALIGNMENT';
+    const isTitle = newState === 'TITLE';
 
     this.gameHUD?.setVisible(isGameplay);
     this.layoutHUD?.setVisible(isLayoutSel);
+    this.titleScreen?.setVisible(isTitle);
     
     // Dev overlay & annotation tool visible ONLY in DEV_ALIGNMENT mode
     this.debugOverlay?.setVisible(isDev);
@@ -322,6 +387,14 @@ export class Game {
       if (e.key === 'F2') {
         this.toggleDevAlignmentMode();
         e.preventDefault();
+        return;
+      }
+
+      if (state === 'TITLE') {
+        if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
+          this.startConfiguredRound();
+          e.preventDefault();
+        }
         return;
       }
 
@@ -380,17 +453,74 @@ export class Game {
     this.cameraController.setMode(current === 'GOLF' ? 'OVERHEAD' : 'GOLF');
   }
 
-  private resetLayout(): void {
+  private startConfiguredRound(): void {
+    if (!this.configuredLayout) return;
+    this.isPracticeMode = false;
+    this.configureGameHUD();
+    this.initPlaytestLayout(this.configuredLayout);
+  }
+
+  private openPracticeMode(): void {
+    this.isPracticeMode = true;
+    this.isRoundActive = false;
     PlaytestLayoutManager.clear();
     this.playtestLayout = null;
     this.layoutHUD?.resetSelection();
+    this.configureGameHUD();
+    this.stateManager.setState('LAYOUT_SELECTION');
+  }
+
+  private handleMenuAction(): void {
+    this.returnToTitle();
+  }
+
+  private returnToTitle(): void {
+    this.isPracticeMode = false;
+    this.isRoundActive = false;
+    this.gameHUD?.hideCelebration();
+    this.playtestLayout = this.configuredLayout;
+    this.configureGameHUD();
+    this.stateManager.setState('TITLE');
+  }
+
+  private configureGameHUD(): void {
+    if (this.isPracticeMode) {
+      this.gameHUD?.configureHole({
+        courseName: 'Warragul Research Mode',
+        holeName: 'Unverified Layout',
+        holeNumber: 6,
+        par: 4,
+        distanceMetres: this.playtestLayout?.distanceMetres ?? 0,
+        menuLabel: '⌂ MAIN MENU'
+      });
+      return;
+    }
+
+    this.gameHUD?.configureHole({
+      courseName: this.source?.courseName ?? 'Sophie Hills',
+      holeName: this.source?.holeName ?? 'Sunset Run',
+      holeNumber: this.holeConfig?.holeNumber ?? 1,
+      par: this.holeConfig?.par ?? 4,
+      distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
+      menuLabel: '⌂ MAIN MENU'
+    });
+  }
+
+  private resetLayout(): void {
+    PlaytestLayoutManager.clear();
+    this.playtestLayout = null;
+    this.isRoundActive = false;
+    this.layoutHUD?.resetSelection();
+    this.configureGameHUD();
     this.stateManager.setState('LAYOUT_SELECTION');
   }
 
   private toggleDevAlignmentMode(): void {
     const current = this.stateManager.getState();
     if (current === 'DEV_ALIGNMENT') {
-      if (this.playtestLayout) {
+      if (!this.isRoundActive && !this.isPracticeMode) {
+        this.stateManager.setState('TITLE');
+      } else if (this.playtestLayout) {
         this.stateManager.setState('ADDRESS');
       } else {
         this.stateManager.setState('LAYOUT_SELECTION');
@@ -476,7 +606,12 @@ export class Game {
         this.stateManager.setState('BALL_ROLLING');
       } else if (ballState === 'HOLED') {
         this.stateManager.setState('HOLED');
-        this.gameHUD?.showCelebration(this.strokeCount + this.penaltyStrokes, this.penaltyStrokes);
+        this.isRoundActive = false;
+        this.gameHUD?.showCelebration(
+          this.strokeCount + this.penaltyStrokes,
+          this.penaltyStrokes,
+          this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4)
+        );
       } else if (ballState === 'REST') {
         this.onBallStoppedAtRest();
       }

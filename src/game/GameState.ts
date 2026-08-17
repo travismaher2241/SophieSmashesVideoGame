@@ -1,4 +1,5 @@
 export type GameStateType =
+  | 'TITLE'
   | 'LAYOUT_SELECTION'
   | 'ADDRESS'
   | 'SWINGING'
@@ -8,8 +9,8 @@ export type GameStateType =
   | 'DEV_ALIGNMENT';
 
 export class GameStateManager {
-  private currentState: GameStateType = 'ADDRESS';
-  private previousState: GameStateType = 'ADDRESS';
+  private currentState: GameStateType = 'TITLE';
+  private previousState: GameStateType = 'TITLE';
   private onStateChangeCallbacks: ((newState: GameStateType, prevState: GameStateType) => void)[] = [];
 
   public getState(): GameStateType {

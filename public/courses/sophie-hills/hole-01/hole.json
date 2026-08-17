@@ -1,0 +1,123 @@
+{
+  "courseId": "sophie-hills",
+  "holeId": "hole-01",
+  "holeNumber": 1,
+  "par": 4,
+  "publishedLengthMetres": 234,
+  "status": "fictional-gameplay-course",
+  "tee": { "x": 150, "y": 0, "z": 240 },
+  "greenCentre": { "x": 370, "y": 0, "z": 160 },
+  "surfaces": [
+    {
+      "id": "sunset-rough",
+      "type": "ROUGH",
+      "name": "Sunset Run Rough",
+      "points": [
+        { "x": 70, "z": 45 },
+        { "x": 455, "z": 45 },
+        { "x": 455, "z": 305 },
+        { "x": 70, "z": 305 }
+      ]
+    },
+    {
+      "id": "sunset-fairway",
+      "type": "FAIRWAY",
+      "name": "Sunset Run Fairway",
+      "points": [
+        { "x": 145, "z": 222 },
+        { "x": 158, "z": 258 },
+        { "x": 268, "z": 230 },
+        { "x": 348, "z": 188 },
+        { "x": 354, "z": 143 },
+        { "x": 325, "z": 143 },
+        { "x": 250, "z": 184 }
+      ]
+    },
+    {
+      "id": "sunset-tee",
+      "type": "TEE",
+      "name": "Sunset Run Tee",
+      "points": [
+        { "x": 143, "z": 232 },
+        { "x": 158, "z": 232 },
+        { "x": 158, "z": 248 },
+        { "x": 143, "z": 248 }
+      ]
+    },
+    {
+      "id": "sunset-green",
+      "type": "GREEN",
+      "name": "Sunset Run Green",
+      "points": [
+        { "x": 389, "z": 160 },
+        { "x": 387.6, "z": 168.4 },
+        { "x": 383.4, "z": 175.6 },
+        { "x": 377.3, "z": 180.3 },
+        { "x": 370, "z": 182 },
+        { "x": 362.7, "z": 180.3 },
+        { "x": 356.6, "z": 175.6 },
+        { "x": 352.4, "z": 168.4 },
+        { "x": 351, "z": 160 },
+        { "x": 352.4, "z": 151.6 },
+        { "x": 356.6, "z": 144.4 },
+        { "x": 362.7, "z": 139.7 },
+        { "x": 370, "z": 138 },
+        { "x": 377.3, "z": 139.7 },
+        { "x": 383.4, "z": 144.4 },
+        { "x": 387.6, "z": 151.6 }
+      ]
+    },
+    {
+      "id": "sunset-bunker-front",
+      "type": "BUNKER",
+      "name": "Front Bunker",
+      "points": [
+        { "x": 341, "z": 181 },
+        { "x": 350, "z": 181 },
+        { "x": 355, "z": 189 },
+        { "x": 348, "z": 196 },
+        { "x": 338, "z": 191 }
+      ]
+    },
+    {
+      "id": "sunset-bunker-back",
+      "type": "BUNKER",
+      "name": "Back Bunker",
+      "points": [
+        { "x": 378, "z": 130 },
+        { "x": 389, "z": 132 },
+        { "x": 393, "z": 141 },
+        { "x": 384, "z": 146 },
+        { "x": 376, "z": 140 }
+      ]
+    },
+    {
+      "id": "sunset-creek",
+      "type": "WATER",
+      "name": "Sophie Creek",
+      "points": [
+        { "x": 236, "z": 252 },
+        { "x": 289, "z": 234 },
+        { "x": 297, "z": 252 },
+        { "x": 241, "z": 272 }
+      ]
+    },
+    {
+      "id": "sunset-path",
+      "type": "PATH",
+      "name": "Sunset Cart Path",
+      "points": [
+        { "x": 118, "z": 267 },
+        { "x": 128, "z": 270 },
+        { "x": 331, "z": 218 },
+        { "x": 326, "z": 209 }
+      ]
+    }
+  ],
+  "features": [],
+  "notes": [
+    "Sophie Hills is a fictional gameplay course used to tune and complete the game loop.",
+    "Its layout must never be presented as Warragul Country Club.",
+    "The prototype currently reuses the installed elevation terrain while the fictional course terrain pipeline is prepared."
+  ]
+}
