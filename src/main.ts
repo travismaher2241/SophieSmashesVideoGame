@@ -8,14 +8,5 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const game = new Game(canvas);
-  game.start({
-    terrainPath: '/courses/warragul/hole-06',
-    courseName: 'Sophie Hills',
-    courseSubtitle: 'Two-Hole Preview',
-    totalPar: 7,
-    holes: [
-      { holePath: '/courses/sophie-hills/hole-01', holeName: 'Sunset Run' },
-      { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry' }
-    ]
-  });
+  game.start('/courses/warragul/hole-06');
 });

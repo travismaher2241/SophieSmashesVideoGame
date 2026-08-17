@@ -10,39 +10,31 @@ export interface ClubConfig {
 export const GOLF_CLUBS: ClubConfig[] = [
   {
     id: 'driver',
-    name: '1 Wood (Driver)',
+    name: 'Driver (1W)',
     code: '1W',
     maxDistanceMetres: 230,
     loftDegrees: 12,
     isPutter: false
   },
   {
-    id: '5iron',
-    name: '5 Iron',
-    code: '5I',
-    maxDistanceMetres: 170,
-    loftDegrees: 24,
-    isPutter: false
-  },
-  {
-    id: '9iron',
-    name: '9 Iron',
-    code: '9I',
-    maxDistanceMetres: 120,
-    loftDegrees: 40,
+    id: '7iron',
+    name: '7 Iron (7I)',
+    code: '7I',
+    maxDistanceMetres: 145,
+    loftDegrees: 32,
     isPutter: false
   },
   {
     id: 'wedge',
-    name: 'Pitching Wedge',
+    name: 'Pitching Wedge (PW)',
     code: 'PW',
-    maxDistanceMetres: 70,
-    loftDegrees: 56,
+    maxDistanceMetres: 100,
+    loftDegrees: 48,
     isPutter: false
   },
   {
     id: 'putter',
-    name: 'Putter',
+    name: 'Putter (PT)',
     code: 'PT',
     maxDistanceMetres: 25,
     loftDegrees: 0,
@@ -79,12 +71,14 @@ export class ClubManager {
   }
 
   public autoSelectClubForDistance(distanceMetres: number): ClubConfig {
-    if (distanceMetres < 15) {
-      this.currentIndex = GOLF_CLUBS.findIndex((c) => c.isPutter);
+    // If within 20m, recommend putter or wedge
+    if (distanceMetres <= 20) {
+      const putterIdx = GOLF_CLUBS.findIndex((c) => c.isPutter);
+      this.currentIndex = putterIdx !== -1 ? putterIdx : GOLF_CLUBS.length - 1;
       return this.getCurrentClub();
     }
 
-    // Find club with max distance closest above remaining distance
+    // Find club with max carry closest above remaining distance (excluding putter)
     for (let i = GOLF_CLUBS.length - 2; i >= 0; i--) {
       if (GOLF_CLUBS[i].maxDistanceMetres >= distanceMetres) {
         this.currentIndex = i;

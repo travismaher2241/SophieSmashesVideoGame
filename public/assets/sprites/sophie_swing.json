@@ -1,0 +1,66 @@
+{
+  "file": "sophie_swing.png",
+  "frameWidth": 553,
+  "frameHeight": 989,
+  "frameCount": 5,
+  "layout": "horizontal-strip",
+  "anchor": {
+    "x": 0.5,
+    "y": 1,
+    "note": "bottom-center of each frame is the ground contact point"
+  },
+  "frames": [
+    {
+      "index": 0,
+      "pose": "address-1"
+    },
+    {
+      "index": 1,
+      "pose": "address-2-wiggle"
+    },
+    {
+      "index": 2,
+      "pose": "backswing-top"
+    },
+    {
+      "index": 3,
+      "pose": "downswing-impact"
+    },
+    {
+      "index": 4,
+      "pose": "follow-through"
+    }
+  ],
+  "sourceBoxes": [
+    {
+      "x": 329,
+      "y": 359,
+      "w": 409,
+      "h": 940
+    },
+    {
+      "x": 1412,
+      "y": 348,
+      "w": 428,
+      "h": 987
+    },
+    {
+      "x": 2401,
+      "y": 328,
+      "w": 553,
+      "h": 989
+    },
+    {
+      "x": 3505,
+      "y": 384,
+      "w": 531,
+      "h": 902
+    },
+    {
+      "x": 297,
+      "y": 1778,
+      "w": 350,
+      "h": 926
+    }
+  ]
+}

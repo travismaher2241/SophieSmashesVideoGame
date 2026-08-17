@@ -1,18 +1,97 @@
 {
   "courseId": "warragul",
+  "courseName": "Warragul Country Club",
   "holeId": "hole-06",
   "holeNumber": 6,
   "par": 4,
   "publishedLengthMetres": 248,
-  "status": "provisional-orientation",
-  "tee": null,
-  "greenCentre": null,
-  "surfaces": [],
+  "status": "provisional-gameplay-slice",
+  "tee": {
+    "name": "TEMPORARY GAMEPLAY TEE",
+    "x": 100.0,
+    "y": 0.0,
+    "z": 150.0,
+    "provisional": true
+  },
+  "greenCentre": {
+    "name": "TEMPORARY GAMEPLAY CUP",
+    "x": 348.0,
+    "y": 0.0,
+    "z": 150.0,
+    "provisional": true
+  },
+  "surfaces": [
+    {
+      "id": "tee_box",
+      "type": "TEE",
+      "name": "Temporary Gameplay Tee Box",
+      "provisional": true,
+      "points": [
+        { "x": 92.0, "z": 144.0 },
+        { "x": 108.0, "z": 144.0 },
+        { "x": 108.0, "z": 156.0 },
+        { "x": 92.0, "z": 156.0 }
+      ]
+    },
+    {
+      "id": "fairway_main",
+      "type": "FAIRWAY",
+      "name": "Temporary Gameplay Fairway",
+      "provisional": true,
+      "points": [
+        { "x": 108.0, "z": 136.0 },
+        { "x": 220.0, "z": 132.0 },
+        { "x": 332.0, "z": 136.0 },
+        { "x": 332.0, "z": 164.0 },
+        { "x": 220.0, "z": 168.0 },
+        { "x": 108.0, "z": 164.0 }
+      ]
+    },
+    {
+      "id": "green_putting",
+      "type": "GREEN",
+      "name": "Temporary Gameplay Putting Green",
+      "provisional": true,
+      "points": [
+        { "x": 332.0, "z": 140.0 },
+        { "x": 348.0, "z": 134.0 },
+        { "x": 364.0, "z": 140.0 },
+        { "x": 366.0, "z": 150.0 },
+        { "x": 364.0, "z": 160.0 },
+        { "x": 348.0, "z": 166.0 },
+        { "x": 332.0, "z": 160.0 },
+        { "x": 330.0, "z": 150.0 }
+      ]
+    },
+    {
+      "id": "bunker_right",
+      "type": "BUNKER",
+      "name": "Temporary Gameplay Green Bunker",
+      "provisional": true,
+      "points": [
+        { "x": 340.0, "z": 167.0 },
+        { "x": 356.0, "z": 167.0 },
+        { "x": 354.0, "z": 175.0 },
+        { "x": 338.0, "z": 174.0 }
+      ]
+    },
+    {
+      "id": "bunker_fairway",
+      "type": "BUNKER",
+      "name": "Temporary Gameplay Fairway Bunker",
+      "provisional": true,
+      "points": [
+        { "x": 210.0, "z": 125.0 },
+        { "x": 226.0, "z": 126.0 },
+        { "x": 224.0, "z": 133.0 },
+        { "x": 208.0, "z": 132.0 }
+      ]
+    }
+  ],
   "features": [],
   "notes": [
-    "Real terrain is loaded. Tee, green, fairway, bunker and path geometry must be verified before use.",
-    "Do not generate fake tee/green coordinates as if they are real.",
-    "'surfaces' holds traced course polygons and is authoritative. It is empty until Hole 6 is surveyed.",
-    "While it is empty the game falls back to clearly-labelled development placeholder geometry; those placeholders are never written back into this file."
+    "Real Warragul LiDAR DEM terrain is loaded.",
+    "Tee, Cup, Fairway, Green and Bunker positions above are TEMPORARY GAMEPLAY POSITIONS designed to make the full golf loop playable immediately on the real DEM.",
+    "These provisional markers will be replaced by verified surveyed Warragul coordinates in future milestones."
   ]
 }

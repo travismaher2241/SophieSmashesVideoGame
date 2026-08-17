@@ -33,9 +33,9 @@ export class CameraController {
     this.terrainQuery = terrainQuery;
 
     this.camera = new PerspectiveCamera(
-      50,
+      52,
       window.innerWidth / window.innerHeight,
-      0.5,
+      0.2,
       3000
     );
 
@@ -81,24 +81,25 @@ export class CameraController {
   /**
    * Set behind-golfer camera position given ball position and aim angle (radians).
    */
-  public updateGolfAddressView(ballPos: Vector3, aimAngleRad: number): void {
+  public updateGolfAddressView(ballPos: Vector3, aimAngleRad: number, isPutting: boolean = false): void {
     if (this.mode !== 'GOLF') return;
 
-    const camDist = 6.5;
-    const camHeight = 2.2;
+    const camDist = isPutting ? 3.4 : 5.8;
+    const camHeight = isPutting ? 1.1 : 1.9;
 
     const camX = ballPos.x - Math.cos(aimAngleRad) * camDist;
     const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist;
 
     const terrainY = this.getDisplayHeight(camX, camZ);
-    const camY = Math.max(terrainY + 1.2, ballPos.y + camHeight);
+    const camY = Math.max(terrainY + 0.8, ballPos.y + camHeight);
 
     this.camera.position.set(camX, camY, camZ);
 
     // Look at target point down aiming line
-    const lookX = ballPos.x + Math.cos(aimAngleRad) * 40;
-    const lookZ = ballPos.z + Math.sin(aimAngleRad) * 40;
-    const lookY = this.getDisplayHeight(lookX, lookZ) + 1.0;
+    const lookAheadDist = isPutting ? 15 : 60;
+    const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
+    const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
+    const lookY = this.getDisplayHeight(lookX, lookZ) + (isPutting ? 0.3 : 1.0);
 
     this.target.set(lookX, lookY, lookZ);
     this.camera.lookAt(this.target);
@@ -108,15 +109,14 @@ export class CameraController {
    * Smoothly follow ball during flight and rolling.
    */
   public updateBallFollowView(ballPos: Vector3, velocity: Vector3, aimAngleRad: number): void {
-    const camDist = 12.0;
-    const camHeight = 4.5;
+    const camDist = 10.0;
+    const camHeight = 3.8;
 
-    // Follow direction based on aim angle or horizontal velocity
     let dirX = Math.cos(aimAngleRad);
     let dirZ = Math.sin(aimAngleRad);
 
     const hSpeed = Math.hypot(velocity.x, velocity.z);
-    if (hSpeed > 2.0) {
+    if (hSpeed > 1.5) {
       dirX = velocity.x / hSpeed;
       dirZ = velocity.z / hSpeed;
     }
@@ -125,12 +125,11 @@ export class CameraController {
     const targetCamZ = ballPos.z - dirZ * camDist;
 
     const terrainY = this.getDisplayHeight(targetCamX, targetCamZ);
-    const targetCamY = Math.max(terrainY + 1.5, ballPos.y + camHeight);
+    const targetCamY = Math.max(terrainY + 1.2, ballPos.y + camHeight);
 
-    // Smooth lerp camera position
-    this.camera.position.x += (targetCamX - this.camera.position.x) * 0.15;
-    this.camera.position.y += (targetCamY - this.camera.position.y) * 0.15;
-    this.camera.position.z += (targetCamZ - this.camera.position.z) * 0.15;
+    this.camera.position.x += (targetCamX - this.camera.position.x) * 0.18;
+    this.camera.position.y += (targetCamY - this.camera.position.y) * 0.18;
+    this.camera.position.z += (targetCamZ - this.camera.position.z) * 0.18;
 
     this.target.copy(ballPos);
     this.camera.lookAt(this.target);

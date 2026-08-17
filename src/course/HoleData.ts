@@ -4,10 +4,13 @@ export interface Vector3Data {
   x: number;
   y: number;
   z: number;
+  name?: string;
+  provisional?: boolean;
 }
 
 export interface HoleConfig {
   courseId: string;
+  courseName?: string;
   holeId: string;
   holeNumber: number;
   par: number;
@@ -15,10 +18,6 @@ export interface HoleConfig {
   status: string;
   tee: Vector3Data | null;
   greenCentre: Vector3Data | null;
-  /**
-   * Traced course surfaces. Blueprint §15: the engine consumes these, it never
-   * constructs them. An empty array means no surface has been verified yet.
-   */
   surfaces: SurfacePolygon[];
   features?: unknown[];
   notes?: string[];
@@ -39,18 +38,12 @@ export class HoleData {
     }
 
     const data = (await response.json()) as HoleConfig;
-
-    // §94: never silently continue on malformed course data.
     const surfaces = data.surfaces ?? [];
     HoleData.validateSurfaces(surfaces, data, holeUrl);
 
     return { ...data, surfaces };
   }
 
-  /**
-   * Reject corrupted surface polygons with an error naming course, hole, expected
-   * and actual (§94). Called on load so bad data never reaches SurfaceQuery.
-   */
   public static validateSurfaces(
     surfaces: SurfacePolygon[],
     hole: Pick<HoleConfig, 'courseId' | 'holeId'>,
