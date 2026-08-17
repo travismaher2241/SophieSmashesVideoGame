@@ -2,7 +2,9 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
+  Line,
   LineBasicMaterial,
+  LineLoop,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -82,6 +84,21 @@ export class AlignmentGridOverlay {
       if (feat.type === 'fairway') color = 0x88ff88;
       if (feat.type === 'bunker') color = 0xffcc44;
       if (feat.type === 'path') color = 0xcccccc;
+
+      if (feat.points.length >= 2) {
+        const boundaryGeometry = new BufferGeometry().setFromPoints(
+          feat.points.map((pt) => new Vector3(pt.x, pt.elevation + 0.45, pt.z))
+        );
+        const boundaryMaterial = new LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity: feat.isClosed ? 0.95 : 0.65
+        });
+        const boundary = feat.isClosed
+          ? new LineLoop(boundaryGeometry, boundaryMaterial)
+          : new Line(boundaryGeometry, boundaryMaterial);
+        this.markerGroup.add(boundary);
+      }
 
       feat.points.forEach((pt) => {
         const ptMesh = this.createMarkerMesh(

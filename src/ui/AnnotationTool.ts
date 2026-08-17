@@ -11,11 +11,17 @@ export class AnnotationTool {
   private geoTransform: GeoTransform;
 
   private activeMode: AnnotationModeType = 'INSPECT';
+  private activeFeatureId: string | null = null;
+  private statusMessage: string = 'Select a surface type, then click its boundary points.';
   private onModeChange?: (mode: AnnotationModeType) => void;
   private onAnnotationsUpdated?: () => void;
 
   private activeModeBadge!: HTMLElement;
   private candidateSummaryElem!: HTMLElement;
+  private statusElem!: HTMLElement;
+  private finishButton!: HTMLButtonElement;
+  private undoButton!: HTMLButtonElement;
+  private cancelButton!: HTMLButtonElement;
 
   constructor(
     candidateStore: CandidateAnnotations,
@@ -36,6 +42,7 @@ export class AnnotationTool {
     this.setupStyles();
     this.buildHTML();
     document.body.appendChild(this.container);
+    this.updateUI();
   }
 
   public setVisible(visible: boolean): void {
@@ -60,18 +67,31 @@ export class AnnotationTool {
     if (this.activeMode === 'TEE') {
       this.candidateStore.setTee(pt);
       this.activeMode = 'INSPECT';
+      this.statusMessage = 'Candidate tee placed.';
     } else if (this.activeMode === 'GREEN') {
       this.candidateStore.setGreenCentre(pt);
       this.activeMode = 'INSPECT';
+      this.statusMessage = 'Candidate green centre placed.';
     } else {
-      // Fairway, Bunker, Path
-      this.candidateStore.addFeature({
-        id: `feat-${Date.now()}`,
-        type: this.activeMode.toLowerCase() as any,
-        label: `UNVERIFIED ${this.activeMode}`,
-        isVerified: false,
-        points: [pt]
-      });
+      // Fairway, bunker and path modes stay active while the author traces a
+      // boundary. The polygon only becomes exportable after Finish Polygon.
+      if (this.activeFeatureId === null) {
+        this.activeFeatureId = `feat-${Date.now()}`;
+        this.candidateStore.addFeature({
+          id: this.activeFeatureId,
+          type: this.activeMode.toLowerCase() as 'fairway' | 'bunker' | 'path',
+          label: `UNVERIFIED ${this.activeMode}`,
+          isVerified: false,
+          isClosed: false,
+          points: [pt]
+        });
+      } else {
+        this.candidateStore.appendFeaturePoint(this.activeFeatureId, pt);
+      }
+
+      const pointCount = this.getActiveFeature()?.points.length ?? 0;
+      this.statusMessage = `${this.activeMode} draft: ${pointCount} point${pointCount === 1 ? '' : 's'}. ` +
+        (pointCount >= 3 ? 'Finish when the boundary is complete.' : `Add ${3 - pointCount} more to form a polygon.`);
     }
 
     this.updateUI();
@@ -89,16 +109,30 @@ export class AnnotationTool {
       const tee = this.candidateStore.getTee();
       const green = this.candidateStore.getGreenCentre();
       const features = this.candidateStore.getFeatures();
+      const closedCount = features.filter((feature) => feature.isClosed).length;
+      const activeFeature = this.getActiveFeature();
 
       const teeStr = tee ? `Tee: (${tee.x}m, ${tee.z}m)` : 'Tee: None';
       const greenStr = green ? `Green: (${green.x}m, ${green.z}m)` : 'Green: None';
+      const draftStr = activeFeature
+        ? `<div style="color: #ffcc66;">Drafting ${activeFeature.type.toUpperCase()}: ${activeFeature.points.length} points</div>`
+        : '';
 
       this.candidateSummaryElem.innerHTML = `
         <div><b>[UNVERIFIED CANDIDATES]</b></div>
         <div>${teeStr} | ${greenStr}</div>
-        <div>Total Features: ${features.length}</div>
+        <div>Closed polygons: ${closedCount} | Drafts: ${features.length - closedCount}</div>
+        ${draftStr}
       `;
     }
+
+    if (this.statusElem) this.statusElem.textContent = this.statusMessage;
+
+    const hasActiveFeature = this.activeFeatureId !== null;
+    const pointCount = this.getActiveFeature()?.points.length ?? 0;
+    if (this.finishButton) this.finishButton.disabled = !hasActiveFeature || pointCount < 3;
+    if (this.undoButton) this.undoButton.disabled = !hasActiveFeature || pointCount === 0;
+    if (this.cancelButton) this.cancelButton.disabled = !hasActiveFeature;
   }
 
   private setupStyles(): void {
@@ -132,6 +166,10 @@ export class AnnotationTool {
         <div><b>Active Mode:</b> <span id="ann-active-badge" style="font-weight: bold; color: #aaffaa;">INSPECT</span></div>
       </div>
 
+      <div id="ann-status" style="margin-bottom: 8px; color: #ddffdd; min-height: 32px;">
+        Select a surface type, then click its boundary points.
+      </div>
+
       <!-- Mode selection buttons -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
         <button id="btn-ann-inspect" class="ann-btn">Inspect (Click OFF)</button>
@@ -140,6 +178,12 @@ export class AnnotationTool {
         <button id="btn-ann-fairway" class="ann-btn">+ Candidate Fairway</button>
         <button id="btn-ann-bunker" class="ann-btn">+ Candidate Bunker</button>
         <button id="btn-ann-path" class="ann-btn">+ Candidate Path</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+        <button id="btn-ann-finish" class="ann-action-btn" disabled>Finish Polygon</button>
+        <button id="btn-ann-undo" class="ann-action-btn" disabled>Undo Point</button>
+        <button id="btn-ann-cancel" class="ann-action-btn" disabled>Cancel Draft</button>
       </div>
 
       <!-- Candidate summary -->
@@ -186,11 +230,19 @@ export class AnnotationTool {
           background: #5a4a22;
           border-color: #ffeeaa;
         }
+        .ann-action-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.4;
+        }
       </style>
     `;
 
     this.activeModeBadge = this.container.querySelector('#ann-active-badge')!;
     this.candidateSummaryElem = this.container.querySelector('#ann-summary')!;
+    this.statusElem = this.container.querySelector('#ann-status')!;
+    this.finishButton = this.container.querySelector('#btn-ann-finish')!;
+    this.undoButton = this.container.querySelector('#btn-ann-undo')!;
+    this.cancelButton = this.container.querySelector('#btn-ann-cancel')!;
 
     // Bind button listeners
     this.container.querySelector('#btn-ann-inspect')?.addEventListener('click', () => this.setMode('INSPECT'));
@@ -199,9 +251,15 @@ export class AnnotationTool {
     this.container.querySelector('#btn-ann-fairway')?.addEventListener('click', () => this.setMode('FAIRWAY'));
     this.container.querySelector('#btn-ann-bunker')?.addEventListener('click', () => this.setMode('BUNKER'));
     this.container.querySelector('#btn-ann-path')?.addEventListener('click', () => this.setMode('PATH'));
+    this.finishButton.addEventListener('click', () => this.finishActiveFeature());
+    this.undoButton.addEventListener('click', () => this.undoActivePoint());
+    this.cancelButton.addEventListener('click', () => this.cancelActiveFeature());
 
     this.container.querySelector('#btn-ann-clear')?.addEventListener('click', () => {
       this.candidateStore.clearAll();
+      this.activeFeatureId = null;
+      this.activeMode = 'INSPECT';
+      this.statusMessage = 'All candidate annotations cleared.';
       this.updateUI();
       this.onAnnotationsUpdated?.();
     });
@@ -211,14 +269,79 @@ export class AnnotationTool {
   }
 
   private setMode(mode: AnnotationModeType): void {
+    if (this.activeFeatureId !== null && mode !== this.activeMode) {
+      this.statusMessage = 'Finish or cancel the current polygon before changing modes.';
+      this.updateUI();
+      return;
+    }
+
     this.activeMode = mode;
+    this.statusMessage = mode === 'INSPECT'
+      ? 'Inspection mode: clicks do not create annotations.'
+      : mode === 'TEE' || mode === 'GREEN'
+        ? `Click once on the terrain to place the candidate ${mode === 'TEE' ? 'tee' : 'green centre'}.`
+        : `Click around the ${mode.toLowerCase()} boundary, then choose Finish Polygon.`;
     this.updateUI();
     this.onModeChange?.(mode);
+  }
+
+  private finishActiveFeature(): void {
+    if (this.activeFeatureId === null) return;
+
+    try {
+      this.candidateStore.closeFeature(this.activeFeatureId);
+    } catch (error) {
+      this.statusMessage = error instanceof Error ? error.message : String(error);
+      this.updateUI();
+      return;
+    }
+
+    this.activeFeatureId = null;
+    this.activeMode = 'INSPECT';
+    this.statusMessage = 'Polygon finished and included in candidate surface export.';
+    this.updateUI();
+    this.onModeChange?.(this.activeMode);
+    this.onAnnotationsUpdated?.();
+  }
+
+  private undoActivePoint(): void {
+    if (this.activeFeatureId === null) return;
+    const remaining = this.candidateStore.removeLastFeaturePoint(this.activeFeatureId);
+    if (remaining === 0) {
+      this.candidateStore.removeFeature(this.activeFeatureId);
+      this.activeFeatureId = null;
+      this.statusMessage = 'Draft removed. Select a surface type to start again.';
+    } else {
+      this.statusMessage = `Removed the last point; ${remaining} point${remaining === 1 ? '' : 's'} remain.`;
+    }
+    this.updateUI();
+    this.onAnnotationsUpdated?.();
+  }
+
+  private cancelActiveFeature(): void {
+    if (this.activeFeatureId === null) return;
+    this.candidateStore.removeFeature(this.activeFeatureId);
+    this.activeFeatureId = null;
+    this.activeMode = 'INSPECT';
+    this.statusMessage = 'Polygon draft cancelled.';
+    this.updateUI();
+    this.onModeChange?.(this.activeMode);
+    this.onAnnotationsUpdated?.();
+  }
+
+  private getActiveFeature() {
+    if (this.activeFeatureId === null) return undefined;
+    return this.candidateStore.getFeatures().find((feature) => feature.id === this.activeFeatureId);
   }
 
   private exportJSON(downloadFile: boolean): void {
     const candidatePkg = this.candidateStore.generateExportPackage(this.terrainData, this.geoTransform);
     const jsonStr = JSON.stringify(candidatePkg, null, 2);
+
+    if (candidatePkg.incompleteFeatures.length > 0) {
+      this.statusMessage = `${candidatePkg.incompleteFeatures.length} unfinished draft(s) excluded from candidateSurfaces.`;
+      this.updateUI();
+    }
 
     if (downloadFile) {
       const blob = new Blob([jsonStr], { type: 'application/json' });
