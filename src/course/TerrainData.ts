@@ -20,6 +20,7 @@ export interface TerrainMeta {
     rows: string;
     worldXExtentMetres: number;
     worldZExtentMetres: number;
+    isNorthingProven?: boolean;
     note?: string;
   };
   baseElevationMetres: number;

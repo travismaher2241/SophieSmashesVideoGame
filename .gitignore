@@ -9,6 +9,7 @@ artifacts/
 
 # Test scripts
 capture_screenshots.js
+capture_phase0_screenshots.js
 
 # Logs
 *.log

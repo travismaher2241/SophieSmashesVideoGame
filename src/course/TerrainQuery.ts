@@ -6,6 +6,11 @@ export interface TerrainQueryResult {
   isOutOfBounds: boolean;
 }
 
+export interface TerrainNormalResult {
+  normal: Vector3;
+  isOutOfBounds: boolean;
+}
+
 export class TerrainQuery {
   private terrainData: TerrainData;
 
@@ -13,21 +18,13 @@ export class TerrainQuery {
     this.terrainData = terrainData;
   }
 
-  /**
-   * Update active terrain data
-   */
   public setTerrainData(terrainData: TerrainData): void {
     this.terrainData = terrainData;
   }
 
   /**
    * Query local world Y in metres at world position (x, z).
-   * World Y is the DEM offset above baseElevationMetres so it matches the mesh.
-   * Uses bilinear interpolation across the 4 surrounding grid sample points.
-   *
-   * @param x Continuous world X position in metres [0..vertexExtentX]
-   * @param z Continuous world Z position in metres [0..vertexExtentZ]
-   * @param clampToBounds If true, clamps (x,z) to terrain bounds instead of marking out-of-bounds
+   * World Y is the DEM offset above baseElevationMetres matching the mesh.
    */
   public getTerrainHeight(x: number, z: number, clampToBounds: boolean = false): number {
     const res = this.queryTerrainHeight(x, z, clampToBounds);
@@ -56,7 +53,6 @@ export class TerrainQuery {
       }
     }
 
-    // Grid continuous float indices
     const gx = targetX / spacing;
     const gz = targetZ / spacing;
 
@@ -74,7 +70,6 @@ export class TerrainQuery {
     const h01 = this.terrainData.getElevationOffsetAtGrid(col0, row1);
     const h11 = this.terrainData.getElevationOffsetAtGrid(col1, row1);
 
-    // Bilinear interpolation
     const interpolatedHeight =
       (1 - tx) * (1 - tz) * h00 +
       tx * (1 - tz) * h10 +
@@ -88,17 +83,36 @@ export class TerrainQuery {
   }
 
   /**
-   * Calculate unit surface normal vector at world position (x, z) using partial derivatives.
-   * Useful for slope calculations, ball bounce, and ball roll physics.
+   * Calculate unit surface normal vector at world position (x, z).
    */
-  public getTerrainNormal(x: number, z: number, targetVector?: Vector3): Vector3 {
+  public getTerrainNormal(x: number, z: number, targetVector?: Vector3, clampToBounds: boolean = true): Vector3 {
+    const res = this.queryTerrainNormal(x, z, targetVector, clampToBounds);
+    return res.normal;
+  }
+
+  /**
+   * Detailed surface normal query returning normal vector and out-of-bounds flag.
+   */
+  public queryTerrainNormal(x: number, z: number, targetVector?: Vector3, clampToBounds: boolean = false): TerrainNormalResult {
     const normal = targetVector || new Vector3();
     const spacing = this.terrainData.gridSpacing;
     const maxX = this.terrainData.vertexExtentX;
     const maxZ = this.terrainData.vertexExtentZ;
 
-    const targetX = Math.max(0, Math.min(maxX, x));
-    const targetZ = Math.max(0, Math.min(maxZ, z));
+    let targetX = x;
+    let targetZ = z;
+    let isOutOfBounds = false;
+
+    if (x < 0 || x > maxX || z < 0 || z > maxZ) {
+      isOutOfBounds = true;
+      if (clampToBounds) {
+        targetX = Math.max(0, Math.min(maxX, x));
+        targetZ = Math.max(0, Math.min(maxZ, z));
+      } else {
+        normal.set(0, 1, 0);
+        return { normal, isOutOfBounds: true };
+      }
+    }
 
     const gx = targetX / spacing;
     const gz = targetZ / spacing;
@@ -117,13 +131,11 @@ export class TerrainQuery {
     const h01 = this.terrainData.getElevationOffsetAtGrid(col0, row1);
     const h11 = this.terrainData.getElevationOffsetAtGrid(col1, row1);
 
-    // Partial derivatives with respect to X and Z
     const dhdx = ((1 - tz) * (h10 - h00) + tz * (h11 - h01)) / spacing;
     const dhdz = ((1 - tx) * (h01 - h00) + tx * (h11 - h10)) / spacing;
 
-    // Surface normal: (-dh/dx, 1, -dh/dz) normalized
     normal.set(-dhdx, 1.0, -dhdz).normalize();
 
-    return normal;
+    return { normal, isOutOfBounds };
   }
 }

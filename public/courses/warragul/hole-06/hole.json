@@ -7,9 +7,12 @@
   "status": "provisional-orientation",
   "tee": null,
   "greenCentre": null,
+  "surfaces": [],
   "features": [],
   "notes": [
     "Real terrain is loaded. Tee, green, fairway, bunker and path geometry must be verified before use.",
-    "Do not generate fake tee/green coordinates as if they are real."
+    "Do not generate fake tee/green coordinates as if they are real.",
+    "'surfaces' holds traced course polygons and is authoritative. It is empty until Hole 6 is surveyed.",
+    "While it is empty the game falls back to clearly-labelled development placeholder geometry; those placeholders are never written back into this file."
   ]
 }

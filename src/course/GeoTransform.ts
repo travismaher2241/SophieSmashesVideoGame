@@ -7,8 +7,8 @@ export interface GeoCoordinateResult {
   localZ: number;
   absoluteElevation: number;
   eastingMGA55: number;
-  northingOptionA: number; // Row 0 = maxNorthing (5777580, North)
-  northingOptionB: number; // Row 0 = minNorthing (5777260, South)
+  northingOptionA: number; // Row 0 = maxNorthing (North)
+  northingOptionB: number; // Row 0 = minNorthing (South)
   isNorthingProven: boolean;
   provenanceNote: string;
 }
@@ -34,14 +34,18 @@ export class GeoTransform {
     const col = Math.floor(localX / spacing);
     const row = Math.floor(localZ / spacing);
 
-    const minEasting = meta.sourceBoundsMGA55?.minEasting ?? 405040;
-    const minNorthing = meta.sourceBoundsMGA55?.minNorthing ?? 5777260;
-    const maxNorthing = meta.sourceBoundsMGA55?.maxNorthing ?? 5777580;
+    if (!meta.sourceBoundsMGA55) {
+      throw new Error(`[GeoTransform Error] Course ${meta.courseId} Hole ${meta.holeId} metadata missing sourceBoundsMGA55.`);
+    }
+
+    const minEasting = meta.sourceBoundsMGA55.minEasting;
+    const minNorthing = meta.sourceBoundsMGA55.minNorthing;
+    const maxNorthing = meta.sourceBoundsMGA55.maxNorthing;
 
     // Easting is proven (columns -> World X -> Easting)
     const eastingMGA55 = minEasting + localX;
 
-    // Northing options (Row 0 orientation unproven in raw binary header)
+    // Northing options (Row 0 orientation unproven from binary alone)
     const northingOptionA = maxNorthing - localZ; // Row 0 = North
     const northingOptionB = minNorthing + localZ; // Row 0 = South
 
@@ -54,8 +58,8 @@ export class GeoTransform {
       eastingMGA55,
       northingOptionA,
       northingOptionB,
-      isNorthingProven: false,
-      provenanceNote: 'Row-to-Northing direction is UNPROVEN from binary header metadata. Displaying both Option A (Row 0=North) and Option B (Row 0=South).'
+      isNorthingProven: meta.axisMapping?.isNorthingProven ?? false,
+      provenanceNote: meta.axisMapping?.note || 'Establishing row 0 as North vs South from raw GeoTIFF source data is BLOCKED as the original GeoTIFF/GIS file is not present in runtime workspace.'
     };
   }
 }

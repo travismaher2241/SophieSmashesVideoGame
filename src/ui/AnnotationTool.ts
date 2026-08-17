@@ -38,6 +38,10 @@ export class AnnotationTool {
     document.body.appendChild(this.container);
   }
 
+  public setVisible(visible: boolean): void {
+    this.container.style.display = visible ? 'block' : 'none';
+  }
+
   public getActiveMode(): AnnotationModeType {
     return this.activeMode;
   }

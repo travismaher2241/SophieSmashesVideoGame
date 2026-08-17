@@ -7,9 +7,9 @@ import { TerrainQuery } from '../course/TerrainQuery';
 import { MouseTerrainHit } from '../debug/MouseRaycaster';
 
 export class DebugOverlay {
-  private container: HTMLElement;
-  private scaleBarContainer: HTMLElement;
-  private compassContainer: HTMLElement;
+  public container: HTMLElement;
+  public scaleBarContainer: HTMLElement;
+  public compassContainer: HTMLElement;
 
   private terrainData: TerrainData;
   private holeConfig: HoleConfig;
@@ -64,6 +64,14 @@ export class DebugOverlay {
     document.body.appendChild(this.compassContainer);
   }
 
+  /** Show or hide the developer panel, scale bar and compass together. */
+  public setVisible(visible: boolean): void {
+    const display = visible ? 'block' : 'none';
+    this.container.style.display = display;
+    this.scaleBarContainer.style.display = display;
+    this.compassContainer.style.display = display;
+  }
+
   public updateCameraInfo(pos: Vector3, mode: CameraMode): void {
     if (this.camPosElem) {
       this.camPosElem.textContent = `X: ${pos.x.toFixed(1)}m | Y: ${pos.y.toFixed(1)}m | Z: ${pos.z.toFixed(1)}m`;
@@ -83,19 +91,22 @@ export class DebugOverlay {
 
     const queryResult = this.terrainQuery.queryTerrainHeight(hit.gridX, hit.gridZ);
     const normal = this.terrainQuery.getTerrainNormal(hit.gridX, hit.gridZ);
-    const geo = this.geoTransform.getGeoCoordinates(hit.gridX, hit.gridZ, queryResult.height);
+    const offsetElevation = queryResult.height;
+    const absoluteElevation = this.terrainData.baseElevation + offsetElevation;
+    const geo = this.geoTransform.getGeoCoordinates(hit.gridX, hit.gridZ, absoluteElevation);
 
     const statusStr = queryResult.isOutOfBounds ? ' <span style="color: #ff5555; font-weight: bold;">[OUT OF BOUNDS]</span>' : '';
 
     this.mousePosElem.innerHTML = `
       <div><b>Grid Cell:</b> Col ${geo.col} | Row ${geo.row}</div>
       <div><b>Local Position:</b> X: ${hit.gridX.toFixed(1)}m | Z: ${hit.gridZ.toFixed(1)}m</div>
-      <div><b>DEM Elevation:</b> <b>${queryResult.height.toFixed(2)}m</b> (Base: ${this.terrainData.baseElevation.toFixed(2)}m)${statusStr}</div>
+      <div><b>Elevation Offset:</b> <b>+${offsetElevation.toFixed(2)} m</b> (above base ${this.terrainData.baseElevation.toFixed(2)}m)${statusStr}</div>
+      <div><b>Absolute Elevation:</b> <b>${absoluteElevation.toFixed(2)} m</b> (above sea level)</div>
       <div style="margin-top: 4px; border-top: 1px dotted #337733; padding-top: 3px; color: #77ffff;">
         <div><b>EPSG:7855 Easting:</b> ${geo.eastingMGA55.toFixed(1)} m E</div>
         <div><b>Northing (Option A - Row 0 North):</b> ${geo.northingOptionA.toFixed(1)} m N</div>
         <div><b>Northing (Option B - Row 0 South):</b> ${geo.northingOptionB.toFixed(1)} m N</div>
-        <div style="font-size: 10px; color: #ff9977;">⚠️ Row orientation UNVERIFIED</div>
+        <div style="font-size: 10px; color: #ff9977;">⚠️ Row-to-Northing orientation UNVERIFIED</div>
       </div>
       <div><b>Surface Normal:</b> (${normal.x.toFixed(2)}, ${normal.y.toFixed(2)}, ${normal.z.toFixed(2)})</div>
     `;
@@ -103,12 +114,11 @@ export class DebugOverlay {
 
   public setVerticalScaleDisplay(scale: number): void {
     if (this.currentScaleElem) {
-      this.currentScaleElem.textContent = `${scale}×`;
+      this.currentScaleElem.textContent = scale === 1.0 ? '1.0× (Physically Accurate)' : `${scale}×`;
     }
   }
 
   private setupStyles(): void {
-    // HUD overlay panel (top-left)
     this.container.style.position = 'absolute';
     this.container.style.top = '12px';
     this.container.style.left = '12px';
@@ -124,14 +134,12 @@ export class DebugOverlay {
     this.container.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.6)';
     this.container.style.zIndex = '50';
 
-    // Scale bar (bottom-left)
     this.scaleBarContainer.style.position = 'absolute';
     this.scaleBarContainer.style.bottom = '16px';
     this.scaleBarContainer.style.left = '16px';
     this.scaleBarContainer.style.zIndex = '40';
     this.scaleBarContainer.style.pointerEvents = 'none';
 
-    // Compass indicator (top-center)
     this.compassContainer.style.position = 'absolute';
     this.compassContainer.style.top = '16px';
     this.compassContainer.style.left = '50%';
@@ -157,7 +165,8 @@ export class DebugOverlay {
       <div style="margin-bottom: 8px;">
         <div><b>Course:</b> ${meta.courseName}</div>
         <div><b>Hole:</b> ${meta.holeNumber} (Par ${this.holeConfig.par}, ${this.holeConfig.publishedLengthMetres}m)</div>
-        <div><b>CRS:</b> ${meta.sourceCRS} | <b>Easting Span:</b> 405040..405820</div>
+        <div><b>CRS:</b> ${meta.sourceCRS}</div>
+        <div><b>Source Bounds:</b> E ${meta.sourceBoundsMGA55 ? `${meta.sourceBoundsMGA55.minEasting}..${meta.sourceBoundsMGA55.maxEasting}` : 'N/A'} | N ${meta.sourceBoundsMGA55 ? `${meta.sourceBoundsMGA55.minNorthing}..${meta.sourceBoundsMGA55.maxNorthing}` : 'N/A'}</div>
       </div>
 
       <div style="margin-bottom: 8px; background: rgba(0, 40, 0, 0.4); padding: 6px; border-left: 3px solid #55cc55;">
@@ -183,7 +192,6 @@ export class DebugOverlay {
         <div id="dbg-mouse-pos" style="color: #ffff88; min-height: 80px;">Move mouse over terrain...</div>
       </div>
 
-      <!-- Controls section -->
       <div style="border-top: 1px dashed #448844; padding-top: 8px;">
         <div style="margin-bottom: 6px; font-weight: bold; color: #aaffaa;">CAMERA VIEW:</div>
         <div style="display: flex; gap: 6px; margin-bottom: 8px;">
@@ -200,24 +208,22 @@ export class DebugOverlay {
         </div>
 
         <div style="margin-bottom: 6px; font-weight: bold; color: #aaffaa;">
-          VERTICAL SCALE: <span id="dbg-scale" style="color: #ff9955;">1×</span>
+          VERTICAL SCALE: <span id="dbg-scale" style="color: #ff9955;">1.0× (Physically Accurate)</span>
         </div>
         <div style="display: flex; gap: 6px;">
-          <button id="btn-scale-1" class="retro-btn">1× (Real 1:1)</button>
+          <button id="btn-scale-1" class="retro-btn">1.0× (Physically Accurate)</button>
           <button id="btn-scale-15" class="retro-btn">1.5× Inspection</button>
           <button id="btn-scale-2" class="retro-btn">2× Inspection</button>
         </div>
       </div>
     `;
 
-    // Cache elements
     this.camPosElem = this.container.querySelector('#dbg-cam-pos')!;
     this.mousePosElem = this.container.querySelector('#dbg-mouse-pos')!;
     this.currentModeElem = this.container.querySelector('#dbg-mode')!;
     this.currentScaleElem = this.container.querySelector('#dbg-scale')!;
     this.gridBtnElem = this.container.querySelector('#btn-toggle-grid')!;
 
-    // Bind event listeners
     this.container.querySelector('#btn-cam-free')?.addEventListener('click', () => this.onCameraModeChange?.('FREE'));
     this.container.querySelector('#btn-cam-golf')?.addEventListener('click', () => this.onCameraModeChange?.('GOLF'));
     this.container.querySelector('#btn-cam-overhead')?.addEventListener('click', () => this.onCameraModeChange?.('OVERHEAD'));

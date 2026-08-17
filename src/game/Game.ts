@@ -8,7 +8,9 @@ import { TerrainData } from '../course/TerrainData';
 import { TerrainLoader } from '../course/TerrainLoader';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { MouseRaycaster } from '../debug/MouseRaycaster';
+import { PlaytestSurfaceGenerator } from '../debug/PlaytestSurfaceGenerator';
 import { ClubManager } from '../golf/Club';
+import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
 import { BallPhysics } from '../physics/BallPhysics';
@@ -46,6 +48,7 @@ export class Game {
   private clubManager: ClubManager;
   private swingMeter: SwingMeter;
   private ballPhysics?: BallPhysics;
+  private penaltyRules?: PenaltyRules;
   private sophieGolfer?: SophieGolfer;
 
   // Renderers & Overlays
@@ -66,6 +69,11 @@ export class Game {
 
   // Gameplay State Variables
   private strokeCount: number = 0;
+  private penaltyStrokes: number = 0;
+  /** Guards against the same completed swing being played more than once. */
+  private swingExecuted: boolean = false;
+  /** Where the stroke currently in flight was played from, for stroke-and-distance relief. */
+  private shotOrigin: { x: number; z: number } = { x: 0, z: 0 };
   private aimAngleRadians: number = 0; // 0 = facing +X
   private cupPosition: Vector3 = new Vector3();
   private lastFrameTime: number = performance.now();
@@ -93,6 +101,7 @@ export class Game {
       this.terrainQuery = new TerrainQuery(this.terrainData);
       this.geoTransform = new GeoTransform(this.terrainData);
       this.ballPhysics = new BallPhysics(this.terrainQuery, this.surfaceQuery);
+      this.penaltyRules = new PenaltyRules(this.terrainQuery, this.surfaceQuery);
 
       // 3. Initialize Camera Controller
       this.cameraController = new CameraController(this.canvas, this.terrainData, this.terrainQuery);
@@ -158,20 +167,29 @@ export class Game {
   }
 
   private initPlaytestLayout(layout: PlaytestLayoutConfig): void {
+    // A layout restored from localStorage may predate the current terrain crop.
+    if (!this.isWithinTerrain(layout.tee) || !this.isWithinTerrain(layout.hole)) {
+      console.warn('Saved playtest layout falls outside the loaded terrain extent; asking for a new one.');
+      this.resetLayout();
+      return;
+    }
+
     this.playtestLayout = layout;
 
-    // Generate 3D surface polygons for Playtest Layout (Tee, Fairway Corridor, Green, Bunkers)
-    const playtestSurfaces: SurfacePolygon[] = HoleData.generatePlaytestSurfaces(layout.tee, layout.hole);
-    this.surfaceQuery.setPolygons(playtestSurfaces);
-    this.surfaceMeshOverlay?.rebuild(playtestSurfaces);
+    const surfaces = this.resolveSurfaces(layout);
+    this.surfaceQuery.setPolygons(surfaces);
+    this.surfaceMeshOverlay?.rebuild(surfaces);
 
-    // Cup position
+    // Cup position. Clamping is correct here: the layout is already bounds-checked,
+    // and this is a render/placement lookup rather than a ball-in-play query.
     const cupY = this.terrainQuery!.getTerrainHeight(layout.hole.x, layout.hole.z, true);
     this.cupPosition.set(layout.hole.x, cupY, layout.hole.z);
     this.flagRenderer?.setPosition(this.cupPosition);
 
     // Ball position at Tee
     this.strokeCount = 0;
+    this.penaltyStrokes = 0;
+    this.shotOrigin = { x: layout.tee.x, z: layout.tee.z };
     this.ballPhysics!.setPosition(layout.tee.x, layout.tee.z);
 
     // Aim angle pointing from Tee directly to Hole
@@ -184,6 +202,35 @@ export class Game {
     this.clubManager.autoSelectClubForDistance(distToCup);
 
     this.stateManager.setState('ADDRESS');
+  }
+
+  /**
+   * Resolve the course surfaces for play.
+   *
+   * There is exactly one consumer path (§15): SurfaceQuery and SurfaceMeshOverlay are
+   * handed SurfacePolygon[] and neither knows nor cares where it came from. Verified
+   * geometry in hole.json always wins; the development placeholder only fills in while
+   * Hole 6 is unsurveyed, and everything it produces is flagged provisional.
+   */
+  private resolveSurfaces(layout: PlaytestLayoutConfig): SurfacePolygon[] {
+    const authored = this.holeConfig?.surfaces ?? [];
+    if (authored.length > 0) {
+      return authored;
+    }
+
+    console.info(
+      `[SOPHIE GOLF] ${this.holeConfig?.courseId}/${this.holeConfig?.holeId} has no traced surfaces in hole.json. ` +
+      'Falling back to development placeholder geometry — lies reported here are not the real course.'
+    );
+    return PlaytestSurfaceGenerator.generate(layout.tee, layout.hole);
+  }
+
+  private isWithinTerrain(point: { x: number; z: number }): boolean {
+    if (!this.terrainData) return false;
+    return (
+      point.x >= 0 && point.x <= this.terrainData.vertexExtentX &&
+      point.z >= 0 && point.z <= this.terrainData.vertexExtentZ
+    );
   }
 
   private setupHUDs(): void {
@@ -239,8 +286,12 @@ export class Game {
       }
     );
 
-    // Listen to state changes
+    // Listen to state changes. setState() only notifies on an actual transition, and a
+    // returning player's first real transition (LAYOUT_SELECTION skipped, straight to
+    // ADDRESS) matches GameStateManager's default state — so it wouldn't otherwise fire.
+    // Sync HUD visibility to the current state explicitly so it's never left stacked.
     this.stateManager.subscribe((newState) => this.handleStateChange(newState));
+    this.handleStateChange(this.stateManager.getState());
   }
 
   private handleStateChange(newState: GameStateType): void {
@@ -252,13 +303,8 @@ export class Game {
     this.layoutHUD?.setVisible(isLayoutSel);
     
     // Dev overlay & annotation tool visible ONLY in DEV_ALIGNMENT mode
-    const devOverlayElem = (this.debugOverlay as any)?.container;
-    const annToolElem = (this.annotationTool as any)?.container;
-    const compassElem = (this.debugOverlay as any)?.compassContainer;
-    
-    if (devOverlayElem) devOverlayElem.style.display = isDev ? 'block' : 'none';
-    if (annToolElem) annToolElem.style.display = isDev ? 'block' : 'none';
-    if (compassElem) compassElem.style.display = isDev ? 'block' : 'none';
+    this.debugOverlay?.setVisible(isDev);
+    this.annotationTool?.setVisible(isDev);
 
     if (isLayoutSel) {
       this.cameraController?.setMode('OVERHEAD');
@@ -360,6 +406,7 @@ export class Game {
     if (state === 'ADDRESS') {
       this.stateManager.setState('SWINGING');
       this.swingMeter.reset();
+      this.swingExecuted = false;
       this.swingMeter.trigger(); // Start power rising
     } else if (state === 'SWINGING') {
       const meterState = this.swingMeter.trigger();
@@ -373,7 +420,18 @@ export class Game {
     const swingResult = this.swingMeter.getResult();
     if (!swingResult || !this.sophieGolfer || !this.ballPhysics) return;
 
+    // A completed meter is reachable from two directions: the player's third input, and
+    // the animate loop noticing the meter auto-completed because that input never came.
+    // Both must resolve to exactly one stroke — re-entering here restarts Sophie's
+    // backswing before it reaches impact, so the ball would never actually be struck.
+    if (this.swingExecuted) return;
+    this.swingExecuted = true;
+
     this.strokeCount++;
+
+    // Remember where this stroke was played from, in case it needs replaying under
+    // stroke-and-distance relief.
+    this.shotOrigin = { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z };
 
     // Trigger Sophie procedural swing animation
     this.sophieGolfer.startProceduralSwing(() => {
@@ -418,7 +476,7 @@ export class Game {
         this.stateManager.setState('BALL_ROLLING');
       } else if (ballState === 'HOLED') {
         this.stateManager.setState('HOLED');
-        this.gameHUD?.showCelebration(this.strokeCount);
+        this.gameHUD?.showCelebration(this.strokeCount + this.penaltyStrokes, this.penaltyStrokes);
       } else if (ballState === 'REST') {
         this.onBallStoppedAtRest();
       }
@@ -472,7 +530,8 @@ export class Game {
       const currentLie = this.ballPhysics.getCurrentLie();
 
       this.gameHUD.updateHUD(
-        this.strokeCount,
+        this.strokeCount + this.penaltyStrokes,
+        this.penaltyStrokes,
         distToCup,
         this.clubManager.getCurrentClub(),
         currentLie,
@@ -497,6 +556,8 @@ export class Game {
   private onBallStoppedAtRest(): void {
     if (!this.ballPhysics) return;
 
+    this.applyPenaltyRelief();
+
     const dx = this.cupPosition.x - this.ballPhysics.position.x;
     const dz = this.cupPosition.z - this.ballPhysics.position.z;
     this.aimAngleRadians = Math.atan2(dz, dx);
@@ -505,6 +566,28 @@ export class Game {
     this.clubManager.autoSelectClubForDistance(remainingDist);
 
     this.stateManager.setState('ADDRESS');
+  }
+
+  /**
+   * Put the ball back in play if it came to rest somewhere the rules do not allow it
+   * to be played from (§17, §18). Without this a ball in water, out of bounds, or off
+   * the mapped terrain leaves the player with no legal move.
+   */
+  private applyPenaltyRelief(): void {
+    if (!this.ballPhysics || !this.penaltyRules) return;
+
+    const ruling = this.penaltyRules.evaluate(
+      this.ballPhysics.getCurrentLie(),
+      { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z },
+      this.shotOrigin,
+      this.ballPhysics.leftTerrain
+    );
+
+    if (!ruling) return;
+
+    this.penaltyStrokes += ruling.penaltyStrokes;
+    this.ballPhysics.setPosition(ruling.dropPosition.x, ruling.dropPosition.z);
+    this.gameHUD?.showPenalty(ruling.headline, ruling.detail);
   }
 
   private showErrorModal(message: string): void {

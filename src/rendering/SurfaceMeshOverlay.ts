@@ -28,10 +28,12 @@ export class SurfaceMeshOverlay {
       ROUGH: new MeshStandardMaterial({ color: 0x2e5e23, roughness: 0.9, side: DoubleSide }),
       DEEP_ROUGH: new MeshStandardMaterial({ color: 0x214418, roughness: 0.95, side: DoubleSide }),
       FRINGE: new MeshStandardMaterial({ color: 0x52a848, roughness: 0.75, side: DoubleSide }),
-      GREEN: new MeshStandardMaterial({ color: 0x5bc251, roughness: 0.65, side: DoubleSide }), // Bright emerald green
-      BUNKER: new MeshStandardMaterial({ color: 0xdfc48c, roughness: 0.95, side: DoubleSide }), // Tan sand
+      GREEN: new MeshStandardMaterial({ color: 0x5bc251, roughness: 0.65, side: DoubleSide }),
+      BUNKER: new MeshStandardMaterial({ color: 0xdfc48c, roughness: 0.95, side: DoubleSide }),
       WATER: new MeshStandardMaterial({ color: 0x3377cc, roughness: 0.2, metalness: 0.3, side: DoubleSide }),
       PATH: new MeshStandardMaterial({ color: 0xa09e98, roughness: 0.9, side: DoubleSide }),
+      GROUND_UNDER_REPAIR: new MeshStandardMaterial({ color: 0x887755, roughness: 0.9, side: DoubleSide }),
+      GENERAL_AREA: new MeshStandardMaterial({ color: 0x2e5e23, roughness: 0.9, side: DoubleSide }),
       OUT_OF_BOUNDS: new MeshStandardMaterial({ color: 0xaa3333, roughness: 0.9, side: DoubleSide })
     };
   }
@@ -41,7 +43,6 @@ export class SurfaceMeshOverlay {
   }
 
   public rebuild(polygons: SurfacePolygon[]): void {
-    // Clear existing overlay meshes
     while (this.group.children.length > 0) {
       const child = this.group.children[0];
       this.group.remove(child);
@@ -59,14 +60,10 @@ export class SurfaceMeshOverlay {
 
   private buildPolygonMesh(poly: SurfacePolygon): Mesh | null {
     const pts = poly.points;
-
-    // Simple triangulation via fan
     const numTriangles = pts.length - 2;
     if (numTriangles <= 0) return null;
 
     const positions = new Float32Array(pts.length * 3);
-
-    // Height offset slightly above ground to prevent Z-fighting
     const yOffset = poly.type === 'GREEN' ? 0.08 : poly.type === 'BUNKER' ? 0.04 : 0.06;
 
     for (let i = 0; i < pts.length; i++) {

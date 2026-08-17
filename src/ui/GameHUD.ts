@@ -6,6 +6,8 @@ export class GameHUD {
   private container: HTMLElement;
   private swingMeterContainer: HTMLElement;
   private celebrationModal: HTMLElement;
+  private penaltyBanner: HTMLElement;
+  private penaltyTimeoutId: number | null = null;
 
   // Callbacks
   private onAimLeft?: () => void;
@@ -54,6 +56,7 @@ export class GameHUD {
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
     this.celebrationModal = document.createElement('div');
+    this.penaltyBanner = document.createElement('div');
 
     this.setupStyles();
     this.buildHTML();
@@ -63,16 +66,29 @@ export class GameHUD {
     document.body.appendChild(this.container);
     document.body.appendChild(this.swingMeterContainer);
     document.body.appendChild(this.celebrationModal);
+    document.body.appendChild(this.penaltyBanner);
   }
 
   public setVisible(visible: boolean): void {
     this.container.style.display = visible ? 'block' : 'none';
     this.swingMeterContainer.style.display = visible ? 'block' : 'none';
+    if (!visible) {
+      this.penaltyBanner.style.display = 'none';
+    }
   }
 
-  public updateHUD(strokes: number, distToCupMetres: number, club: ClubConfig, lie: LieInfo, cameraMode: string): void {
+  public updateHUD(
+    totalStrokes: number,
+    penaltyStrokes: number,
+    distToCupMetres: number,
+    club: ClubConfig,
+    lie: LieInfo,
+    cameraMode: string
+  ): void {
     if (this.strokeElem) {
-      this.strokeElem.textContent = `STROKE ${strokes}`;
+      this.strokeElem.textContent = penaltyStrokes > 0
+        ? `STROKE ${totalStrokes} (+${penaltyStrokes} PEN)`
+        : `STROKE ${totalStrokes}`;
     }
     if (this.distElem) {
       this.distElem.textContent = `${distToCupMetres.toFixed(1)} m TO PIN`;
@@ -130,12 +146,37 @@ export class GameHUD {
     }
   }
 
-  public showCelebration(strokes: number): void {
+  public showCelebration(totalStrokes: number, penaltyStrokes: number = 0): void {
     const strokeText = document.getElementById('celeb-stroke-text');
     if (strokeText) {
-      strokeText.textContent = `Sophie holed the ball in ${strokes} stroke${strokes > 1 ? 's' : ''}!`;
+      const penaltyNote = penaltyStrokes > 0
+        ? ` (including ${penaltyStrokes} penalty stroke${penaltyStrokes > 1 ? 's' : ''})`
+        : '';
+      strokeText.textContent =
+        `Sophie holed the ball in ${totalStrokes} stroke${totalStrokes > 1 ? 's' : ''}${penaltyNote}!`;
     }
     this.celebrationModal.style.display = 'flex';
+  }
+
+  /**
+   * Announce a rules ruling — out of bounds, a penalty area, or free relief — so the
+   * ball moving on its own is explained rather than mysterious.
+   */
+  public showPenalty(headline: string, detail: string): void {
+    if (this.penaltyTimeoutId !== null) {
+      window.clearTimeout(this.penaltyTimeoutId);
+    }
+
+    this.penaltyBanner.innerHTML = `
+      <div style="font-size: 15px; font-weight: bold; color: #ffdd55; letter-spacing: 1px;">${headline}</div>
+      <div style="font-size: 11px; color: #ffe8bb; margin-top: 3px;">${detail}</div>
+    `;
+    this.penaltyBanner.style.display = 'block';
+
+    this.penaltyTimeoutId = window.setTimeout(() => {
+      this.penaltyBanner.style.display = 'none';
+      this.penaltyTimeoutId = null;
+    }, 4000);
   }
 
   public hideCelebration(): void {
@@ -167,6 +208,22 @@ export class GameHUD {
     this.celebrationModal.style.justifyContent = 'center';
     this.celebrationModal.style.alignItems = 'center';
     this.celebrationModal.style.zIndex = '100';
+
+    this.penaltyBanner.style.display = 'none';
+    this.penaltyBanner.style.position = 'absolute';
+    this.penaltyBanner.style.top = '90px';
+    this.penaltyBanner.style.left = '50%';
+    this.penaltyBanner.style.transform = 'translateX(-50%)';
+    this.penaltyBanner.style.backgroundColor = 'rgba(48, 20, 6, 0.94)';
+    this.penaltyBanner.style.border = '3px solid #ffaa33';
+    this.penaltyBanner.style.borderRadius = '6px';
+    this.penaltyBanner.style.padding = '10px 20px';
+    this.penaltyBanner.style.textAlign = 'center';
+    this.penaltyBanner.style.fontFamily = "'Courier New', Courier, monospace";
+    this.penaltyBanner.style.maxWidth = '460px';
+    this.penaltyBanner.style.zIndex = '70';
+    this.penaltyBanner.style.pointerEvents = 'none';
+    this.penaltyBanner.style.boxShadow = '0 6px 20px rgba(0,0,0,0.7)';
   }
 
   private buildHTML(): void {
