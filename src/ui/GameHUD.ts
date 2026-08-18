@@ -15,7 +15,6 @@ export class GameHUD {
   private onSwingTrigger?: () => void;
   private onCameraToggle?: () => void;
   private onResetLayout?: () => void;
-  private onDevModeToggle?: () => void;
   private onPlayAgain?: () => void;
 
   // Dynamic elements
@@ -44,7 +43,6 @@ export class GameHUD {
     onSwingTrigger?: () => void;
     onCameraToggle?: () => void;
     onResetLayout?: () => void;
-    onDevModeToggle?: () => void;
     onPlayAgain?: () => void;
   }) {
     this.onAimLeft = callbacks.onAimLeft;
@@ -54,11 +52,12 @@ export class GameHUD {
     this.onSwingTrigger = callbacks.onSwingTrigger;
     this.onCameraToggle = callbacks.onCameraToggle;
     this.onResetLayout = callbacks.onResetLayout;
-    this.onDevModeToggle = callbacks.onDevModeToggle;
     this.onPlayAgain = callbacks.onPlayAgain;
 
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
+    this.container.id = 'sophie-game-hud';
+    this.swingMeterContainer.id = 'sophie-swing-meter';
     this.celebrationModal = document.createElement('div');
 
     this.setupStyles();
@@ -238,9 +237,9 @@ export class GameHUD {
 
   private buildHTML(): void {
     this.container.innerHTML = `
-      <div style="position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: auto;">
+      <div class="hud-topbar">
         
-        <div style="background: rgba(10, 24, 12, 0.92); border: 2px solid #44aa44; border-radius: 6px; padding: 10px 16px; color: #d5ffd5; font-family: 'Courier New', monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.6);">
+        <div class="hud-scorecard">
           <div id="hud-title" style="font-weight: bold; font-size: 14px; color: #55ff55;">⛳ SOPHIE GOLF — HOLE 6</div>
           <div id="hud-subtitle" style="font-size: 11px; color: #aadbba;">Warragul Country Club · PAR 4 · 248m</div>
           <div style="display: flex; gap: 16px; margin-top: 4px; font-weight: bold;">
@@ -253,31 +252,59 @@ export class GameHUD {
           </div>
         </div>
 
-        <div style="display: flex; gap: 8px;">
+        <div class="hud-actions">
           <button id="btn-hud-cam" class="retro-hud-btn">📷 VIEW: GOLF</button>
           <button id="btn-hud-replay" class="retro-hud-btn" style="border-color: #ffaa33; color: #ffddaa;">↻ REPLAY HOLE</button>
-          <button id="btn-hud-dev" class="retro-hud-btn" style="border-color: #77aaff; color: #aaddff;">🛠️ DEV (F2)</button>
         </div>
       </div>
 
-      <div style="position: absolute; bottom: 16px; left: 16px; pointer-events: auto; background: rgba(10, 24, 12, 0.92); border: 2px solid #44aa44; border-radius: 6px; padding: 12px; color: #d5ffd5; font-family: 'Courier New', monospace; max-width: 340px; box-shadow: 0 4px 12px rgba(0,0,0,0.6);">
+      <div class="hud-controls">
         <div style="font-weight: bold; font-size: 12px; color: #aaffaa; margin-bottom: 4px;">ACTIVE CLUB:</div>
         <div id="hud-club-name" style="font-size: 15px; font-weight: bold; color: #ffff55;">1W - Driver (1W)</div>
         <div id="hud-club-detail" style="font-size: 11px; color: #bbddbb; margin-bottom: 8px;">Carry: ~230m | Loft: 12°</div>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
-          <button id="btn-club-prev" class="retro-control-btn">◄ PREV CLUB [W]</button>
-          <button id="btn-club-next" class="retro-control-btn">NEXT CLUB [S] ►</button>
+          <button id="btn-club-prev" class="retro-control-btn" aria-label="Previous club">◄ CLUB</button>
+          <button id="btn-club-next" class="retro-control-btn" aria-label="Next club">CLUB ►</button>
         </div>
 
         <div style="font-weight: bold; font-size: 12px; color: #aaffaa; margin-bottom: 4px;">AIM DIRECTION:</div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-          <button id="btn-aim-left" class="retro-control-btn">◀ AIM LEFT [A]</button>
-          <button id="btn-aim-right" class="retro-control-btn">AIM RIGHT [D] ▶</button>
+          <button id="btn-aim-left" class="retro-control-btn" aria-label="Aim left">◀ AIM</button>
+          <button id="btn-aim-right" class="retro-control-btn" aria-label="Aim right">AIM ▶</button>
         </div>
       </div>
 
       <style>
+        .hud-topbar {
+          position: absolute;
+          top: max(12px, env(safe-area-inset-top));
+          left: 12px;
+          right: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+          pointer-events: auto;
+        }
+        .hud-scorecard, .hud-controls {
+          background: rgba(10, 24, 12, 0.92);
+          border: 2px solid #44aa44;
+          border-radius: 6px;
+          color: #d5ffd5;
+          font-family: 'Courier New', monospace;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+        .hud-scorecard { padding: 10px 16px; }
+        .hud-actions { display: flex; gap: 8px; }
+        .hud-controls {
+          position: absolute;
+          bottom: 16px;
+          left: 16px;
+          width: min(340px, calc(100vw - 32px));
+          padding: 12px;
+          pointer-events: auto;
+        }
         .retro-hud-btn {
           background: rgba(15, 35, 17, 0.92);
           border: 2px solid #44aa44;
@@ -289,6 +316,7 @@ export class GameHUD {
           cursor: pointer;
           border-radius: 4px;
           box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+          touch-action: manipulation;
         }
         .retro-hud-btn:hover {
           background: #255529;
@@ -303,10 +331,72 @@ export class GameHUD {
           font-size: 11px;
           cursor: pointer;
           border-radius: 3px;
+          min-height: 42px;
+          touch-action: manipulation;
         }
         .retro-control-btn:hover {
           background: #2b572d;
           border-color: #ffff77;
+        }
+        @media (max-width: 700px) {
+          .hud-topbar {
+            top: max(6px, env(safe-area-inset-top));
+            left: 6px;
+            right: 6px;
+            gap: 6px;
+          }
+          .hud-scorecard {
+            min-width: 0;
+            flex: 1;
+            padding: 7px 9px;
+          }
+          #hud-title { font-size: 11px !important; }
+          #hud-subtitle { font-size: 9px !important; }
+          #hud-stroke, #hud-dist { font-size: 12px !important; }
+          #hud-lie { font-size: 10px; }
+          #hud-wind { display: none; }
+          .hud-actions {
+            width: 92px;
+            flex-direction: column;
+            gap: 5px;
+          }
+          .retro-hud-btn {
+            min-height: 42px;
+            padding: 5px 6px;
+            font-size: 9px;
+          }
+          .hud-controls {
+            left: 6px;
+            bottom: calc(174px + env(safe-area-inset-bottom));
+            width: calc(100vw - 12px);
+            max-width: none;
+            padding: 8px;
+          }
+          .hud-controls > div:first-child,
+          #hud-club-detail,
+          .hud-controls > div:nth-of-type(4) { display: none; }
+          #hud-club-name {
+            font-size: 12px !important;
+            margin-bottom: 6px;
+          }
+          .retro-control-btn {
+            min-height: 46px;
+            font-size: 12px;
+            font-weight: bold;
+          }
+          #sophie-swing-meter {
+            left: 6px !important;
+            right: 6px !important;
+            bottom: max(6px, env(safe-area-inset-bottom)) !important;
+          }
+          #sophie-swing-meter > div {
+            width: 100% !important;
+            padding: 10px 12px !important;
+          }
+          #btn-trigger-swing {
+            min-height: 48px;
+            touch-action: manipulation;
+          }
         }
       </style>
     `;
@@ -323,7 +413,6 @@ export class GameHUD {
 
     this.container.querySelector('#btn-hud-cam')?.addEventListener('click', () => this.onCameraToggle?.());
     this.container.querySelector('#btn-hud-replay')?.addEventListener('click', () => this.onResetLayout?.());
-    this.container.querySelector('#btn-hud-dev')?.addEventListener('click', () => this.onDevModeToggle?.());
 
     this.container.querySelector('#btn-club-prev')?.addEventListener('click', () => this.onClubPrev?.());
     this.container.querySelector('#btn-club-next')?.addEventListener('click', () => this.onClubNext?.());
@@ -354,7 +443,7 @@ export class GameHUD {
         </div>
 
         <button id="btn-trigger-swing" style="width: 100%; background: #cc3333; border: 2px solid #ff7777; color: #ffffff; padding: 10px; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);">
-          SWING! [SPACE]
+          SWING!
         </button>
       </div>
     `;

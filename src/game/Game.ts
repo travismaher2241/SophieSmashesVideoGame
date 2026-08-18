@@ -208,7 +208,6 @@ export class Game {
       onSwingTrigger: () => this.triggerSwingMeter(),
       onCameraToggle: () => this.toggleCameraMode(),
       onResetLayout: () => this.initRoundOnTee(),
-      onDevModeToggle: () => this.toggleDevMode(),
       onPlayAgain: () => this.initRoundOnTee()
     });
 

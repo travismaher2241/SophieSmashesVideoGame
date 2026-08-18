@@ -37,7 +37,7 @@ The playable vertical slice features **Sophie** as a 2D billboard sprite on real
   * Smooth ball-follow flight camera.
   * Overhead course map preview.
 * **16-Bit Retro Renderer (`RetroRenderer`)**: 2-pass upscaler rendering 3D scene into a $426 \times 240$ `WebGLRenderTarget` with `NearestFilter` nearest-neighbor scaling.
-* **Dev Alignment Tool**: Accessible via `F2`, `?debug=alignment`, or HUD `DEV (F2)` button.
+* **Dev Alignment Tool**: Accessible via `F2` for course-authoring work without exposing developer controls in the player HUD.
 
 ---
 
@@ -49,7 +49,7 @@ The playable vertical slice features **Sophie** as a 2D billboard sprite on real
 | **`A` / `D`** or **`Left` / `Right` Arrows** | Aim Left / Aim Right |
 | **`W` / `S`** or **`Up` / `Down` Arrows** | Select Prev / Next Club |
 | **`M`** or **View Button** | Toggle Behind-Player / Overhead Map View |
-| **`F2`** or **Dev Button** | Toggle Developer Alignment Mode |
+| **`F2`** | Toggle Developer Alignment Mode |
 
 ---
 
