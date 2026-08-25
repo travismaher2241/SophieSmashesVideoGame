@@ -94,13 +94,13 @@ export class CameraController {
     const isPortrait = this.camera.aspect < 1.0;
 
     // Distances and heights tuned for 25-35% Sophie screen height and lower-left quadrant framing
-    const camDist = isPutting ? (isPortrait ? 4.5 : 3.8) : (isPortrait ? 6.5 : 5.8);
-    const camHeight = isPutting ? (isPortrait ? 1.35 : 1.25) : (isPortrait ? 1.75 : 1.65);
+    const camDist = isPutting ? (isPortrait ? 4.8 : 3.8) : (isPortrait ? 6.8 : 5.8);
+    const camHeight = isPutting ? (isPortrait ? 1.40 : 1.25) : (isPortrait ? 1.80 : 1.65);
 
     // Negative lateral offset places camera slightly behind Sophie's stance,
-    // ensuring Sophie and the ball are safely inside the gameplay viewport (~15-25% from left screen edge)
+    // ensuring Sophie, her club, and backswing are safely inside the gameplay viewport (>8% from left screen edge)
     const perpAngle = aimAngleRad + Math.PI / 2;
-    const lateralOffset = isPutting ? (isPortrait ? -0.12 : -0.22) : (isPortrait ? -0.20 : -0.32);
+    const lateralOffset = isPutting ? (isPortrait ? -0.18 : -0.22) : (isPortrait ? -0.32 : -0.32);
 
     const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
     const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;

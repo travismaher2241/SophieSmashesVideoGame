@@ -427,7 +427,8 @@ export class Game {
 
     // Auto-select club for distance
     const distToCup = Math.hypot(dx, dz);
-    this.clubManager.autoSelectClubForDistance(distToCup);
+    const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
+    this.clubManager.autoSelectClubForDistance(distToCup, isOnGreen);
 
     this.stateManager.setState('ADDRESS');
   }
@@ -611,11 +612,13 @@ export class Game {
 
   private selectNextClub(): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
+    if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
     this.clubManager.selectNextClub();
   }
 
   private selectPrevClub(): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
+    if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
     this.clubManager.selectPrevClub();
   }
 
@@ -954,7 +957,8 @@ export class Game {
     this.aimAngleRadians = Math.atan2(dz, dx);
 
     const remainingDist = Math.hypot(dx, dz);
-    this.clubManager.autoSelectClubForDistance(remainingDist);
+    const isOnGreen = this.ballPhysics.getCurrentLie().type === 'GREEN';
+    this.clubManager.autoSelectClubForDistance(remainingDist, isOnGreen);
 
     if (this.sophieGolfer && this.terrainQuery) {
       const terrainY = this.terrainQuery.getTerrainHeight(this.ballPhysics.position.x, this.ballPhysics.position.z, true);

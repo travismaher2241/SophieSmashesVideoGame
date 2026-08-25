@@ -140,10 +140,12 @@ export class GameHUD {
       this.lieElem.innerHTML = `LIE  <span style="color: ${color}; font-weight: 800;">${lie.name.toUpperCase()} · ${pct}%</span>`;
     }
     if (this.clubNameElem) {
-      this.clubNameElem.textContent = `${club.code} · ${club.name.toUpperCase()}`;
+      this.clubNameElem.textContent = club.displayName || club.name;
     }
     if (this.clubDetailElem) {
-      this.clubDetailElem.textContent = `${club.maxDistanceMetres}m carry · ${club.loftDegrees}° loft`;
+      this.clubDetailElem.textContent = club.isPutter
+        ? 'Putting · 0° loft'
+        : `${club.carryMetres || club.maxDistanceMetres}m carry · ${club.launchAngleDeg || club.loftDegrees}° loft`;
     }
     if (this.cameraBtnElem) {
       this.cameraBtnElem.textContent = `VIEW · ${cameraMode}`;
@@ -324,8 +326,8 @@ export class GameHUD {
         <div class="hud-capsule hud-club-selector">
           <button id="btn-club-prev" class="hud-ctrl-btn" aria-label="Previous club">‹</button>
           <div class="hud-club-display">
-            <div id="hud-club-name">1W · DRIVER</div>
-            <div id="hud-club-detail">230m · 12° loft</div>
+            <div id="hud-club-name">DRIVER</div>
+            <div id="hud-club-detail">230m carry · 11° loft</div>
           </div>
           <button id="btn-club-next" class="hud-ctrl-btn" aria-label="Next club">›</button>
         </div>

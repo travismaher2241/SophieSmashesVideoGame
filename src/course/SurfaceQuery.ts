@@ -65,13 +65,21 @@ export interface SurfacePolygon {
   provisional?: boolean;
 }
 
+export interface GroundPhysics {
+  rollingResistance: number;
+  bounceRestitution: number;
+  impactFriction: number;
+  spinDamping: number;
+}
+
 export interface LieInfo {
   type: SurfaceType;
   name: string;
-  distanceMultiplier: number; // e.g. 1.0 for Fairway, 0.85 for Rough, 0.60 for Bunker
+  distanceMultiplier: number; // e.g. 1.0 for Fairway, 0.82 for Rough, 0.60 for Bunker
   controlMultiplier: number;  // e.g. 1.0 for Fairway, 0.75 for Rough
-  restitution: number;        // Bounce elasticity (0.45 fairway, 0.15 bunker, 0.35 green)
-  rollingFriction: number;    // Ground friction (0.12 fairway, 0.45 bunker, 0.06 green)
+  restitution: number;        // Bounce elasticity (0.35 fairway, 0.08 bunker, 0.25 green)
+  rollingFriction: number;    // Ground roll friction (0.22 fairway, 0.65 bunker, 0.08 green)
+  impactFriction: number;     // Tangential speed reduction on ground contact (0.50 fairway, 0.88 bunker)
   relief: ReliefRule;         // Rules outcome when the ball rests here
 }
 
@@ -85,8 +93,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Teeing Ground',
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
-    restitution: 0.45,
-    rollingFriction: 0.12,
+    restitution: 0.38,
+    rollingFriction: 0.20,
+    impactFriction: 0.45,
     relief: 'NONE'
   },
   FAIRWAY: {
@@ -94,8 +103,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Fairway',
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
-    restitution: 0.42,
-    rollingFriction: 0.12,
+    restitution: 0.35,
+    rollingFriction: 0.22,
+    impactFriction: 0.50,
     relief: 'NONE'
   },
   FIRST_CUT: {
@@ -103,8 +113,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'First Cut',
     distanceMultiplier: 0.95,
     controlMultiplier: 0.92,
-    restitution: 0.38,
-    rollingFriction: 0.16,
+    restitution: 0.28,
+    rollingFriction: 0.30,
+    impactFriction: 0.62,
     relief: 'NONE'
   },
   ROUGH: {
@@ -112,8 +123,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Primary Rough',
     distanceMultiplier: 0.82,
     controlMultiplier: 0.75,
-    restitution: 0.28,
-    rollingFriction: 0.24,
+    restitution: 0.18,
+    rollingFriction: 0.52,
+    impactFriction: 0.78,
     relief: 'NONE'
   },
   DEEP_ROUGH: {
@@ -121,8 +133,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Deep Heavy Rough',
     distanceMultiplier: 0.65,
     controlMultiplier: 0.50,
-    restitution: 0.18,
-    rollingFriction: 0.38,
+    restitution: 0.12,
+    rollingFriction: 0.60,
+    impactFriction: 0.85,
     relief: 'NONE'
   },
   FRINGE: {
@@ -130,8 +143,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Green Fringe',
     distanceMultiplier: 0.98,
     controlMultiplier: 0.95,
-    restitution: 0.38,
-    rollingFriction: 0.10,
+    restitution: 0.30,
+    rollingFriction: 0.16,
+    impactFriction: 0.55,
     relief: 'NONE'
   },
   GREEN: {
@@ -139,8 +153,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Putting Green',
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
-    restitution: 0.35,
-    rollingFriction: 0.06, // Smooth green fast roll
+    restitution: 0.25,
+    rollingFriction: 0.08, // Smooth green putting roll
+    impactFriction: 0.68, // High check on approach landing
     relief: 'NONE'
   },
   BUNKER: {
@@ -148,19 +163,19 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Sand Bunker',
     distanceMultiplier: 0.60,
     controlMultiplier: 0.55,
-    restitution: 0.12, // Heavy sand damping
-    rollingFriction: 0.48, // High sand resistance
+    restitution: 0.08, // Heavy sand damping
+    rollingFriction: 0.65, // High sand resistance
+    impactFriction: 0.88, // Absorbs almost all horizontal speed
     relief: 'NONE'
   },
   WATER: {
     type: 'WATER',
     name: 'Water Hazard',
-    // The ball is never played from here — a lateral drop is taken first — but these
-    // stay playable rather than zero so no code path can produce a zero-speed launch.
     distanceMultiplier: 0.55,
     controlMultiplier: 0.45,
     restitution: 0.05,
     rollingFriction: 0.90,
+    impactFriction: 0.95,
     relief: 'LATERAL_DROP'
   },
   PATH: {
@@ -168,8 +183,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Cart Path',
     distanceMultiplier: 1.05,
     controlMultiplier: 0.85,
-    restitution: 0.75, // Hard asphalt bounce
-    rollingFriction: 0.08,
+    restitution: 0.70, // Hard asphalt bounce
+    rollingFriction: 0.10,
+    impactFriction: 0.25,
     relief: 'NONE'
   },
   GROUND_UNDER_REPAIR: {
@@ -177,8 +193,9 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Ground Under Repair',
     distanceMultiplier: 0.85,
     controlMultiplier: 0.70,
-    restitution: 0.25,
-    rollingFriction: 0.30,
+    restitution: 0.22,
+    rollingFriction: 0.35,
+    impactFriction: 0.70,
     relief: 'FREE_DROP'
   },
   OUT_OF_BOUNDS: {
@@ -186,19 +203,19 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
     name: 'Out of Bounds',
     distanceMultiplier: 0.70,
     controlMultiplier: 0.60,
-    restitution: 0.30,
-    rollingFriction: 0.30,
+    restitution: 0.25,
+    rollingFriction: 0.35,
+    impactFriction: 0.70,
     relief: 'STROKE_AND_DISTANCE'
   },
   GENERAL_AREA: {
     type: 'GENERAL_AREA',
     name: 'General Area',
-    // The honest answer for a point no traced polygon covers: playable ground of
-    // unknown quality, pitched between first cut and primary rough.
     distanceMultiplier: 0.90,
     controlMultiplier: 0.85,
-    restitution: 0.32,
-    rollingFriction: 0.20,
+    restitution: 0.28,
+    rollingFriction: 0.30,
+    impactFriction: 0.60,
     relief: 'NONE'
   }
 };
