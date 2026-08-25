@@ -86,26 +86,31 @@ export class CameraController {
 
   /**
    * Set behind-golfer camera position given ball position and aim angle (radians).
+   * Composed to show Sophie prominently in foreground-left with the hole corridor stretching ahead.
    */
   public updateGolfAddressView(ballPos: Vector3, aimAngleRad: number, isPutting: boolean = false): void {
     if (this.mode !== 'GOLF') return;
 
-    const camDist = isPutting ? 3.4 : 5.8;
-    const camHeight = isPutting ? 1.1 : 1.9;
+    const camDist = isPutting ? 4.2 : 6.4;
+    const camHeight = isPutting ? 1.6 : 2.7;
 
-    const camX = ballPos.x - Math.cos(aimAngleRad) * camDist;
-    const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist;
+    // Lateral offset (perpendicular to aim line) to frame Sophie on the left and ball/corridor in center
+    const perpAngle = aimAngleRad + Math.PI / 2;
+    const lateralOffset = isPutting ? 0.25 : 0.45;
+
+    const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
+    const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
 
     const terrainY = this.getDisplayHeight(camX, camZ);
-    const camY = Math.max(terrainY + 0.8, ballPos.y + camHeight);
+    const camY = Math.max(terrainY + 0.9, ballPos.y + camHeight);
 
     this.camera.position.set(camX, camY, camZ);
 
     // Look at target point down aiming line
-    const lookAheadDist = isPutting ? 15 : 60;
+    const lookAheadDist = isPutting ? 18 : 75;
     const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
     const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
-    const lookY = this.getDisplayHeight(lookX, lookZ) + (isPutting ? 0.3 : 1.0);
+    const lookY = this.getDisplayHeight(lookX, lookZ) + (isPutting ? 0.4 : 1.6);
 
     this.target.set(lookX, lookY, lookZ);
     this.camera.lookAt(this.target);
@@ -115,8 +120,8 @@ export class CameraController {
    * Smoothly follow ball during flight and rolling.
    */
   public updateBallFollowView(ballPos: Vector3, velocity: Vector3, aimAngleRad: number): void {
-    const camDist = 10.0;
-    const camHeight = 3.8;
+    const camDist = 11.5;
+    const camHeight = 4.2;
 
     let dirX = Math.cos(aimAngleRad);
     let dirZ = Math.sin(aimAngleRad);
@@ -131,7 +136,7 @@ export class CameraController {
     const targetCamZ = ballPos.z - dirZ * camDist;
 
     const terrainY = this.getDisplayHeight(targetCamX, targetCamZ);
-    const targetCamY = Math.max(terrainY + 1.2, ballPos.y + camHeight);
+    const targetCamY = Math.max(terrainY + 1.4, ballPos.y + camHeight);
 
     this.camera.position.x += (targetCamX - this.camera.position.x) * 0.18;
     this.camera.position.y += (targetCamY - this.camera.position.y) * 0.18;

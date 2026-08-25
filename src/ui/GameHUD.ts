@@ -96,11 +96,13 @@ export class GameHUD {
 
   public configureHole(config: GameHUDHoleConfig): void {
     if (this.headerTitleElem) {
-      this.headerTitleElem.textContent = `⛳ SOPHIE GOLF — HOLE ${config.holeNumber}`;
+      this.headerTitleElem.textContent = 'SOPHIE GOLF';
     }
     if (this.headerSubtitleElem) {
-      this.headerSubtitleElem.textContent = `${config.courseName} — ${config.holeName} · PAR ${config.par} · ${config.distanceMetres}m`;
+      this.headerSubtitleElem.textContent = `${config.courseName} · ${config.holeName} · PAR ${config.par} · ${config.distanceMetres}m`;
     }
+    const holeNumberElem = this.container.querySelector('#hud-hole-number');
+    if (holeNumberElem) holeNumberElem.textContent = String(config.holeNumber);
     if (this.celebrationCourseElem) {
       this.celebrationCourseElem.textContent = `${config.courseName} — ${config.holeName} · Par ${config.par}`;
     }
@@ -124,7 +126,7 @@ export class GameHUD {
       this.distElem.textContent = `${distToCupMetres.toFixed(1)} m TO PIN`;
     }
     if (this.windElem) {
-      this.windElem.textContent = `WIND: ${windStr}`;
+      this.windElem.textContent = `WIND  ${windStr}`;
     }
     if (this.lieElem) {
       const pct = Math.round(lie.distanceMultiplier * 100);
@@ -132,16 +134,16 @@ export class GameHUD {
       if (lie.type === 'ROUGH' || lie.type === 'DEEP_ROUGH') color = '#ffcc44';
       if (lie.type === 'BUNKER') color = '#ffaa33';
       if (lie.type === 'GREEN') color = '#55ffff';
-      this.lieElem.innerHTML = `LIE: <span style="color: ${color}; font-weight: bold;">${lie.name.toUpperCase()} (${pct}%)</span>`;
+      this.lieElem.innerHTML = `LIE  <span style="color: ${color}; font-weight: 800;">${lie.name.toUpperCase()} · ${pct}%</span>`;
     }
     if (this.clubNameElem) {
-      this.clubNameElem.textContent = `${club.code} - ${club.name}`;
+      this.clubNameElem.textContent = `${club.code} · ${club.name.toUpperCase()}`;
     }
     if (this.clubDetailElem) {
-      this.clubDetailElem.textContent = `Carry: ~${club.maxDistanceMetres}m | Loft: ${club.loftDegrees}°`;
+      this.clubDetailElem.textContent = `${club.maxDistanceMetres}m carry · ${club.loftDegrees}° loft`;
     }
     if (this.cameraBtnElem) {
-      this.cameraBtnElem.textContent = `📷 VIEW: ${cameraMode}`;
+      this.cameraBtnElem.textContent = `VIEW · ${cameraMode}`;
     }
   }
 
@@ -149,6 +151,13 @@ export class GameHUD {
     const state = swingMeter.getState();
     const power = swingMeter.getPowerValue();
     const acc = swingMeter.getAccuracyValue();
+
+    // Contextual expansion: only display swing meter panel when swinging
+    if (state === 'IDLE') {
+      this.swingMeterContainer.style.display = 'none';
+    } else {
+      this.swingMeterContainer.style.display = 'block';
+    }
 
     if (this.meterPowerBar) {
       this.meterPowerBar.style.width = `${Math.min(100, Math.max(0, power * 100))}%`;
@@ -160,12 +169,10 @@ export class GameHUD {
     }
 
     if (this.meterStatusElem) {
-      if (state === 'IDLE') {
-        this.meterStatusElem.innerHTML = `<span style="color: #55ff55;">PRESS SPACE OR CLICK SWING (INPUT 1: START)</span>`;
-      } else if (state === 'POWER_RISING') {
-        this.meterStatusElem.innerHTML = `<span style="color: #ffff55;">CLICK TO SET POWER! (INPUT 2: ${Math.round(power * 100)}%)</span>`;
+      if (state === 'POWER_RISING') {
+        this.meterStatusElem.innerHTML = `<span style="color: #ffff55;">SET POWER! (${Math.round(power * 100)}%)</span>`;
       } else if (state === 'ACCURACY_FALLING') {
-        this.meterStatusElem.innerHTML = `<span style="color: #ffaa33;">CLICK ON GREEN SWEET SPOT! (INPUT 3: ACCURACY)</span>`;
+        this.meterStatusElem.innerHTML = `<span style="color: #ffaa33;">STRIKE SWEET SPOT! (ACCURACY)</span>`;
       } else if (state === 'COMPLETE') {
         const res = swingMeter.getResult();
         if (res?.isPerfect) {
@@ -230,10 +237,12 @@ export class GameHUD {
     this.container.style.zIndex = '30';
 
     this.swingMeterContainer.style.position = 'absolute';
-    this.swingMeterContainer.style.bottom = '16px';
-    this.swingMeterContainer.style.right = '16px';
+    this.swingMeterContainer.style.bottom = '78px';
+    this.swingMeterContainer.style.left = '50%';
+    this.swingMeterContainer.style.transform = 'translateX(-50%)';
     this.swingMeterContainer.style.zIndex = '40';
     this.swingMeterContainer.style.pointerEvents = 'auto';
+    this.swingMeterContainer.style.display = 'none'; // Contextual: hidden by default until swing begins
 
     this.celebrationModal.style.display = 'none';
     this.celebrationModal.style.position = 'absolute';
@@ -241,180 +250,164 @@ export class GameHUD {
     this.celebrationModal.style.left = '0';
     this.celebrationModal.style.width = '100%';
     this.celebrationModal.style.height = '100%';
-    this.celebrationModal.style.backgroundColor = 'rgba(0, 20, 0, 0.85)';
+    this.celebrationModal.style.backgroundColor = 'rgba(0, 20, 0, 0.88)';
     this.celebrationModal.style.justifyContent = 'center';
     this.celebrationModal.style.alignItems = 'center';
     this.celebrationModal.style.zIndex = '100';
 
     Object.assign(this.penaltyBanner.style, {
-      display: 'none', position: 'absolute', top: '90px', left: '50%', transform: 'translateX(-50%)',
-      background: 'rgba(48, 20, 6, 0.94)', border: '3px solid #ffaa33', color: '#ffe8bb',
-      padding: '10px 20px', textAlign: 'center', fontFamily: "'Courier New', monospace", zIndex: '70'
+      display: 'none', position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)',
+      background: 'rgba(48, 20, 6, 0.94)', border: '2px solid #ffaa33', color: '#ffe8bb',
+      padding: '8px 18px', textAlign: 'center', fontFamily: "'Courier New', monospace", zIndex: '70',
+      borderRadius: '8px'
     });
   }
 
   private buildHTML(): void {
     this.container.innerHTML = `
+      <!-- Top Minimal Bar -->
       <div class="hud-topbar">
-        
-        <div class="hud-scorecard">
-          <div id="hud-title" style="font-weight: bold; font-size: 14px; color: #55ff55;">⛳ SOPHIE GOLF — HOLE 6</div>
-          <div id="hud-subtitle" style="font-size: 11px; color: #aadbba;">Warragul Country Club · PAR 4 · 248m</div>
-          <div style="display: flex; gap: 16px; margin-top: 4px; font-weight: bold;">
-            <span id="hud-stroke" style="color: #ffff55; font-size: 15px;">STROKE 1</span>
-            <span id="hud-dist" style="color: #77ffff; font-size: 15px;">248.0 m TO PIN</span>
-          </div>
-          <div style="display: flex; gap: 16px; margin-top: 2px; font-size: 12px;">
-            <div id="hud-lie">LIE: <span style="color: #55ff55; font-weight: bold;">TEE (100%)</span></div>
-            <div id="hud-wind" style="color: #bbffdd;">WIND: 4 m/s ↗</div>
+        <div class="hud-capsule hud-main-info">
+          <div class="hud-hole-tag"><strong id="hud-hole-number">1</strong></div>
+          <div class="hud-text-stack">
+            <div id="hud-title">⛳ SOPHIE GOLF — HOLE 1</div>
+            <div id="hud-subtitle">Sophie Hills (Fictional) — Sunset Run · PAR 4 · 234m</div>
           </div>
         </div>
 
-        <div class="hud-actions">
-          <button id="btn-hud-cam" class="retro-hud-btn">📷 VIEW: GOLF</button>
-          <button id="btn-hud-replay" class="retro-hud-btn" style="border-color: #ffaa33; color: #ffddaa;">↻ REPLAY HOLE</button>
+        <div class="hud-capsule hud-shot-info">
+          <span id="hud-stroke" class="hud-highlight">STROKE 1</span>
+          <span id="hud-dist" class="hud-accent">234.0 m TO PIN</span>
+          <span id="hud-wind">WIND 4 m/s ↗</span>
+          <span id="hud-lie">LIE <strong style="color: #68d391;">TEE (100%)</strong></span>
+        </div>
+
+        <div class="hud-capsule hud-nav-actions">
+          <button id="btn-hud-cam" class="hud-btn">VIEW</button>
+          <button id="btn-hud-replay" class="hud-btn" style="color: #fbd38d;">MENU</button>
         </div>
       </div>
 
-      <div class="hud-controls">
-        <div style="font-weight: bold; font-size: 12px; color: #aaffaa; margin-bottom: 4px;">ACTIVE CLUB:</div>
-        <div id="hud-club-name" style="font-size: 15px; font-weight: bold; color: #ffff55;">1W - Driver (1W)</div>
-        <div id="hud-club-detail" style="font-size: 11px; color: #bbddbb; margin-bottom: 8px;">Carry: ~230m | Loft: 12°</div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
-          <button id="btn-club-prev" class="retro-control-btn" aria-label="Previous club">◄ CLUB</button>
-          <button id="btn-club-next" class="retro-control-btn" aria-label="Next club">CLUB ►</button>
+      <!-- Bottom Minimal Bar -->
+      <div class="hud-bottombar">
+        <div class="hud-capsule hud-club-selector">
+          <button id="btn-club-prev" class="hud-ctrl-btn" aria-label="Previous club">‹</button>
+          <div class="hud-club-display">
+            <div id="hud-club-name">1W · DRIVER</div>
+            <div id="hud-club-detail">230m · 12° loft</div>
+          </div>
+          <button id="btn-club-next" class="hud-ctrl-btn" aria-label="Next club">›</button>
         </div>
 
-        <div style="font-weight: bold; font-size: 12px; color: #aaffaa; margin-bottom: 4px;">AIM DIRECTION:</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-          <button id="btn-aim-left" class="retro-control-btn" aria-label="Aim left">◀ AIM</button>
-          <button id="btn-aim-right" class="retro-control-btn" aria-label="Aim right">AIM ▶</button>
+        <div class="hud-capsule hud-aim-controls">
+          <button id="btn-aim-left" class="hud-ctrl-btn" aria-label="Aim left">◀ AIM</button>
+          <span style="font-size: 10px; color: #a0aec0; padding: 0 4px;">A / D</span>
+          <button id="btn-aim-right" class="hud-ctrl-btn" aria-label="Aim right">AIM ▶</button>
         </div>
+
+        <button id="btn-trigger-swing" class="hud-swing-btn">⛳ SWING <span style="font-size: 10px; opacity: 0.8;">(SPACE)</span></button>
       </div>
 
       <style>
         .hud-topbar {
           position: absolute;
-          top: max(12px, env(safe-area-inset-top));
+          top: max(10px, env(safe-area-inset-top));
           left: 12px;
           right: 12px;
           display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 10px;
+          align-items: center;
+          gap: 8px;
           pointer-events: auto;
         }
-        .hud-scorecard, .hud-controls {
-          background: rgba(10, 24, 12, 0.92);
-          border: 2px solid #44aa44;
-          border-radius: 6px;
-          color: #d5ffd5;
-          font-family: 'Courier New', monospace;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-        }
-        .hud-scorecard { padding: 10px 16px; }
-        .hud-actions { display: flex; gap: 8px; }
-        .hud-controls {
-          position: absolute;
-          bottom: 16px;
-          left: 16px;
-          width: min(340px, calc(100vw - 32px));
-          padding: 12px;
-          pointer-events: auto;
-        }
-        .retro-hud-btn {
-          background: rgba(15, 35, 17, 0.92);
-          border: 2px solid #44aa44;
-          color: #ccffcc;
-          padding: 8px 12px;
-          font-family: 'Courier New', monospace;
-          font-size: 12px;
-          font-weight: bold;
-          cursor: pointer;
-          border-radius: 4px;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-          touch-action: manipulation;
-        }
-        .retro-hud-btn:hover {
-          background: #255529;
-          border-color: #77ff77;
-        }
-        .retro-control-btn {
-          background: #18331a;
-          border: 1px solid #55bb55;
-          color: #ddffdd;
-          padding: 6px 4px;
-          font-family: 'Courier New', monospace;
+        .hud-capsule {
+          display: flex;
+          align-items: center;
+          background: rgba(10, 25, 18, 0.88);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+          backdrop-filter: blur(8px);
+          border-radius: 8px;
+          color: #f7fafc;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+          padding: 6px 12px;
           font-size: 11px;
+        }
+        .hud-hole-tag {
+          background: #48bb78;
+          color: #062414;
+          font-weight: 900;
+          font-size: 14px;
+          padding: 2px 8px;
+          border-radius: 4px;
+          margin-right: 8px;
+        }
+        .hud-text-stack { display: flex; flex-direction: column; }
+        #hud-title { font-weight: 800; font-size: 12px; color: #fbd38d; }
+        #hud-subtitle { font-size: 10px; color: #cbd5e0; }
+        .hud-shot-info { gap: 14px; font-weight: 700; }
+        .hud-highlight { color: #f6e05e; }
+        .hud-accent { color: #63b3ed; }
+        .hud-nav-actions { margin-left: auto; gap: 6px; padding: 4px 6px; }
+        .hud-btn {
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: #e2e8f0;
+          padding: 5px 10px;
+          border-radius: 6px;
+          font-weight: 700;
+          font-size: 10px;
           cursor: pointer;
-          border-radius: 3px;
-          min-height: 42px;
-          touch-action: manipulation;
         }
-        .retro-control-btn:hover {
-          background: #2b572d;
-          border-color: #ffff77;
+        .hud-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+        .hud-bottombar {
+          position: absolute;
+          bottom: max(12px, env(safe-area-inset-bottom));
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          pointer-events: auto;
+          max-width: calc(100vw - 24px);
         }
-        @media (max-width: 700px) {
-          .hud-topbar {
-            top: max(6px, env(safe-area-inset-top));
-            left: 6px;
-            right: 6px;
-            gap: 6px;
-          }
-          .hud-scorecard {
-            min-width: 0;
-            flex: 1;
-            padding: 7px 9px;
-          }
-          #hud-title { font-size: 11px !important; }
-          #hud-subtitle { font-size: 9px !important; }
-          #hud-stroke, #hud-dist { font-size: 12px !important; }
-          #hud-lie { font-size: 10px; }
-          #hud-wind { display: none; }
-          .hud-actions {
-            width: 92px;
-            flex-direction: column;
-            gap: 5px;
-          }
-          .retro-hud-btn {
-            min-height: 42px;
-            padding: 5px 6px;
-            font-size: 9px;
-          }
-          .hud-controls {
-            left: 6px;
-            bottom: calc(174px + env(safe-area-inset-bottom));
-            width: calc(100vw - 12px);
-            max-width: none;
-            padding: 8px;
-          }
-          .hud-controls > div:first-child,
-          #hud-club-detail,
-          .hud-controls > div:nth-of-type(4) { display: none; }
-          #hud-club-name {
-            font-size: 12px !important;
-            margin-bottom: 6px;
-          }
-          .retro-control-btn {
-            min-height: 46px;
-            font-size: 12px;
-            font-weight: bold;
-          }
-          #sophie-swing-meter {
-            left: 6px !important;
-            right: 6px !important;
-            bottom: max(6px, env(safe-area-inset-bottom)) !important;
-          }
-          #sophie-swing-meter > div {
-            width: 100% !important;
-            padding: 10px 12px !important;
-          }
-          #btn-trigger-swing {
-            min-height: 48px;
-            touch-action: manipulation;
-          }
+        .hud-club-selector { padding: 4px 6px; }
+        .hud-ctrl-btn {
+          background: rgba(255, 255, 255, 0.12);
+          border: 0;
+          color: white;
+          font-weight: 800;
+          font-size: 14px;
+          padding: 6px 12px;
+          border-radius: 6px;
+          cursor: pointer;
+        }
+        .hud-ctrl-btn:hover { background: rgba(246, 224, 94, 0.3); color: #f6e05e; }
+        .hud-club-display { text-align: center; min-width: 110px; padding: 0 8px; }
+        #hud-club-name { font-weight: 800; font-size: 13px; color: #fbd38d; }
+        #hud-club-detail { font-size: 9px; color: #a0aec0; }
+        .hud-aim-controls { padding: 4px 6px; }
+        .hud-swing-btn {
+          background: linear-gradient(180deg, #48bb78, #2f855a);
+          border: 1px solid #68d391;
+          color: white;
+          font-weight: 900;
+          font-size: 14px;
+          padding: 10px 22px;
+          border-radius: 8px;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(47, 133, 90, 0.45);
+          letter-spacing: 0.5px;
+        }
+        .hud-swing-btn:hover { background: linear-gradient(180deg, #68d391, #38a169); }
+
+        @media (max-width: 768px) {
+          .hud-topbar { flex-wrap: wrap; gap: 4px; }
+          .hud-shot-info { font-size: 10px; gap: 8px; }
+          #hud-subtitle { display: none; }
+          .hud-bottombar { gap: 4px; }
+          .hud-club-display { min-width: 90px; }
+          .hud-swing-btn { padding: 8px 14px; font-size: 12px; }
         }
       </style>
     `;
@@ -436,43 +429,87 @@ export class GameHUD {
     this.container.querySelector('#btn-club-next')?.addEventListener('click', () => this.onClubNext?.());
     this.container.querySelector('#btn-aim-left')?.addEventListener('click', () => this.onAimLeft?.());
     this.container.querySelector('#btn-aim-right')?.addEventListener('click', () => this.onAimRight?.());
+    this.container.querySelector('#btn-trigger-swing')?.addEventListener('click', () => this.onSwingTrigger?.());
   }
 
   private buildSwingMeterHTML(): void {
     this.swingMeterContainer.innerHTML = `
-      <div style="background: rgba(10, 24, 12, 0.94); border: 3px solid #ffff44; border-radius: 8px; padding: 14px 18px; width: 340px; color: #ffffff; font-family: 'Courier New', monospace; box-shadow: 0 6px 20px rgba(0,0,0,0.7);">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <span style="font-weight: bold; font-size: 13px; color: #ffff55;">🎯 3-CLICK SWING METER</span>
-          <span style="font-size: 10px; color: #aaffaa;">POWER & ACCURACY</span>
+      <div class="swing-popup-panel">
+        <div class="swing-status-bar" id="meter-status">
+          <span>PRESS SPACE / CLICK TO SWING</span>
         </div>
-
-        <div style="position: relative; width: 100%; height: 24px; background: #0a180b; border: 2px solid #55aa55; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
-          <div id="meter-power-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #33bb33 0%, #ffff33 70%, #ff3333 100%); transition: none;"></div>
+        <div class="meter-tracks">
+          <div class="power-track">
+            <div id="meter-power-bar"></div>
+            <span class="mark-50">50%</span>
+            <span class="mark-100">100%</span>
+          </div>
+          <div class="accuracy-track">
+            <div class="sweet-spot"></div>
+            <div id="meter-acc-marker"></div>
+          </div>
         </div>
-
-        <div style="position: relative; width: 100%; height: 16px; background: #112211; border: 1px solid #448844; border-radius: 3px; margin-bottom: 10px;">
-          <div style="position: absolute; left: 30%; width: 8px; height: 100%; background: #00ff00; opacity: 0.85;"></div>
-          <div id="meter-acc-marker" style="position: absolute; left: 30%; top: -2px; width: 4px; height: 20px; background: #ffffff; border: 1px solid #000000; transform: translateX(-50%);"></div>
-        </div>
-
-        <div id="meter-status" style="font-size: 11px; text-align: center; margin-bottom: 10px; min-height: 16px;">
-          <span style="color: #55ff55;">PRESS SPACE OR CLICK BUTTON BELOW</span>
-        </div>
-
-        <button id="btn-trigger-swing" style="width: 100%; background: #cc3333; border: 2px solid #ff7777; color: #ffffff; padding: 10px; font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);">
-          SWING!
-        </button>
       </div>
+      <style>
+        .swing-popup-panel {
+          width: 320px;
+          background: rgba(8, 22, 14, 0.95);
+          border: 2px solid #48bb78;
+          border-radius: 10px;
+          padding: 8px 12px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+          color: white;
+          font-family: monospace;
+        }
+        .swing-status-bar {
+          text-align: center;
+          font-weight: 800;
+          font-size: 11px;
+          margin-bottom: 6px;
+          color: #f6e05e;
+          min-height: 14px;
+        }
+        .meter-tracks { display: flex; flex-direction: column; gap: 4px; }
+        .power-track, .accuracy-track {
+          height: 14px;
+          background: #1a202c;
+          border-radius: 4px;
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        #meter-power-bar {
+          height: 100%;
+          width: 0%;
+          background: linear-gradient(90deg, #48bb78, #ecc94b, #e53e3e);
+          transition: width 0.02s linear;
+        }
+        .mark-50 { position: absolute; left: 50%; top: 0; font-size: 8px; color: #a0aec0; transform: translateX(-50%); }
+        .mark-100 { position: absolute; right: 4px; top: 0; font-size: 8px; color: #a0aec0; }
+        .sweet-spot {
+          position: absolute;
+          left: calc(33.3% - 4px);
+          width: 14px;
+          height: 100%;
+          background: #48bb78;
+          border-radius: 2px;
+        }
+        #meter-acc-marker {
+          position: absolute;
+          left: 0%;
+          top: 0;
+          width: 4px;
+          height: 100%;
+          background: #ffffff;
+          box-shadow: 0 0 4px #ffffff;
+          transform: translateX(-50%);
+        }
+      </style>
     `;
 
     this.meterPowerBar = this.swingMeterContainer.querySelector('#meter-power-bar')!;
     this.meterAccMarker = this.swingMeterContainer.querySelector('#meter-acc-marker')!;
     this.meterStatusElem = this.swingMeterContainer.querySelector('#meter-status')!;
-
-    this.swingMeterContainer.querySelector('#btn-trigger-swing')?.addEventListener('click', () => {
-      this.onSwingTrigger?.();
-    });
   }
 
   private buildCelebrationModalHTML(): void {

@@ -2,10 +2,11 @@ import {
   BufferAttribute,
   BufferGeometry,
   Mesh,
-  MeshStandardMaterial,
-  DoubleSide
+  MeshStandardMaterial
 } from 'three';
 import { TerrainData } from '../course/TerrainData';
+
+import { RetroMaterials } from './RetroMaterials';
 
 export class TerrainMeshBuilder {
   private geometry: BufferGeometry;
@@ -19,20 +20,10 @@ export class TerrainMeshBuilder {
     this.currentVerticalScale = terrainData.meta.verticalScaleDefault || 1.0;
 
     this.geometry = new BufferGeometry();
-
-    // Neutral green golf-course material with directional light response
-    this.material = new MeshStandardMaterial({
-      color: 0x3d7e3a, // Golf fairway green
-      roughness: 0.85,
-      metalness: 0.1,
-      flatShading: false,
-      side: DoubleSide
-    });
+    this.material = RetroMaterials.getInstance().getMaterial('BASE_TERRAIN');
 
     this.mesh = new Mesh(this.geometry, this.material);
     this.mesh.receiveShadow = true;
-    // Avoid the heightfield casting a shadow onto itself at the light-frustum edge.
-    // Vertex normals already provide the slope shading needed for DEM inspection.
     this.mesh.castShadow = false;
 
     this.buildGeometry();
@@ -87,8 +78,8 @@ export class TerrainMeshBuilder {
         positions[vIdx + 2] = z;
         vIdx += 3;
 
-        uvs[uvIdx] = c / (cols - 1);
-        uvs[uvIdx + 1] = r / (rows - 1);
+        uvs[uvIdx] = x / 8.0;
+        uvs[uvIdx + 1] = z / 8.0;
         uvIdx += 2;
       }
     }

@@ -102,6 +102,7 @@ export class BallPhysics {
     const totalAimAngle = aimAngleRadians + deviationAngle;
 
     this.leftTerrain = false;
+    this.rollDuration = 0;
 
     if (club.isPutter) {
       const putterSpeed = Math.sqrt(2 * this.currentLie.rollingFriction * this.gravity * targetDistance);
@@ -229,7 +230,10 @@ export class BallPhysics {
     }
   }
 
+  private rollDuration: number = 0;
+
   private stepRolling(dt: number): void {
+    this.rollDuration += dt;
     const terrainY = this.terrainQuery.getTerrainHeight(this.position.x, this.position.z);
     this.position.y = terrainY + this.ballRadius;
 
@@ -244,7 +248,7 @@ export class BallPhysics {
     this.velocity.z += slopeAccZ * dt;
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
-    if (speed > 0.05) {
+    if (speed > 0.20 && this.rollDuration < 4.5) {
       const frictionAcc = this.currentLie.rollingFriction * this.gravity;
       const newSpeed = Math.max(0, speed - frictionAcc * dt);
       const ratio = newSpeed / speed;

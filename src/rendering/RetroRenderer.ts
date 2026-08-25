@@ -111,21 +111,44 @@ export class RetroRenderer {
 
   /**
    * Complete 2-pass low-res pixel upscaling render pipeline.
-   * Pass 1: Render 3D scene into 426x240 WebGLRenderTarget with NearestFilter.
+   * Pass 1: Render 3D scene into low-res WebGLRenderTarget with NearestFilter.
    * Pass 2: Draw render target texture onto full-screen orthographic quad canvas with nearest-neighbor scaling.
    */
   public render(renderer: WebGLRenderer, scene: Scene, camera: PerspectiveCamera): void {
-    if (this.config.enabled && this.renderTarget) {
-      // Pass 1: Render 3D scene to low-res render target
-      renderer.setRenderTarget(this.renderTarget);
-      renderer.clear();
-      renderer.render(scene, camera);
+    if (this.config.enabled) {
+      // Ensure aspect-correct low-res target dimensions
+      const aspect = window.innerWidth / window.innerHeight;
+      const baseHeight = 240;
+      const targetWidth = Math.round(baseHeight * aspect);
+      const targetHeight = baseHeight;
 
-      // Pass 2: Upscale low-res texture to screen canvas
-      renderer.setRenderTarget(null);
-      renderer.clear();
-      this.quadMaterial.map = this.renderTarget.texture;
-      renderer.render(this.quadScene, this.quadCamera);
+      if (
+        !this.renderTarget ||
+        this.renderTarget.width !== targetWidth ||
+        this.renderTarget.height !== targetHeight
+      ) {
+        this.config.targetWidth = targetWidth;
+        this.config.targetHeight = targetHeight;
+        this.initRenderTarget();
+      }
+
+      if (camera.aspect !== aspect) {
+        camera.aspect = aspect;
+        camera.updateProjectionMatrix();
+      }
+
+      if (this.renderTarget) {
+        // Pass 1: Render 3D scene to low-res render target
+        renderer.setRenderTarget(this.renderTarget);
+        renderer.clear();
+        renderer.render(scene, camera);
+
+        // Pass 2: Upscale low-res texture to screen canvas
+        renderer.setRenderTarget(null);
+        renderer.clear();
+        this.quadMaterial.map = this.renderTarget.texture;
+        renderer.render(this.quadScene, this.quadCamera);
+      }
     } else {
       // Direct high-res rendering
       renderer.setRenderTarget(null);

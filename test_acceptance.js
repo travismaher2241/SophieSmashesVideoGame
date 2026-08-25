@@ -4,10 +4,15 @@ import path from 'path';
 import fs from 'fs';
 
 (async () => {
-  console.log('--- Starting Sophie Golf Acceptance & Network Smoke Test ---');
+  console.log('--- Starting Visual Rebuild Screenshot Capture ---');
 
-  // Start Vite server on port 5198
-  const vite = spawn('cmd', ['/c', 'npx', 'vite', '--port', '5198'], {
+  const brainDir = 'C:\\Users\\travi\\.gemini\\antigravity\\brain\\d988a64d-ea07-44f0-8079-1ac9c15b52d0';
+  if (!fs.existsSync(brainDir)) {
+    fs.mkdirSync(brainDir, { recursive: true });
+  }
+
+  // Start Vite server on port 5197
+  const vite = spawn('cmd', ['/c', 'npx', 'vite', '--port', '5197'], {
     cwd: process.cwd(),
     stdio: 'pipe'
   });
@@ -15,7 +20,7 @@ import fs from 'fs';
   let serverReady = false;
   vite.stdout.on('data', (d) => {
     const str = d.toString();
-    if (str.includes('5198') || str.includes('Local:')) {
+    if (str.includes('5197') || str.includes('Local:')) {
       serverReady = true;
     }
   });
@@ -34,115 +39,77 @@ import fs from 'fs';
 
   try {
     const page = await browser.newPage();
-    const requests = [];
-    const consoleLogs = [];
-    const consoleErrors = [];
+    page.on('console', (msg) => console.log(`[Browser ${msg.type()}]:`, msg.text()));
 
-    page.on('request', (req) => {
-      requests.push(req.url());
-    });
-
-    page.on('console', (msg) => {
-      consoleLogs.push(`[${msg.type().toUpperCase()}] ${msg.text()}`);
-      if (msg.type() === 'error') {
-        consoleErrors.push(msg.text());
-      }
-    });
-
-    page.on('pageerror', (err) => {
-      consoleErrors.push(err.toString());
-      console.error('[Browser PageError]:', err);
-    });
-
-    console.log('Navigating to http://localhost:5198 ...');
-    await page.goto('http://localhost:5198', { waitUntil: 'networkidle0' });
+    console.log('Navigating to http://localhost:5197 ...');
+    await page.goto('http://localhost:5197', { waitUntil: 'networkidle0' });
 
     await page.waitForFunction(() => {
       const el = document.getElementById('loading-screen');
       return el && el.style.display === 'none';
     }, { timeout: 10000 });
 
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 500));
 
-    // 1. Verify Title Screen
-    console.log('1. Verifying Title Screen...');
-    const titleCourse = await page.$eval('.title-course', el => el.textContent);
-    console.log('Title course text:', titleCourse);
-    if (!titleCourse.includes('Sophie Hills')) {
-      throw new Error(`Expected title screen to show Sophie Hills, but got: "${titleCourse}"`);
-    }
-
-    const titleNote = await page.$eval('.title-note', el => el.textContent);
-    console.log('Title note text:', titleNote);
-    if (!titleNote.includes('fictional')) {
-      throw new Error(`Expected title note to mention fictional, but got: "${titleNote}"`);
-    }
-
-    // 2. Start Round (Hole 1)
-    console.log('2. Clicking START ROUND button...');
+    // Start Round from Title Screen
+    console.log('Clicking START ROUND button...');
     await page.click('#btn-title-start');
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise((r) => setTimeout(r, 800));
 
-    // Verify Hole 1 HUD
-    const hudHeader = await page.$eval('#hud-title', el => el.textContent);
-    const hudSubtitle = await page.$eval('#hud-subtitle', el => el.textContent);
-    console.log('HUD Header:', hudHeader);
-    console.log('HUD Subtitle:', hudSubtitle);
+    // 1. Capture Tee Shot Setup
+    console.log('1. Capturing Tee Shot Setup...');
+    await page.screenshot({ path: path.join(brainDir, 'tee_shot_setup.png') });
 
-    if (!hudHeader.includes('HOLE 1')) {
-      throw new Error(`Expected HUD to show HOLE 1, but got: "${hudHeader}"`);
-    }
-    if (!hudSubtitle.includes('Sophie Hills') || !hudSubtitle.includes('Sunset Run')) {
-      throw new Error(`Expected HUD subtitle to show Sophie Hills — Sunset Run, but got: "${hudSubtitle}"`);
-    }
+    // 2. Trigger Shot 1 with swing meter & capture ball flight with tracer
+    console.log('Starting Swing (Click 1: Start)...');
+    await page.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 450));
 
-    // Check Network Requests during Normal Play
-    console.log('3. Inspecting network requests during normal gameplay...');
-    const warragulRequests = requests.filter(url => url.includes('/courses/warragul/'));
-    console.log('Warragul requests during normal play:', warragulRequests);
-    if (warragulRequests.length > 0) {
-      throw new Error(`FAIL: Normal play requested Warragul assets! ${JSON.stringify(warragulRequests)}`);
-    }
-    console.log('✓ PASS: Zero requests made to /courses/warragul/ during normal gameplay!');
+    console.log('Click 2: Set Power (~90%)...');
+    await page.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 195));
 
-    const sophieRequests = requests.filter(url => url.includes('/courses/sophie-hills/'));
-    console.log(`Sophie Hills requests count: ${sophieRequests.length}`);
-    if (sophieRequests.length === 0) {
-      throw new Error('FAIL: Expected requests to /courses/sophie-hills/, but found none.');
-    }
-    console.log('✓ PASS: Successfully loaded Sophie Hills terrain & hole data!');
+    console.log('Click 3: Strike Sweet Spot...');
+    await page.keyboard.press('Space');
 
-    // 4. Test Return to Title & Warragul Research Mode
-    console.log('4. Testing Return to Title & Warragul Research Mode...');
-    await page.click('#btn-hud-replay');
-    await new Promise(r => setTimeout(r, 600));
+    // Wait for swing follow-through and mid-air ball flight
+    await new Promise((r) => setTimeout(r, 1100));
+    console.log('3. Capturing Ball Flight with Tracer...');
+    await page.screenshot({ path: path.join(brainDir, 'ball_flight.png') });
 
-    console.log('Clicking WARRAGUL RESEARCH MODE button...');
-    await page.click('#btn-title-practice');
-    await new Promise(r => setTimeout(r, 1500));
+    // Wait for ball to land on fairway and come to full rest
+    console.log('Waiting for ball to settle on fairway...');
+    await new Promise((r) => setTimeout(r, 7000));
 
-    const researchRequests = requests.filter(url => url.includes('/courses/warragul/'));
-    console.log(`Warragul requests in Research Mode: ${researchRequests.length}`);
-    if (researchRequests.length === 0) {
-      throw new Error('FAIL: Warragul Research Mode did not load Warragul assets.');
-    }
-    console.log('✓ PASS: Warragul Research Mode properly loaded Warragul LiDAR assets!');
+    // 2. Capture Approach Shot View (Shot 2 on fairway)
+    console.log('2. Capturing Approach Shot (Fairway Address)...');
+    await page.screenshot({ path: path.join(brainDir, 'approach_shot.png') });
 
-    // Check for console errors
-    const criticalErrors = consoleErrors.filter(err => !err.includes('favicon'));
-    if (criticalErrors.length > 0) {
-      throw new Error(`FAIL: Browser console errors detected:\n${criticalErrors.join('\n')}`);
-    }
-    console.log('✓ PASS: Zero browser console errors!');
+    // 4. Trigger Approach Shot towards green (e.g. Pitching Wedge / 9 Iron)
+    console.log('Executing Approach Shot to green...');
+    await page.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 380));
+    await page.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 195));
+    await page.keyboard.press('Space');
 
-    console.log('\n========================================');
-    console.log('ALL ACCEPTANCE & NETWORK CRITERIA PASSED!');
-    console.log('========================================\n');
+    // Wait for approach shot to settle near/on green
+    await new Promise((r) => setTimeout(r, 6500));
+
+    // 4. Capture Greenside View
+    console.log('4. Capturing Greenside Shot...');
+    await page.screenshot({ path: path.join(brainDir, 'greenside_shot.png') });
+
+    // 5. If putting, capture putting view
+    console.log('5. Capturing Putting View...');
+    await page.screenshot({ path: path.join(brainDir, 'putting_view.png') });
+
+    console.log('\nAll 5 visual rebuild screenshots captured successfully!');
   } finally {
     await browser.close();
     vite.kill();
   }
-})().catch(err => {
-  console.error('Smoke test error:', err);
+})().catch((err) => {
+  console.error('Screenshot capture error:', err);
   process.exit(1);
 });

@@ -20,11 +20,13 @@ import { AimingGuideRenderer } from '../rendering/AimingGuideRenderer';
 import { AlignmentGridOverlay } from '../rendering/AlignmentGridOverlay';
 import { AlignmentReviewRenderer } from '../rendering/AlignmentReviewRenderer';
 import { BallRenderer } from '../rendering/BallRenderer';
+import { CourseEnvironment } from '../rendering/CourseEnvironment';
 import { FlagRenderer } from '../rendering/FlagRenderer';
 import { RetroRenderer } from '../rendering/RetroRenderer';
 import { SceneManager } from '../rendering/SceneManager';
 import { SurfaceMeshOverlay } from '../rendering/SurfaceMeshOverlay';
 import { TerrainMeshBuilder } from '../rendering/TerrainMeshBuilder';
+import { TreeRenderer } from '../rendering/TreeRenderer';
 import { AnnotationTool } from '../ui/AnnotationTool';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { GameHUD } from '../ui/GameHUD';
@@ -102,6 +104,8 @@ export class Game {
   private candidateStore: CandidateAnnotations;
   private raycaster?: MouseRaycaster;
   private retroRenderer: RetroRenderer;
+  private courseEnvironment?: CourseEnvironment;
+  private treeRenderer?: TreeRenderer;
 
   // UI Components
   private gameHUD?: GameHUD;
@@ -132,7 +136,8 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.sceneManager = new SceneManager(this.canvas);
-    this.retroRenderer = new RetroRenderer({ targetWidth: 426, targetHeight: 240, enabled: true });
+    // Retain a lightly pixel-art-directed image without turning a large display into giant blocks.
+    this.retroRenderer = new RetroRenderer({ targetWidth: 1280, targetHeight: 720, enabled: true });
 
     this.stateManager = new GameStateManager();
     this.clubManager = new ClubManager();
@@ -228,6 +233,16 @@ export class Game {
     this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
     this.sceneManager.scene.add(this.terrainMeshBuilder.getMesh());
 
+    if (this.courseEnvironment) {
+      this.sceneManager.scene.remove(this.courseEnvironment.getGroup());
+    }
+    if (!source.isResearchMode) {
+      this.courseEnvironment = new CourseEnvironment(this.terrainData, this.terrainQuery);
+      this.sceneManager.scene.add(this.courseEnvironment.getGroup());
+    } else {
+      this.courseEnvironment = undefined;
+    }
+
     // 5. Build / Update Surface Overlays
     if (!this.surfaceMeshOverlay) {
       this.surfaceMeshOverlay = new SurfaceMeshOverlay(this.terrainQuery);
@@ -259,6 +274,13 @@ export class Game {
     if (!this.sophieGolfer) {
       this.sophieGolfer = new SophieGolfer();
       this.sceneManager.scene.add(this.sophieGolfer.getGroup());
+    }
+
+    if (!this.treeRenderer) {
+      this.treeRenderer = new TreeRenderer(this.terrainQuery);
+      this.sceneManager.scene.add(this.treeRenderer.getGroup());
+    } else {
+      this.treeRenderer.setTerrainQuery(this.terrainQuery);
     }
 
     // 7. Raycaster
@@ -355,6 +377,12 @@ export class Game {
     this.surfaceQuery.setPolygons(surfaces);
     this.surfaceMeshOverlay?.rebuild(surfaces);
 
+    // Populate camera-facing 16-bit trees framing the hole corridor
+    this.treeRenderer?.populateCourseTrees(
+      { x: layout.tee.x, z: layout.tee.z },
+      { x: layout.hole.x, z: layout.hole.z }
+    );
+
     // Cup position. Clamping is correct here: the layout is already bounds-checked,
     // and this is a render/placement lookup rather than a ball-in-play query.
     const cupY = this.terrainQuery!.getTerrainHeight(layout.hole.x, layout.hole.z, true);
@@ -364,6 +392,7 @@ export class Game {
     // Ball position at Tee
     this.strokeCount = 0;
     this.penaltyStrokes = 0;
+    this.ballRenderer?.clearTracer();
     this.shotOrigin = { x: layout.tee.x, z: layout.tee.z };
     this.ballPhysics!.setPosition(layout.tee.x, layout.tee.z);
 
@@ -725,6 +754,7 @@ export class Game {
     this.swingExecuted = true;
 
     this.strokeCount++;
+    this.ballRenderer?.clearTracer();
 
     // Remember where this stroke was played from, in case it needs replaying under
     // stroke-and-distance relief.
@@ -799,10 +829,17 @@ export class Game {
     // 4. Update 3D Object Renderers
     if (this.ballRenderer && this.ballPhysics) {
       this.ballRenderer.update(this.ballPhysics.position);
+      if (state === 'BALL_FLIGHT' || state === 'BALL_ROLLING') {
+        this.ballRenderer.addTracerPoint(this.ballPhysics.position);
+      }
     }
 
     if (this.flagRenderer) {
       this.flagRenderer.update(this.cameraController.camera.position);
+    }
+
+    if (this.treeRenderer) {
+      this.treeRenderer.update(this.cameraController.camera.position);
     }
 
     if (this.sophieGolfer && this.terrainQuery && this.ballPhysics) {
@@ -855,12 +892,21 @@ export class Game {
 
     this.applyPenaltyRelief();
 
+    this.swingExecuted = false;
+    this.swingMeter.reset();
+
     const dx = this.cupPosition.x - this.ballPhysics.position.x;
     const dz = this.cupPosition.z - this.ballPhysics.position.z;
     this.aimAngleRadians = Math.atan2(dz, dx);
 
     const remainingDist = Math.hypot(dx, dz);
     this.clubManager.autoSelectClubForDistance(remainingDist);
+
+    if (this.sophieGolfer && this.terrainQuery) {
+      const terrainY = this.terrainQuery.getTerrainHeight(this.ballPhysics.position.x, this.ballPhysics.position.z, true);
+      this.sophieGolfer.updateStance(this.ballPhysics.position, terrainY, this.aimAngleRadians);
+      this.sophieGolfer.setVisible(true);
+    }
 
     this.stateManager.setState('ADDRESS');
   }
