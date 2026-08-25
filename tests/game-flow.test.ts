@@ -82,3 +82,44 @@ describe('Sophie Hills fictional hole data', () => {
     }
   });
 });
+
+describe('Sophie Hills terrain & course separation', () => {
+  const terrainMetaPath = new URL('../public/courses/sophie-hills/terrain_meta.json', import.meta.url);
+  const terrainMeta = JSON.parse(readFileSync(terrainMetaPath, 'utf8'));
+  const terrainBinPath = new URL('../public/courses/sophie-hills/terrain.bin', import.meta.url);
+  const terrainBinBuffer = readFileSync(terrainBinPath);
+
+  it('has valid metadata conforming to TerrainLoader schema', async () => {
+    const { TerrainLoader } = await import('../src/course/TerrainLoader');
+    expect(() => TerrainLoader.validateMetadata(terrainMeta)).not.toThrow();
+    expect(terrainMeta.courseId).toBe('sophie-hills');
+    expect(terrainMeta.status).toBe('fictional-gameplay-terrain');
+  });
+
+  it('has exact binary DEM matching expected sample count and byte length', () => {
+    expect(terrainBinBuffer.byteLength).toBe(terrainMeta.binary.expectedBytes);
+    expect(terrainBinBuffer.byteLength).toBe(390 * 160 * 4);
+
+    const view = new DataView(terrainBinBuffer.buffer, terrainBinBuffer.byteOffset, terrainBinBuffer.byteLength);
+    for (let i = 0; i < 390 * 160; i++) {
+      const val = view.getFloat32(i * 4, true);
+      expect(Number.isFinite(val)).toBe(true);
+      expect(val).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('ensures Sophie Hills default config contains no Warragul paths', async () => {
+    const { SOPHIE_HILLS_CONFIG, WARRAGUL_RESEARCH_CONFIG } = await import('../src/game/Game');
+    expect(SOPHIE_HILLS_CONFIG.terrainPath).not.toMatch(/warragul/i);
+    expect(SOPHIE_HILLS_CONFIG.terrainPath).toBe('/courses/sophie-hills');
+    for (const hole of SOPHIE_HILLS_CONFIG.holes) {
+      expect(hole.holePath).not.toMatch(/warragul/i);
+      expect(hole.holePath).toMatch(/^\/courses\/sophie-hills\//);
+    }
+
+    // Warragul config remains isolated in research mode
+    expect(WARRAGUL_RESEARCH_CONFIG.isResearchMode).toBe(true);
+    expect(WARRAGUL_RESEARCH_CONFIG.terrainPath).toMatch(/warragul/i);
+  });
+});
+

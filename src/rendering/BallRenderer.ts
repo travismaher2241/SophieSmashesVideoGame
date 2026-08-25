@@ -42,6 +42,10 @@ export class BallRenderer {
     this.group.add(this.shadowMesh);
   }
 
+  public setTerrainQuery(terrainQuery: TerrainQuery): void {
+    this.terrainQuery = terrainQuery;
+  }
+
   public getGroup(): Group {
     return this.group;
   }

@@ -38,6 +38,10 @@ export class SurfaceMeshOverlay {
     };
   }
 
+  public setTerrainQuery(terrainQuery: TerrainQuery): void {
+    this.terrainQuery = terrainQuery;
+  }
+
   public getGroup(): Group {
     return this.group;
   }

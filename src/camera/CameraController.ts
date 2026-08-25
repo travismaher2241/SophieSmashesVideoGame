@@ -47,6 +47,12 @@ export class CameraController {
     return this.mode;
   }
 
+  public setTerrain(terrainData: TerrainData, terrainQuery: TerrainQuery): void {
+    this.terrainData = terrainData;
+    this.terrainQuery = terrainQuery;
+    this.setMode(this.mode);
+  }
+
   public setRenderVerticalScale(scale: number): void {
     if (!Number.isFinite(scale) || scale <= 0) return;
     this.renderVerticalScale = scale;

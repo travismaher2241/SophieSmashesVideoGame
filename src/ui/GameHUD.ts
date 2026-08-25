@@ -1,6 +1,16 @@
 import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
+import { summarizeRoundScore } from '../game/RoundScore';
+
+export interface GameHUDHoleConfig {
+  courseName: string;
+  holeName: string;
+  holeNumber: number;
+  par: number;
+  distanceMetres: number;
+  menuLabel: string;
+}
 
 export class GameHUD {
   private container: HTMLElement;
@@ -16,6 +26,7 @@ export class GameHUD {
   private onCameraToggle?: () => void;
   private onResetLayout?: () => void;
   private onPlayAgain?: () => void;
+  private onReturnToTitle?: () => void;
 
   // Dynamic elements
   private strokeElem!: HTMLElement;
@@ -30,6 +41,9 @@ export class GameHUD {
   private celebrationResultElem!: HTMLElement;
   private celebrationScoreElem!: HTMLElement;
   private celebrationCourseElem!: HTMLElement;
+  private celebrationActionBtn!: HTMLButtonElement;
+  private celebrationProgressElem!: HTMLElement;
+  private penaltyBanner!: HTMLElement;
 
   private meterPowerBar!: HTMLElement;
   private meterAccMarker!: HTMLElement;
@@ -44,6 +58,8 @@ export class GameHUD {
     onCameraToggle?: () => void;
     onResetLayout?: () => void;
     onPlayAgain?: () => void;
+    onDevModeToggle?: () => void;
+    onReturnToTitle?: () => void;
   }) {
     this.onAimLeft = callbacks.onAimLeft;
     this.onAimRight = callbacks.onAimRight;
@@ -53,12 +69,14 @@ export class GameHUD {
     this.onCameraToggle = callbacks.onCameraToggle;
     this.onResetLayout = callbacks.onResetLayout;
     this.onPlayAgain = callbacks.onPlayAgain;
+    this.onReturnToTitle = callbacks.onReturnToTitle;
 
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
     this.container.id = 'sophie-game-hud';
     this.swingMeterContainer.id = 'sophie-swing-meter';
     this.celebrationModal = document.createElement('div');
+    this.penaltyBanner = document.createElement('div');
 
     this.setupStyles();
     this.buildHTML();
@@ -68,6 +86,7 @@ export class GameHUD {
     document.body.appendChild(this.container);
     document.body.appendChild(this.swingMeterContainer);
     document.body.appendChild(this.celebrationModal);
+    document.body.appendChild(this.penaltyBanner);
   }
 
   public setVisible(visible: boolean): void {
@@ -75,20 +94,21 @@ export class GameHUD {
     this.swingMeterContainer.style.display = visible ? 'block' : 'none';
   }
 
-  public configureHole(courseName: string, holeNumber: number, par: number, distMetres: number): void {
+  public configureHole(config: GameHUDHoleConfig): void {
     if (this.headerTitleElem) {
-      this.headerTitleElem.textContent = `⛳ SOPHIE GOLF — HOLE ${holeNumber}`;
+      this.headerTitleElem.textContent = `⛳ SOPHIE GOLF — HOLE ${config.holeNumber}`;
     }
     if (this.headerSubtitleElem) {
-      this.headerSubtitleElem.textContent = `${courseName} · PAR ${par} · ${distMetres}m`;
+      this.headerSubtitleElem.textContent = `${config.courseName} — ${config.holeName} · PAR ${config.par} · ${config.distanceMetres}m`;
     }
     if (this.celebrationCourseElem) {
-      this.celebrationCourseElem.textContent = `${courseName} · Hole ${holeNumber} · Par ${par}`;
+      this.celebrationCourseElem.textContent = `${config.courseName} — ${config.holeName} · Par ${config.par}`;
     }
   }
 
   public updateHUD(
     totalStrokes: number,
+    penaltyStrokes: number,
     distToCupMetres: number,
     club: ClubConfig,
     lie: LieInfo,
@@ -96,7 +116,9 @@ export class GameHUD {
     windStr: string = '4 m/s ↗'
   ): void {
     if (this.strokeElem) {
-      this.strokeElem.textContent = `STROKE ${totalStrokes}`;
+      this.strokeElem.textContent = penaltyStrokes > 0
+        ? `STROKES ${totalStrokes} (${penaltyStrokes} PEN.)`
+        : `STROKE ${totalStrokes}`;
     }
     if (this.distElem) {
       this.distElem.textContent = `${distToCupMetres.toFixed(1)} m TO PIN`;
@@ -157,51 +179,41 @@ export class GameHUD {
     }
   }
 
-  public showCelebration(totalStrokes: number, par: number = 4): void {
-    const diff = totalStrokes - par;
-    let resultName = 'PAR';
-    let relLabel = 'E';
-
-    if (totalStrokes === 1) {
-      resultName = 'HOLE IN ONE!';
-      relLabel = '-3';
-    } else if (diff === -3) {
-      resultName = 'ALBATROSS!';
-      relLabel = '-3';
-    } else if (diff === -2) {
-      resultName = 'EAGLE!';
-      relLabel = '-2';
-    } else if (diff === -1) {
-      resultName = 'BIRDIE!';
-      relLabel = '-1';
-    } else if (diff === 0) {
-      resultName = 'PAR';
-      relLabel = 'E';
-    } else if (diff === 1) {
-      resultName = 'BOGEY';
-      relLabel = '+1';
-    } else if (diff === 2) {
-      resultName = 'DOUBLE BOGEY';
-      relLabel = '+2';
-    } else if (diff === 3) {
-      resultName = 'TRIPLE BOGEY';
-      relLabel = '+3';
-    } else {
-      resultName = `+${diff}`;
-      relLabel = `+${diff}`;
-    }
+  public showCelebration(
+    totalStrokes: number,
+    penaltyStrokes: number = 0,
+    par: number = 4,
+    courseProgress?: { holesPlayed: number; holeCount: number; totalStrokes: number; totalPar: number }
+  ): void {
+    const summary = summarizeRoundScore(totalStrokes, penaltyStrokes, par);
 
     const strokeText = document.getElementById('celeb-stroke-text');
     if (strokeText) {
-      strokeText.textContent = `Sophie holed out in ${totalStrokes} stroke${totalStrokes > 1 ? 's' : ''}!`;
+      const penaltyNote = penaltyStrokes > 0 ? `, including ${penaltyStrokes} penalty` : '';
+      strokeText.textContent = `Sophie holed out in ${totalStrokes} strokes${penaltyNote}.`;
     }
-    this.celebrationResultElem.textContent = resultName;
+    this.celebrationResultElem.textContent = summary.resultName;
     this.celebrationScoreElem.innerHTML = `
-      <div><span>PAR</span><strong>${par}</strong></div>
-      <div><span>SCORE</span><strong>${totalStrokes}</strong></div>
-      <div><span>TO PAR</span><strong>${relLabel}</strong></div>
+      <div><span>PAR</span><strong>${summary.par}</strong></div>
+      <div><span>SCORE</span><strong>${summary.totalStrokes}</strong></div>
+      <div><span>TO PAR</span><strong>${summary.relativeLabel}</strong></div>
     `;
+    this.celebrationProgressElem.style.display = courseProgress ? 'block' : 'none';
+    if (courseProgress) {
+      const course = summarizeRoundScore(courseProgress.totalStrokes, 0, courseProgress.totalPar);
+      this.celebrationProgressElem.textContent = `COURSE ${course.relativeLabel} · ${courseProgress.holesPlayed}/${courseProgress.holeCount} HOLES`;
+    }
     this.celebrationModal.style.display = 'flex';
+  }
+
+  public configureCompletionAction(label: string): void {
+    this.celebrationActionBtn.textContent = label;
+  }
+
+  public showPenalty(headline: string, detail: string): void {
+    this.penaltyBanner.innerHTML = `<strong>${headline}</strong><div>${detail}</div>`;
+    this.penaltyBanner.style.display = 'block';
+    window.setTimeout(() => { this.penaltyBanner.style.display = 'none'; }, 4000);
   }
 
   public hideCelebration(): void {
@@ -233,6 +245,12 @@ export class GameHUD {
     this.celebrationModal.style.justifyContent = 'center';
     this.celebrationModal.style.alignItems = 'center';
     this.celebrationModal.style.zIndex = '100';
+
+    Object.assign(this.penaltyBanner.style, {
+      display: 'none', position: 'absolute', top: '90px', left: '50%', transform: 'translateX(-50%)',
+      background: 'rgba(48, 20, 6, 0.94)', border: '3px solid #ffaa33', color: '#ffe8bb',
+      padding: '10px 20px', textAlign: 'center', fontFamily: "'Courier New', monospace", zIndex: '70'
+    });
   }
 
   private buildHTML(): void {
@@ -467,9 +485,11 @@ export class GameHUD {
           <div><span>PAR</span><strong>4</strong></div><div><span>SCORE</span><strong>4</strong></div><div><span>TO PAR</span><strong>E</strong></div>
         </div>
         <p id="celeb-course" style="font-size: 11px; color: #aaffaa; margin-bottom: 22px;">Warragul Country Club · Hole 6 · Par 4</p>
+        <p id="celeb-progress" style="display:none; color:#ffe66d; font-size:11px;"></p>
         
-        <div style="display: flex; justify-content: center;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <button id="btn-celeb-play-again" style="background: #22aa22; border: 2px solid #77ff77; color: #ffffff; padding: 12px 24px; font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer; border-radius: 6px;">↻ PLAY AGAIN</button>
+          <button id="btn-celeb-title" style="background:#18331a; border:2px solid #77aa77; color:#ddffdd; font-family:inherit; font-weight:bold;">⌂ MAIN MENU</button>
         </div>
         <style>
           #celeb-score > div { border: 1px solid #4c9b59; background: #091d0d; padding: 8px; }
@@ -482,10 +502,16 @@ export class GameHUD {
     this.celebrationResultElem = this.celebrationModal.querySelector('#celeb-result')!;
     this.celebrationScoreElem = this.celebrationModal.querySelector('#celeb-score')!;
     this.celebrationCourseElem = this.celebrationModal.querySelector('#celeb-course')!;
+    this.celebrationProgressElem = this.celebrationModal.querySelector('#celeb-progress')!;
+    this.celebrationActionBtn = this.celebrationModal.querySelector('#btn-celeb-play-again')!;
 
     this.celebrationModal.querySelector('#btn-celeb-play-again')?.addEventListener('click', () => {
       this.hideCelebration();
       this.onPlayAgain?.();
+    });
+    this.celebrationModal.querySelector('#btn-celeb-title')?.addEventListener('click', () => {
+      this.hideCelebration();
+      this.onReturnToTitle?.();
     });
   }
 }

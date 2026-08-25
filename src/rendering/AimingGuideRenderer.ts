@@ -24,6 +24,10 @@ export class AimingGuideRenderer {
     this.group = new Group();
   }
 
+  public setTerrainQuery(terrainQuery: TerrainQuery): void {
+    this.terrainQuery = terrainQuery;
+  }
+
   public getGroup(): Group {
     return this.group;
   }

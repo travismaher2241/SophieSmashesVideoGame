@@ -78,7 +78,29 @@ export class TitleScreen {
     document.body.appendChild(this.container);
   }
 
+  public updateConfig(options: Partial<TitleScreenOptions>): void {
+    if (options.courseName) {
+      const courseElem = this.container.querySelector('.title-course');
+      if (courseElem) courseElem.textContent = options.courseName;
+    }
+    if (options.courseSubtitle) {
+      const holeElem = this.container.querySelector('.title-hole');
+      if (holeElem) holeElem.textContent = options.courseSubtitle;
+    }
+    if (options.holeCount !== undefined || options.totalPar !== undefined) {
+      const statsElem = this.container.querySelector('.title-stats');
+      if (statsElem) {
+        statsElem.innerHTML = `
+          <span>${options.holeCount ?? 2} HOLES</span>
+          <span>PAR ${options.totalPar ?? 7}</span>
+          <span>PREVIEW</span>
+        `;
+      }
+    }
+  }
+
   public setVisible(visible: boolean): void {
     this.container.style.display = visible ? 'flex' : 'none';
   }
 }
+

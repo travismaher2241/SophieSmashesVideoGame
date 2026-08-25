@@ -1,0 +1,40 @@
+{
+  "courseId": "sophie-hills",
+  "courseName": "Sophie Hills (Fictional)",
+  "holeId": "preview",
+  "holeNumber": 1,
+  "status": "fictional-gameplay-terrain",
+  "source": "Synthetic procedural heightfield designed for Sophie Hills two-hole preview",
+  "sourceCRS": "EPSG:7855",
+  "sourceBoundsMGA55": {
+    "minEasting": 405040,
+    "minNorthing": 5777260,
+    "maxEasting": 405818,
+    "maxNorthing": 5777578
+  },
+  "gridSpacingMetres": 2,
+  "widthSamples": 390,
+  "heightSamples": 160,
+  "axisMapping": {
+    "columns": "worldX",
+    "rows": "worldZ",
+    "worldXExtentMetres": 778,
+    "worldZExtentMetres": 318,
+    "isNorthingProven": false,
+    "note": "Fictional coordinates for Sophie Hills preview course"
+  },
+  "baseElevationMetres": 50,
+  "minElevationMetres": 50.00570000009611,
+  "maxElevationMetres": 57.98169994354248,
+  "binary": {
+    "file": "terrain.bin",
+    "type": "Float32",
+    "endianness": "little",
+    "order": "row-major",
+    "valueMeaning": "metres above baseElevationMetres",
+    "expectedValues": 62400,
+    "expectedBytes": 249600
+  },
+  "verticalScaleDefault": 1,
+  "warning": "This is fictional synthetic terrain for Sophie Hills. It does not represent Warragul Country Club."
+}
