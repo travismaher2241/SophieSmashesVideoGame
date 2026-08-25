@@ -951,6 +951,7 @@ export class Game {
     this.swingExecuted = false;
     this.swingMeter.reset();
     this.sophieGolfer?.resetPose();
+    this.ballRenderer?.clearTracer();
 
     const dx = this.cupPosition.x - this.ballPhysics.position.x;
     const dz = this.cupPosition.z - this.ballPhysics.position.z;
