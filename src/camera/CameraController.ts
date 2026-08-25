@@ -86,31 +86,35 @@ export class CameraController {
 
   /**
    * Set behind-golfer camera position given ball position and aim angle (radians).
-   * Composed to show Sophie prominently in foreground-left with the hole corridor stretching ahead.
+   * Composed to place Sophie in the lower-left quadrant (25-35% screen height) inside the safe frame.
    */
   public updateGolfAddressView(ballPos: Vector3, aimAngleRad: number, isPutting: boolean = false): void {
     if (this.mode !== 'GOLF') return;
 
-    const camDist = isPutting ? 4.2 : 6.4;
-    const camHeight = isPutting ? 1.6 : 2.7;
+    const isPortrait = this.camera.aspect < 1.0;
 
-    // Lateral offset (perpendicular to aim line) to frame Sophie on the left and ball/corridor in center
+    // Distances and heights tuned for 25-35% Sophie screen height and lower-left quadrant framing
+    const camDist = isPutting ? (isPortrait ? 4.5 : 3.8) : (isPortrait ? 6.5 : 5.8);
+    const camHeight = isPutting ? (isPortrait ? 1.35 : 1.25) : (isPortrait ? 1.75 : 1.65);
+
+    // Negative lateral offset places camera slightly behind Sophie's stance,
+    // ensuring Sophie and the ball are safely inside the gameplay viewport (~15-25% from left screen edge)
     const perpAngle = aimAngleRad + Math.PI / 2;
-    const lateralOffset = isPutting ? 0.25 : 0.45;
+    const lateralOffset = isPutting ? (isPortrait ? -0.12 : -0.22) : (isPortrait ? -0.20 : -0.32);
 
     const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
     const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
 
     const terrainY = this.getDisplayHeight(camX, camZ);
-    const camY = Math.max(terrainY + 0.9, ballPos.y + camHeight);
+    const camY = Math.max(terrainY + 0.65, ballPos.y + camHeight);
 
     this.camera.position.set(camX, camY, camZ);
 
-    // Look at target point down aiming line
-    const lookAheadDist = isPutting ? 18 : 75;
+    // Look slightly down the corridor towards the target, with vertical offset to keep ball in lower third
+    const lookAheadDist = isPutting ? 16 : 55;
     const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
     const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
-    const lookY = this.getDisplayHeight(lookX, lookZ) + (isPutting ? 0.4 : 1.6);
+    const lookY = ballPos.y + (isPutting ? 0.35 : 1.15);
 
     this.target.set(lookX, lookY, lookZ);
     this.camera.lookAt(this.target);

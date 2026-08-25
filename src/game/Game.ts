@@ -295,6 +295,27 @@ export class Game {
       this.teardownResearchTools();
     }
 
+    if (!this.debugOverlay && this.terrainData && this.holeConfig && this.terrainQuery && this.geoTransform) {
+      this.debugOverlay = new DebugOverlay(
+        this.terrainData,
+        this.holeConfig,
+        this.terrainQuery,
+        this.geoTransform,
+        {
+          onCameraModeChange: (mode) => this.cameraController?.setMode(mode),
+          onVerticalScaleChange: (scale) => {
+            this.terrainMeshBuilder?.setVerticalScale(scale);
+            this.cameraController?.setRenderVerticalScale(scale);
+            this.debugOverlay?.setVerticalScaleDisplay(scale);
+          },
+          onToggleGridLines: (visible) => this.alignmentGridOverlay?.setGridVisible(visible),
+          onToggleCandidateReview: (visible) => this.alignmentReviewRenderer?.setVisible(visible)
+        },
+        this.candidateAlignment
+      );
+      this.debugOverlay.setVisible(this.isDebugOverlayVisible);
+    }
+
     this.titleScreen?.updateConfig({
       courseName: source.courseName,
       courseSubtitle: source.courseSubtitle,
@@ -392,6 +413,9 @@ export class Game {
     // Ball position at Tee
     this.strokeCount = 0;
     this.penaltyStrokes = 0;
+    this.swingExecuted = false;
+    this.swingMeter.reset();
+    this.sophieGolfer?.resetPose();
     this.ballRenderer?.clearTracer();
     this.shotOrigin = { x: layout.tee.x, z: layout.tee.z };
     this.ballPhysics!.setPosition(layout.tee.x, layout.tee.z);
@@ -505,10 +529,10 @@ export class Game {
     this.layoutHUD?.setVisible(isLayoutSel);
     this.titleScreen?.setVisible(isTitle);
 
-    // Dev overlay & annotation tool visible ONLY in DEV_ALIGNMENT mode
-    this.debugOverlay?.setVisible(isDev);
+    // Dev overlay & annotation tool
     this.annotationTool?.setVisible(isDev);
     this.alignmentReviewRenderer?.setVisible(isDev);
+    this.debugOverlay?.setVisible(isDev || this.isDebugOverlayVisible);
 
     if (isLayoutSel) {
       this.cameraController?.setMode('OVERHEAD');
@@ -519,12 +543,20 @@ export class Game {
     }
   }
 
+  private isDebugOverlayVisible: boolean = false;
+
+  private toggleDevMode(): void {
+    if (!this.debugOverlay) return;
+    this.isDebugOverlayVisible = !this.isDebugOverlayVisible;
+    this.debugOverlay.setVisible(this.isDebugOverlayVisible);
+  }
+
   private setupKeyboardEvents(): void {
     window.addEventListener('keydown', (e) => {
       const state = this.stateManager.getState();
 
       if (e.key === 'F2') {
-        void this.toggleDevAlignmentMode();
+        this.toggleDevMode();
         e.preventDefault();
         return;
       }
@@ -540,6 +572,7 @@ export class Game {
       if (state === 'LAYOUT_SELECTION') return;
 
       if (e.key === ' ' || e.code === 'Space') {
+        if (e.repeat) return;
         this.triggerSwingMeter();
         e.preventDefault();
       } else if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
@@ -733,10 +766,18 @@ export class Game {
       this.stateManager.setState('SWINGING');
       this.swingMeter.reset();
       this.swingExecuted = false;
-      this.swingMeter.trigger(); // Start power rising
+      this.sophieGolfer?.resetPose();
+      this.sophieGolfer?.startBackswing();
+      this.swingMeter.trigger(); // Click 1: READY -> POWER_RUNNING
     } else if (state === 'SWINGING') {
-      const meterState = this.swingMeter.trigger();
-      if (meterState === 'COMPLETE') {
+      const prevMeterState = this.swingMeter.getState();
+      const newMeterState = this.swingMeter.trigger();
+
+      if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
+        // Click 2: Locked power -> Golfer transitions to downswing
+        this.sophieGolfer?.startDownswing();
+      } else if (newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') {
+        // Click 3: Locked accuracy -> Strike impact and launch ball
         this.executeSwing();
       }
     }
@@ -746,10 +787,6 @@ export class Game {
     const swingResult = this.swingMeter.getResult();
     if (!swingResult || !this.sophieGolfer || !this.ballPhysics) return;
 
-    // A completed meter is reachable from two directions: the player's third input, and
-    // the animate loop noticing the meter auto-completed because that input never came.
-    // Both must resolve to exactly one stroke — re-entering here restarts Sophie's
-    // backswing before it reaches impact, so the ball would never actually be struck.
     if (this.swingExecuted) return;
     this.swingExecuted = true;
 
@@ -760,12 +797,13 @@ export class Game {
     // stroke-and-distance relief.
     this.shotOrigin = { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z };
 
-    // Trigger Sophie procedural swing animation
-    this.sophieGolfer.startProceduralSwing(() => {
+    // Trigger Sophie impact strike and ball launch
+    this.sophieGolfer.strikeImpact(() => {
       const club = this.clubManager.getCurrentClub();
 
       // Launch ball physics
       this.ballPhysics!.launch(club, swingResult, this.aimAngleRadians);
+      this.swingMeter.complete();
       this.stateManager.setState('BALL_FLIGHT');
     });
   }
@@ -792,8 +830,15 @@ export class Game {
 
     // 2. Physics & State Machine update
     if (state === 'SWINGING') {
+      const prevMeterState = this.swingMeter.getState();
       this.swingMeter.update(dt);
-      if (this.swingMeter.getState() === 'COMPLETE' && this.ballPhysics?.state === 'REST') {
+      const newMeterState = this.swingMeter.getState();
+
+      if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
+        this.sophieGolfer?.startDownswing();
+      }
+
+      if ((newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') && this.ballPhysics?.state === 'REST') {
         this.executeSwing();
       }
     } else if (state === 'BALL_FLIGHT' || state === 'BALL_ROLLING') {
@@ -874,9 +919,17 @@ export class Game {
       this.gameHUD.updateSwingMeter(this.swingMeter);
     }
 
-    if (state === 'DEV_ALIGNMENT' && this.debugOverlay) {
-      this.debugOverlay.updateCameraInfo(this.cameraController.camera.position, this.cameraController.getMode());
-      this.debugOverlay.updateMouseHitInfo(mouseHit);
+    if (this.debugOverlay) {
+      if (state === 'DEV_ALIGNMENT') {
+        this.debugOverlay.updateCameraInfo(this.cameraController.camera.position, this.cameraController.getMode());
+        this.debugOverlay.updateMouseHitInfo(mouseHit);
+      }
+      this.debugOverlay.updateSwingTelemetry(
+        this.swingMeter.getState(),
+        this.swingMeter.getPowerValue(),
+        this.swingMeter.getAccuracyError(),
+        this.swingMeter.getInputCount()
+      );
     }
 
     // 6. Render Scene (via 2-pass pixel upscaling RetroRenderer)
@@ -894,6 +947,7 @@ export class Game {
 
     this.swingExecuted = false;
     this.swingMeter.reset();
+    this.sophieGolfer?.resetPose();
 
     const dx = this.cupPosition.x - this.ballPhysics.position.x;
     const dz = this.cupPosition.z - this.ballPhysics.position.z;

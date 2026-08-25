@@ -32,6 +32,12 @@ export class DebugOverlay {
   private gridBtnElem!: HTMLElement;
   private candidateBtnElem!: HTMLElement;
 
+  // Swing Telemetry elements
+  private swingStateElem!: HTMLElement;
+  private swingPowerElem!: HTMLElement;
+  private swingAccErrElem!: HTMLElement;
+  private swingInputCountElem!: HTMLElement;
+
   private gridLinesVisible: boolean = false;
   private candidateReviewVisible: boolean = true;
 
@@ -86,6 +92,27 @@ export class DebugOverlay {
     }
     if (this.currentModeElem) {
       this.currentModeElem.textContent = mode;
+    }
+  }
+
+  public updateSwingTelemetry(
+    state: string,
+    power: number,
+    accuracyError: number,
+    inputCount: number
+  ): void {
+    if (this.swingStateElem) {
+      this.swingStateElem.textContent = state;
+    }
+    if (this.swingPowerElem) {
+      this.swingPowerElem.textContent = power.toFixed(2);
+    }
+    if (this.swingAccErrElem) {
+      const prefix = accuracyError > 0 ? '+' : '';
+      this.swingAccErrElem.textContent = `${prefix}${accuracyError.toFixed(2)}`;
+    }
+    if (this.swingInputCountElem) {
+      this.swingInputCountElem.textContent = String(inputCount);
     }
   }
 
@@ -182,6 +209,15 @@ export class DebugOverlay {
         ⛳ WARRAGUL HOLE 6 — ALIGNMENT & GIS REVIEW
       </div>
 
+      <!-- F2 Swing State Machine Telemetry -->
+      <div style="margin-bottom: 8px; background: rgba(20, 44, 26, 0.85); border: 1px solid #55dd77; border-radius: 4px; padding: 6px 10px; color: #e8ffe8;">
+        <div style="color: #ffff55; font-weight: bold; margin-bottom: 3px; font-size: 12px;">📊 SWING TELEMETRY (F2 DEBUG):</div>
+        <div><b>Swing State:</b> <span id="dbg-swing-state" style="color: #63b3ed; font-weight: bold;">READY</span></div>
+        <div><b>Power:</b> <span id="dbg-swing-power" style="color: #f6e05e; font-weight: bold;">0.00</span></div>
+        <div><b>Accuracy Error:</b> <span id="dbg-swing-acc-err" style="color: #68d391; font-weight: bold;">0.00</span></div>
+        <div><b>Swing Input Count:</b> <span id="dbg-swing-input-count" style="color: #ffffff; font-weight: bold;">0</span> / 3</div>
+      </div>
+
       <div style="margin-bottom: 8px;">
         <div><b>Course:</b> ${meta.courseName} (Hole ${meta.holeNumber}, Par ${this.holeConfig.par}, ${this.holeConfig.publishedLengthMetres}m)</div>
         <div><b>Source CRS:</b> ${meta.sourceCRS} (GDA2020 / MGA Zone 55)</div>
@@ -231,6 +267,11 @@ export class DebugOverlay {
     this.currentScaleElem = this.container.querySelector('#dbg-scale')!;
     this.gridBtnElem = this.container.querySelector('#btn-toggle-grid')!;
     this.candidateBtnElem = this.container.querySelector('#btn-toggle-cand')!;
+
+    this.swingStateElem = this.container.querySelector('#dbg-swing-state')!;
+    this.swingPowerElem = this.container.querySelector('#dbg-swing-power')!;
+    this.swingAccErrElem = this.container.querySelector('#dbg-swing-acc-err')!;
+    this.swingInputCountElem = this.container.querySelector('#dbg-swing-input-count')!;
 
     this.container.querySelector('#btn-cam-free')?.addEventListener('click', () => this.onCameraModeChange?.('FREE'));
     this.container.querySelector('#btn-cam-golf')?.addEventListener('click', () => this.onCameraModeChange?.('GOLF'));

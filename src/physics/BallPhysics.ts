@@ -21,6 +21,7 @@ export class BallPhysics {
   private terrainQuery: TerrainQuery;
   private surfaceQuery?: SurfaceQuery;
   private currentLie: LieInfo = SURFACE_PROPERTIES.TEE;
+  private curveSpin: number = 0; // -1.0 (Hook/Left) to +1.0 (Slice/Right)
 
   private readonly ballRadius: number = 0.043; // Standard golf ball radius in metres
 
@@ -68,6 +69,7 @@ export class BallPhysics {
     this.velocity.set(0, 0, 0);
     this.state = 'REST';
     this.leftTerrain = false;
+    this.curveSpin = 0;
     this.updateCurrentLie();
   }
 
@@ -98,9 +100,10 @@ export class BallPhysics {
     const targetDistance = club.maxDistanceMetres * power * lieDistMult;
 
     // Apply accuracy deviation scaled by control multiplier
-    const deviationAngle = (swing.hookSliceAngleDegrees / Math.max(0.2, lieCtrlMult)) * Math.PI / 180;
+    const deviationAngle = (swing.hookSliceAngleDegrees / Math.max(0.2, lieCtrlMult)) * (Math.PI / 180);
     const totalAimAngle = aimAngleRadians + deviationAngle;
 
+    this.curveSpin = swing.curveSpinFactor || 0;
     this.leftTerrain = false;
     this.rollDuration = 0;
 
@@ -189,6 +192,16 @@ export class BallPhysics {
       this.velocity.x += dragVx * dt;
       this.velocity.y += (dragVy - this.gravity) * dt;
       this.velocity.z += dragVz * dt;
+
+      // Lateral aerodynamic curve from side spin
+      const horizSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+      if (horizSpeed > 1.0 && Math.abs(this.curveSpin) > 0.01) {
+        const perpX = -this.velocity.z / horizSpeed;
+        const perpZ = this.velocity.x / horizSpeed;
+        const curveAcc = this.curveSpin * 1.8 * Math.min(1.5, horizSpeed / 30);
+        this.velocity.x += perpX * curveAcc * dt;
+        this.velocity.z += perpZ * curveAcc * dt;
+      }
     } else {
       this.velocity.y -= this.gravity * dt;
     }

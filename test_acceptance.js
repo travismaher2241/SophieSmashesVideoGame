@@ -4,15 +4,15 @@ import path from 'path';
 import fs from 'fs';
 
 (async () => {
-  console.log('--- Starting Visual Rebuild Screenshot Capture ---');
+  console.log('--- Starting Sophie Framing & Swing Presentation Test ---');
 
   const brainDir = 'C:\\Users\\travi\\.gemini\\antigravity\\brain\\d988a64d-ea07-44f0-8079-1ac9c15b52d0';
   if (!fs.existsSync(brainDir)) {
     fs.mkdirSync(brainDir, { recursive: true });
   }
 
-  // Start Vite server on port 5197
-  const vite = spawn('cmd', ['/c', 'npx', 'vite', '--port', '5197'], {
+  // Start Vite server on port 5199
+  const vite = spawn('cmd', ['/c', 'npx', 'vite', '--port', '5199'], {
     cwd: process.cwd(),
     stdio: 'pipe'
   });
@@ -20,7 +20,7 @@ import fs from 'fs';
   let serverReady = false;
   vite.stdout.on('data', (d) => {
     const str = d.toString();
-    if (str.includes('5197') || str.includes('Local:')) {
+    if (str.includes('5199') || str.includes('Local:')) {
       serverReady = true;
     }
   });
@@ -33,83 +33,107 @@ import fs from 'fs';
 
   const browser = await puppeteer.launch({
     headless: 'new',
-    defaultViewport: { width: 1280, height: 720 },
+    defaultViewport: null,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
   try {
-    const page = await browser.newPage();
-    page.on('console', (msg) => console.log(`[Browser ${msg.type()}]:`, msg.text()));
+    // ==========================================
+    // 1. TEST DESKTOP VIEWPORT (1280 x 720)
+    // ==========================================
+    console.log('\n--- 1. Testing Desktop Viewport (1280x720) ---');
+    const desktopPage = await browser.newPage();
+    await desktopPage.setViewport({ width: 1280, height: 720 });
+    await desktopPage.goto('http://localhost:5199', { waitUntil: 'networkidle0' });
 
-    console.log('Navigating to http://localhost:5197 ...');
-    await page.goto('http://localhost:5197', { waitUntil: 'networkidle0' });
-
-    await page.waitForFunction(() => {
+    await desktopPage.waitForFunction(() => {
       const el = document.getElementById('loading-screen');
       return el && el.style.display === 'none';
     }, { timeout: 10000 });
 
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Start Round from Title Screen
-    console.log('Clicking START ROUND button...');
-    await page.click('#btn-title-start');
+    await new Promise((r) => setTimeout(r, 400));
+    await desktopPage.click('#btn-title-start');
     await new Promise((r) => setTimeout(r, 800));
 
-    // 1. Capture Tee Shot Setup
-    console.log('1. Capturing Tee Shot Setup...');
-    await page.screenshot({ path: path.join(brainDir, 'tee_shot_setup.png') });
+    console.log('Capturing Desktop 1: Address Setup...');
+    await desktopPage.screenshot({ path: path.join(brainDir, 'desktop_1_address.png') });
 
-    // 2. Trigger Shot 1 with swing meter & capture ball flight with tracer
-    console.log('Starting Swing (Click 1: Start)...');
-    await page.keyboard.press('Space');
-    await new Promise((r) => setTimeout(r, 450));
+    // Click 1: Start Swing -> Backswing
+    console.log('Click 1: Start Swing (Backswing)...');
+    await desktopPage.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 220));
+    console.log('Capturing Desktop 2: Backswing...');
+    await desktopPage.screenshot({ path: path.join(brainDir, 'desktop_2_backswing.png') });
 
-    console.log('Click 2: Set Power (~90%)...');
-    await page.keyboard.press('Space');
-    await new Promise((r) => setTimeout(r, 195));
+    // Click 2: Lock Power -> Downswing / Impact stance
+    await new Promise((r) => setTimeout(r, 230));
+    console.log('Click 2: Lock Power (Downswing & Impact)...');
+    await desktopPage.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 120));
+    console.log('Capturing Desktop 3: Downswing & Impact...');
+    await desktopPage.screenshot({ path: path.join(brainDir, 'desktop_3_impact.png') });
 
-    console.log('Click 3: Strike Sweet Spot...');
-    await page.keyboard.press('Space');
+    // Click 3: Lock Accuracy -> Strike Impact & Follow-through
+    await new Promise((r) => setTimeout(r, 120));
+    console.log('Click 3: Strike Sweet Spot (Follow-Through)...');
+    await desktopPage.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 120));
+    console.log('Capturing Desktop 4: Follow-Through...');
+    await desktopPage.screenshot({ path: path.join(brainDir, 'desktop_4_follow_through.png') });
 
-    // Wait for swing follow-through and mid-air ball flight
-    await new Promise((r) => setTimeout(r, 1100));
-    console.log('3. Capturing Ball Flight with Tracer...');
-    await page.screenshot({ path: path.join(brainDir, 'ball_flight.png') });
+    await desktopPage.close();
 
-    // Wait for ball to land on fairway and come to full rest
-    console.log('Waiting for ball to settle on fairway...');
-    await new Promise((r) => setTimeout(r, 7000));
+    // ==========================================
+    // 2. TEST MOBILE PORTRAIT VIEWPORT (390 x 844)
+    // ==========================================
+    console.log('\n--- 2. Testing Mobile Portrait Viewport (390x844) ---');
+    const mobilePage = await browser.newPage();
+    await mobilePage.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+    await mobilePage.goto('http://localhost:5199', { waitUntil: 'networkidle0' });
 
-    // 2. Capture Approach Shot View (Shot 2 on fairway)
-    console.log('2. Capturing Approach Shot (Fairway Address)...');
-    await page.screenshot({ path: path.join(brainDir, 'approach_shot.png') });
+    await mobilePage.waitForFunction(() => {
+      const el = document.getElementById('loading-screen');
+      return el && el.style.display === 'none';
+    }, { timeout: 10000 });
 
-    // 4. Trigger Approach Shot towards green (e.g. Pitching Wedge / 9 Iron)
-    console.log('Executing Approach Shot to green...');
-    await page.keyboard.press('Space');
-    await new Promise((r) => setTimeout(r, 380));
-    await page.keyboard.press('Space');
-    await new Promise((r) => setTimeout(r, 195));
-    await page.keyboard.press('Space');
+    await new Promise((r) => setTimeout(r, 400));
+    await mobilePage.click('#btn-title-start');
+    await new Promise((r) => setTimeout(r, 800));
 
-    // Wait for approach shot to settle near/on green
-    await new Promise((r) => setTimeout(r, 6500));
+    console.log('Capturing Mobile 1: Address Setup...');
+    await mobilePage.screenshot({ path: path.join(brainDir, 'mobile_1_address.png') });
 
-    // 4. Capture Greenside View
-    console.log('4. Capturing Greenside Shot...');
-    await page.screenshot({ path: path.join(brainDir, 'greenside_shot.png') });
+    // Click 1 on Mobile: Backswing
+    console.log('Mobile Click 1: Start (Backswing)...');
+    await mobilePage.click('#btn-trigger-swing');
+    await new Promise((r) => setTimeout(r, 220));
+    console.log('Capturing Mobile 2: Backswing...');
+    await mobilePage.screenshot({ path: path.join(brainDir, 'mobile_2_backswing.png') });
 
-    // 5. If putting, capture putting view
-    console.log('5. Capturing Putting View...');
-    await page.screenshot({ path: path.join(brainDir, 'putting_view.png') });
+    // Click 2 on Mobile: Downswing
+    await new Promise((r) => setTimeout(r, 230));
+    console.log('Mobile Click 2: Lock Power (Downswing)...');
+    await mobilePage.click('#btn-trigger-swing');
+    await new Promise((r) => setTimeout(r, 120));
+    console.log('Capturing Mobile 3: Downswing & Impact...');
+    await mobilePage.screenshot({ path: path.join(brainDir, 'mobile_3_impact.png') });
 
-    console.log('\nAll 5 visual rebuild screenshots captured successfully!');
+    // Click 3 on Mobile: Follow-through
+    await new Promise((r) => setTimeout(r, 120));
+    console.log('Mobile Click 3: Strike (Follow-Through)...');
+    await mobilePage.click('#btn-trigger-swing');
+    await new Promise((r) => setTimeout(r, 120));
+    console.log('Capturing Mobile 4: Follow-Through...');
+    await mobilePage.screenshot({ path: path.join(brainDir, 'mobile_4_follow_through.png') });
+
+    await mobilePage.close();
+
+    console.log('\nAll framing and swing presentation tests completed successfully!');
   } finally {
     await browser.close();
     vite.kill();
   }
 })().catch((err) => {
-  console.error('Screenshot capture error:', err);
+  console.error('Framing test error:', err);
   process.exit(1);
 });

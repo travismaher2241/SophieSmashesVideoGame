@@ -118,9 +118,18 @@ export class RetroRenderer {
     if (this.config.enabled) {
       // Ensure aspect-correct low-res target dimensions
       const aspect = window.innerWidth / window.innerHeight;
-      const baseHeight = 240;
-      const targetWidth = Math.round(baseHeight * aspect);
-      const targetHeight = baseHeight;
+      let targetWidth: number;
+      let targetHeight: number;
+
+      if (aspect < 1.0) {
+        // Mobile portrait mode (e.g. 240x426 for 9:16)
+        targetWidth = 240;
+        targetHeight = Math.round(targetWidth / aspect);
+      } else {
+        // Landscape / desktop mode (e.g. 426x240 for 16:9)
+        targetHeight = 240;
+        targetWidth = Math.round(targetHeight * aspect);
+      }
 
       if (
         !this.renderTarget ||

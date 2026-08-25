@@ -48,6 +48,9 @@ export class GameHUD {
   private meterPowerBar!: HTMLElement;
   private meterAccMarker!: HTMLElement;
   private meterStatusElem!: HTMLElement;
+  private swingButtonElem!: HTMLButtonElement;
+
+  private lastInputTime: number = 0;
 
   constructor(callbacks: {
     onAimLeft?: () => void;
@@ -150,37 +153,53 @@ export class GameHUD {
   public updateSwingMeter(swingMeter: SwingMeter): void {
     const state = swingMeter.getState();
     const power = swingMeter.getPowerValue();
-    const acc = swingMeter.getAccuracyValue();
+    const marker = swingMeter.getAccuracyMarker();
+    const result = swingMeter.getResult();
 
-    // Contextual expansion: only display swing meter panel when swinging
-    if (state === 'IDLE') {
+    if (state === 'READY') {
       this.swingMeterContainer.style.display = 'none';
-    } else {
-      this.swingMeterContainer.style.display = 'block';
+      if (this.swingButtonElem) {
+        this.swingButtonElem.innerHTML = `⛳ SWING <span style="font-size: 10px; opacity: 0.8;">(SPACE / TAP)</span>`;
+      }
+      return;
     }
+
+    this.swingMeterContainer.style.display = 'block';
 
     if (this.meterPowerBar) {
       this.meterPowerBar.style.width = `${Math.min(100, Math.max(0, power * 100))}%`;
     }
 
     if (this.meterAccMarker) {
-      const leftPct = ((acc + 0.5) / 1.5) * 100;
+      // accuracyMarker ranges from +1.0 (right, start) to -1.0 (left, end), with 0.0 (center)
+      const leftPct = ((marker + 1.0) / 2.0) * 100;
       this.meterAccMarker.style.left = `${Math.max(0, Math.min(100, leftPct))}%`;
     }
 
     if (this.meterStatusElem) {
-      if (state === 'POWER_RISING') {
-        this.meterStatusElem.innerHTML = `<span style="color: #ffff55;">SET POWER! (${Math.round(power * 100)}%)</span>`;
-      } else if (state === 'ACCURACY_FALLING') {
-        this.meterStatusElem.innerHTML = `<span style="color: #ffaa33;">STRIKE SWEET SPOT! (ACCURACY)</span>`;
-      } else if (state === 'COMPLETE') {
-        const res = swingMeter.getResult();
-        if (res?.isPerfect) {
-          this.meterStatusElem.innerHTML = `<span style="color: #55ffff; font-weight: bold;">🎯 PERFECT STRIKE!</span>`;
-        } else if (res && res.hookSliceAngleDegrees < 0) {
-          this.meterStatusElem.innerHTML = `<span style="color: #ff7777;">◀ HOOK / LEFT MIS-HIT</span>`;
-        } else if (res) {
-          this.meterStatusElem.innerHTML = `<span style="color: #ff7777;">▶ SLICE / RIGHT MIS-HIT</span>`;
+      if (state === 'POWER_RUNNING') {
+        const pct = Math.round(power * 100);
+        this.meterStatusElem.innerHTML = `<span style="color: #ffff55; font-weight: bold;">POWER — TAP! (${pct}%)</span>`;
+        if (this.swingButtonElem) {
+          this.swingButtonElem.innerHTML = `⚡ SET POWER (${pct}%)`;
+        }
+      } else if (state === 'ACCURACY_RUNNING') {
+        this.meterStatusElem.innerHTML = `<span style="color: #63b3ed; font-weight: bold;">ACCURACY — TAP! (LOCK TIMING)</span>`;
+        if (this.swingButtonElem) {
+          this.swingButtonElem.innerHTML = `🎯 STRIKE / TIMING`;
+        }
+      } else if (state === 'IMPACT' || state === 'COMPLETE') {
+        if (result) {
+          let badgeColor = '#55ffff';
+          if (result.strikeQuality === 'PURE') badgeColor = '#55ffff';
+          else if (result.strikeQuality === 'SLIGHT') badgeColor = '#68d391';
+          else if (result.strikeQuality === 'NOTICEABLE') badgeColor = '#ecc94b';
+          else badgeColor = '#fc8181';
+
+          this.meterStatusElem.innerHTML = `<span style="color: ${badgeColor}; font-weight: 900; font-size: 13px; letter-spacing: 1px;">${result.feedbackText}</span>`;
+          if (this.swingButtonElem) {
+            this.swingButtonElem.innerHTML = `<span>${result.feedbackText}</span>`;
+          }
         }
       }
     }
@@ -237,12 +256,12 @@ export class GameHUD {
     this.container.style.zIndex = '30';
 
     this.swingMeterContainer.style.position = 'absolute';
-    this.swingMeterContainer.style.bottom = '78px';
+    this.swingMeterContainer.style.bottom = '82px';
     this.swingMeterContainer.style.left = '50%';
     this.swingMeterContainer.style.transform = 'translateX(-50%)';
     this.swingMeterContainer.style.zIndex = '40';
     this.swingMeterContainer.style.pointerEvents = 'auto';
-    this.swingMeterContainer.style.display = 'none'; // Contextual: hidden by default until swing begins
+    this.swingMeterContainer.style.display = 'none';
 
     this.celebrationModal.style.display = 'none';
     this.celebrationModal.style.position = 'absolute';
@@ -261,6 +280,18 @@ export class GameHUD {
       padding: '8px 18px', textAlign: 'center', fontFamily: "'Courier New', monospace", zIndex: '70',
       borderRadius: '8px'
     });
+  }
+
+  private handleTriggerSwing(e?: Event): void {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const now = performance.now();
+    // Guard against accidental double triggers / pointer event propagation within 60ms
+    if (now - this.lastInputTime < 60) return;
+    this.lastInputTime = now;
+    this.onSwingTrigger?.();
   }
 
   private buildHTML(): void {
@@ -305,7 +336,7 @@ export class GameHUD {
           <button id="btn-aim-right" class="hud-ctrl-btn" aria-label="Aim right">AIM ▶</button>
         </div>
 
-        <button id="btn-trigger-swing" class="hud-swing-btn">⛳ SWING <span style="font-size: 10px; opacity: 0.8;">(SPACE)</span></button>
+        <button id="btn-trigger-swing" class="hud-swing-btn" type="button">⛳ SWING <span style="font-size: 10px; opacity: 0.8;">(SPACE / TAP)</span></button>
       </div>
 
       <style>
@@ -381,6 +412,8 @@ export class GameHUD {
           padding: 6px 12px;
           border-radius: 6px;
           cursor: pointer;
+          user-select: none;
+          touch-action: manipulation;
         }
         .hud-ctrl-btn:hover { background: rgba(246, 224, 94, 0.3); color: #f6e05e; }
         .hud-club-display { text-align: center; min-width: 110px; padding: 0 8px; }
@@ -398,8 +431,13 @@ export class GameHUD {
           cursor: pointer;
           box-shadow: 0 4px 14px rgba(47, 133, 90, 0.45);
           letter-spacing: 0.5px;
+          user-select: none;
+          touch-action: manipulation;
+          min-width: 150px;
+          text-align: center;
         }
         .hud-swing-btn:hover { background: linear-gradient(180deg, #68d391, #38a169); }
+        .hud-swing-btn:active { transform: scale(0.97); }
 
         @media (max-width: 768px) {
           .hud-topbar { flex-wrap: wrap; gap: 4px; }
@@ -407,7 +445,7 @@ export class GameHUD {
           #hud-subtitle { display: none; }
           .hud-bottombar { gap: 4px; }
           .hud-club-display { min-width: 90px; }
-          .hud-swing-btn { padding: 8px 14px; font-size: 12px; }
+          .hud-swing-btn { padding: 8px 14px; font-size: 12px; min-width: 120px; }
         }
       </style>
     `;
@@ -421,6 +459,7 @@ export class GameHUD {
     this.cameraBtnElem = this.container.querySelector('#btn-hud-cam')!;
     this.headerTitleElem = this.container.querySelector('#hud-title')!;
     this.headerSubtitleElem = this.container.querySelector('#hud-subtitle')!;
+    this.swingButtonElem = this.container.querySelector('#btn-trigger-swing')!;
 
     this.container.querySelector('#btn-hud-cam')?.addEventListener('click', () => this.onCameraToggle?.());
     this.container.querySelector('#btn-hud-replay')?.addEventListener('click', () => this.onResetLayout?.());
@@ -429,7 +468,9 @@ export class GameHUD {
     this.container.querySelector('#btn-club-next')?.addEventListener('click', () => this.onClubNext?.());
     this.container.querySelector('#btn-aim-left')?.addEventListener('click', () => this.onAimLeft?.());
     this.container.querySelector('#btn-aim-right')?.addEventListener('click', () => this.onAimRight?.());
-    this.container.querySelector('#btn-trigger-swing')?.addEventListener('click', () => this.onSwingTrigger?.());
+
+    // Single canonical touch/click listener with pointerdown handling
+    this.swingButtonElem.addEventListener('pointerdown', (e) => this.handleTriggerSwing(e));
   }
 
   private buildSwingMeterHTML(): void {
@@ -439,20 +480,27 @@ export class GameHUD {
           <span>PRESS SPACE / CLICK TO SWING</span>
         </div>
         <div class="meter-tracks">
+          <div class="meter-track-label">POWER (CLICK 2)</div>
           <div class="power-track">
             <div id="meter-power-bar"></div>
             <span class="mark-50">50%</span>
             <span class="mark-100">100%</span>
           </div>
+
+          <div class="meter-track-label">ACCURACY (CLICK 3)</div>
           <div class="accuracy-track">
+            <div class="late-zone">LATE ▶</div>
+            <div class="good-zone"></div>
             <div class="sweet-spot"></div>
+            <div class="early-zone">◀ EARLY</div>
+            <div class="center-line"></div>
             <div id="meter-acc-marker"></div>
           </div>
         </div>
       </div>
       <style>
         .swing-popup-panel {
-          width: 320px;
+          width: 330px;
           background: rgba(8, 22, 14, 0.95);
           border: 2px solid #48bb78;
           border-radius: 10px;
@@ -460,49 +508,98 @@ export class GameHUD {
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
           color: white;
           font-family: monospace;
+          user-select: none;
+          touch-action: manipulation;
         }
         .swing-status-bar {
           text-align: center;
           font-weight: 800;
-          font-size: 11px;
+          font-size: 12px;
           margin-bottom: 6px;
           color: #f6e05e;
-          min-height: 14px;
+          min-height: 16px;
+        }
+        .meter-track-label {
+          font-size: 9px;
+          font-weight: 700;
+          color: #a0aec0;
+          letter-spacing: 0.5px;
+          margin-top: 2px;
         }
         .meter-tracks { display: flex; flex-direction: column; gap: 4px; }
         .power-track, .accuracy-track {
-          height: 14px;
+          height: 16px;
           background: #1a202c;
           border-radius: 4px;
           position: relative;
           overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.18);
         }
         #meter-power-bar {
           height: 100%;
           width: 0%;
-          background: linear-gradient(90deg, #48bb78, #ecc94b, #e53e3e);
-          transition: width 0.02s linear;
+          background: linear-gradient(90deg, #48bb78 0%, #ecc94b 75%, #e53e3e 100%);
         }
-        .mark-50 { position: absolute; left: 50%; top: 0; font-size: 8px; color: #a0aec0; transform: translateX(-50%); }
-        .mark-100 { position: absolute; right: 4px; top: 0; font-size: 8px; color: #a0aec0; }
+        .mark-50 { position: absolute; left: 50%; top: 1px; font-size: 8px; color: #cbd5e0; transform: translateX(-50%); }
+        .mark-100 { position: absolute; right: 4px; top: 1px; font-size: 8px; color: #cbd5e0; }
+
+        .accuracy-track {
+          display: flex;
+          align-items: center;
+        }
+        .late-zone {
+          position: absolute;
+          left: 6px;
+          font-size: 8px;
+          color: #fc8181;
+          font-weight: bold;
+          z-index: 1;
+        }
+        .early-zone {
+          position: absolute;
+          right: 6px;
+          font-size: 8px;
+          color: #fc8181;
+          font-weight: bold;
+          z-index: 1;
+        }
+        .good-zone {
+          position: absolute;
+          left: 35%;
+          width: 30%;
+          height: 100%;
+          background: rgba(72, 187, 120, 0.25);
+        }
         .sweet-spot {
           position: absolute;
-          left: calc(33.3% - 4px);
-          width: 14px;
+          left: 46%;
+          width: 8%;
           height: 100%;
           background: #48bb78;
           border-radius: 2px;
+          box-shadow: 0 0 6px rgba(72, 187, 120, 0.8);
+        }
+        .center-line {
+          position: absolute;
+          left: 50%;
+          top: 0;
+          bottom: 0;
+          width: 2px;
+          background: #ffffff;
+          transform: translateX(-50%);
+          z-index: 2;
         }
         #meter-acc-marker {
           position: absolute;
-          left: 0%;
+          left: 100%;
           top: 0;
-          width: 4px;
+          width: 5px;
           height: 100%;
-          background: #ffffff;
-          box-shadow: 0 0 4px #ffffff;
+          background: #ffff00;
+          border: 1px solid #ffffff;
+          box-shadow: 0 0 6px #ffff00;
           transform: translateX(-50%);
+          z-index: 3;
         }
       </style>
     `;
@@ -510,6 +607,8 @@ export class GameHUD {
     this.meterPowerBar = this.swingMeterContainer.querySelector('#meter-power-bar')!;
     this.meterAccMarker = this.swingMeterContainer.querySelector('#meter-acc-marker')!;
     this.meterStatusElem = this.swingMeterContainer.querySelector('#meter-status')!;
+
+    this.swingMeterContainer.addEventListener('pointerdown', (e) => this.handleTriggerSwing(e));
   }
 
   private buildCelebrationModalHTML(): void {
