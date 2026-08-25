@@ -1,6 +1,7 @@
 import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
+import { PuttMeter } from '../golf/PuttMeter';
 import { summarizeRoundScore } from '../game/RoundScore';
 
 export interface GameHUDHoleConfig {
@@ -15,6 +16,7 @@ export interface GameHUDHoleConfig {
 export class GameHUD {
   private container: HTMLElement;
   private swingMeterContainer: HTMLElement;
+  private puttMeterContainer: HTMLElement;
   private celebrationModal: HTMLElement;
 
   // Callbacks
@@ -23,7 +25,9 @@ export class GameHUD {
   private onClubNext?: () => void;
   private onClubPrev?: () => void;
   private onSwingTrigger?: () => void;
+  private onPuttTrigger?: () => void;
   private onCameraToggle?: () => void;
+  private onReadGreenToggle?: () => void;
   private onResetLayout?: () => void;
   private onPlayAgain?: () => void;
   private onReturnToTitle?: () => void;
@@ -33,6 +37,7 @@ export class GameHUD {
   private distElem!: HTMLElement;
   private lieElem!: HTMLElement;
   private windElem!: HTMLElement;
+  private clubSelectorCapsule!: HTMLElement;
   private clubNameElem!: HTMLElement;
   private clubDetailElem!: HTMLElement;
   private cameraBtnElem!: HTMLElement;
@@ -49,7 +54,15 @@ export class GameHUD {
   private meterAccMarker!: HTMLElement;
   private meterStatusElem!: HTMLElement;
   private swingButtonElem!: HTMLButtonElement;
+  private bottomBarElem!: HTMLElement;
 
+  // Putt Meter elements
+  private puttMeterBar!: HTMLElement;
+  private puttMeterTargetMarker!: HTMLElement;
+  private puttMeterReadout!: HTMLElement;
+  private puttMeterScaleElem!: HTMLElement;
+
+  private isPuttingMode: boolean = false;
   private lastInputTime: number = 0;
 
   constructor(callbacks: {
@@ -58,7 +71,9 @@ export class GameHUD {
     onClubNext?: () => void;
     onClubPrev?: () => void;
     onSwingTrigger?: () => void;
+    onPuttTrigger?: () => void;
     onCameraToggle?: () => void;
+    onReadGreenToggle?: () => void;
     onResetLayout?: () => void;
     onPlayAgain?: () => void;
     onDevModeToggle?: () => void;
@@ -69,25 +84,31 @@ export class GameHUD {
     this.onClubNext = callbacks.onClubNext;
     this.onClubPrev = callbacks.onClubPrev;
     this.onSwingTrigger = callbacks.onSwingTrigger;
+    this.onPuttTrigger = callbacks.onPuttTrigger;
     this.onCameraToggle = callbacks.onCameraToggle;
+    this.onReadGreenToggle = callbacks.onReadGreenToggle;
     this.onResetLayout = callbacks.onResetLayout;
     this.onPlayAgain = callbacks.onPlayAgain;
     this.onReturnToTitle = callbacks.onReturnToTitle;
 
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
+    this.puttMeterContainer = document.createElement('div');
     this.container.id = 'sophie-game-hud';
     this.swingMeterContainer.id = 'sophie-swing-meter';
+    this.puttMeterContainer.id = 'sophie-putt-meter';
     this.celebrationModal = document.createElement('div');
     this.penaltyBanner = document.createElement('div');
 
     this.setupStyles();
     this.buildHTML();
     this.buildSwingMeterHTML();
+    this.buildPuttMeterHTML();
     this.buildCelebrationModalHTML();
 
     document.body.appendChild(this.container);
     document.body.appendChild(this.swingMeterContainer);
+    document.body.appendChild(this.puttMeterContainer);
     document.body.appendChild(this.celebrationModal);
     document.body.appendChild(this.penaltyBanner);
   }
@@ -95,6 +116,32 @@ export class GameHUD {
   public setVisible(visible: boolean): void {
     this.container.style.display = visible ? 'block' : 'none';
     this.swingMeterContainer.style.display = visible ? 'block' : 'none';
+    this.puttMeterContainer.style.display = visible ? 'block' : 'none';
+  }
+
+  public setPuttingMode(isPutting: boolean): void {
+    this.isPuttingMode = isPutting;
+    if (this.clubSelectorCapsule) {
+      this.clubSelectorCapsule.style.display = isPutting ? 'none' : 'flex';
+    }
+    if (this.bottomBarElem) {
+      if (isPutting) {
+        this.bottomBarElem.classList.add('putting-layout');
+      } else {
+        this.bottomBarElem.classList.remove('putting-layout');
+      }
+    }
+    if (this.cameraBtnElem) {
+      this.cameraBtnElem.textContent = isPutting ? 'READ GREEN' : 'VIEW';
+    }
+    if (this.swingButtonElem) {
+      this.swingButtonElem.textContent = isPutting ? 'PUTT' : 'SWING';
+    }
+    if (isPutting) {
+      this.swingMeterContainer.style.display = 'none';
+    } else {
+      this.puttMeterContainer.style.display = 'none';
+    }
   }
 
   public configureHole(config: GameHUDHoleConfig): void {
@@ -147,12 +194,14 @@ export class GameHUD {
         ? 'Putting · 0° loft'
         : `${club.carryMetres || club.maxDistanceMetres}m carry · ${club.launchAngleDeg || club.loftDegrees}° loft`;
     }
-    if (this.cameraBtnElem) {
+    if (this.cameraBtnElem && !this.isPuttingMode) {
       this.cameraBtnElem.textContent = `VIEW · ${cameraMode}`;
     }
   }
 
   public updateSwingMeter(swingMeter: SwingMeter): void {
+    if (this.isPuttingMode) return;
+
     const state = swingMeter.getState();
     const power = swingMeter.getPowerValue();
     const marker = swingMeter.getAccuracyMarker();
@@ -173,7 +222,6 @@ export class GameHUD {
     }
 
     if (this.meterAccMarker) {
-      // accuracyMarker ranges from +1.0 (right, start) to -1.0 (left, end), with 0.0 (center)
       const leftPct = ((marker + 1.0) / 2.0) * 100;
       this.meterAccMarker.style.left = `${Math.max(0, Math.min(100, leftPct))}%`;
     }
@@ -204,6 +252,75 @@ export class GameHUD {
           }
         }
       }
+    }
+  }
+
+  public updatePuttMeter(puttMeter: PuttMeter): void {
+    if (!this.isPuttingMode) return;
+
+    const state = puttMeter.getState();
+    const ratio = puttMeter.getPaceRatio();
+    const intendedDist = puttMeter.getIntendedDistance();
+    const maxDist = puttMeter.getMaxMeterDistance();
+    const targetDist = puttMeter.getTargetDistance();
+
+    if (state === 'AIMING') {
+      this.puttMeterContainer.style.display = 'none';
+      if (this.swingButtonElem) {
+        this.swingButtonElem.textContent = 'PUTT';
+      }
+      return;
+    }
+
+    this.puttMeterContainer.style.display = 'block';
+
+    if (this.puttMeterBar) {
+      this.puttMeterBar.style.width = `${Math.min(100, Math.max(0, ratio * 100))}%`;
+    }
+
+    if (this.puttMeterTargetMarker) {
+      const targetPct = (targetDist / maxDist) * 100;
+      this.puttMeterTargetMarker.style.left = `${Math.min(100, Math.max(0, targetPct))}%`;
+    }
+
+    if (this.puttMeterReadout) {
+      this.puttMeterReadout.textContent = `PACE: ${intendedDist.toFixed(1)} m (TARGET ${targetDist.toFixed(1)} m)`;
+    }
+
+    if (this.puttMeterScaleElem) {
+      this.puttMeterScaleElem.innerHTML = `
+        <span>0m</span>
+        <span style="left: ${(targetDist / maxDist) * 100}%; color: #68d391; font-weight: bold;">PIN ${targetDist.toFixed(1)}m</span>
+        <span style="position: absolute; right: 0;">${maxDist.toFixed(0)}m</span>
+      `;
+    }
+
+    if (this.swingButtonElem) {
+      if (state === 'CHARGING') {
+        this.swingButtonElem.textContent = `PACE ${intendedDist.toFixed(1)}m`;
+      } else if (state === 'COMPLETE') {
+        this.swingButtonElem.textContent = `${intendedDist.toFixed(1)}m PUTT`;
+      }
+    }
+  }
+
+  public showPuttingFeedback(distRemaining: number, isHoled: boolean, wasLipOut: boolean): void {
+    if (!this.swingButtonElem) return;
+
+    if (isHoled) {
+      this.swingButtonElem.textContent = 'HOLED! ⛳';
+      return;
+    }
+
+    if (wasLipOut) {
+      this.swingButtonElem.textContent = 'LIP-OUT! ⚡';
+      return;
+    }
+
+    if (distRemaining < 0.25) {
+      this.swingButtonElem.textContent = 'GOOD PACE · TAP IN';
+    } else {
+      this.swingButtonElem.textContent = `${distRemaining.toFixed(1)}m REMAINING`;
     }
   }
 
@@ -265,6 +382,14 @@ export class GameHUD {
     this.swingMeterContainer.style.pointerEvents = 'auto';
     this.swingMeterContainer.style.display = 'none';
 
+    this.puttMeterContainer.style.position = 'absolute';
+    this.puttMeterContainer.style.bottom = '68px';
+    this.puttMeterContainer.style.left = '50%';
+    this.puttMeterContainer.style.transform = 'translateX(-50%)';
+    this.puttMeterContainer.style.zIndex = '40';
+    this.puttMeterContainer.style.pointerEvents = 'auto';
+    this.puttMeterContainer.style.display = 'none';
+
     this.celebrationModal.style.display = 'none';
     this.celebrationModal.style.position = 'absolute';
     this.celebrationModal.style.top = '0';
@@ -284,7 +409,7 @@ export class GameHUD {
     });
   }
 
-  private handleTriggerSwing(e?: Event): void {
+  private handleTriggerAction(e?: Event): void {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -292,7 +417,12 @@ export class GameHUD {
     const now = performance.now();
     if (now - this.lastInputTime < 60) return;
     this.lastInputTime = now;
-    this.onSwingTrigger?.();
+
+    if (this.isPuttingMode) {
+      this.onPuttTrigger?.();
+    } else {
+      this.onSwingTrigger?.();
+    }
   }
 
   private buildHTML(): void {
@@ -320,10 +450,10 @@ export class GameHUD {
         </div>
       </div>
 
-      <!-- Bottom Minimal Bar -->
-      <div class="hud-bottombar">
-        <!-- Left Block: Club Selector -->
-        <div class="hud-capsule hud-club-selector">
+      <!-- Bottom Responsive Bar -->
+      <div class="hud-bottombar" id="hud-bottombar-container">
+        <!-- Left Block: Club Selector (Hidden in Putting Mode) -->
+        <div class="hud-capsule hud-club-selector" id="hud-club-capsule">
           <button id="btn-club-prev" class="hud-ctrl-btn" aria-label="Previous club">‹</button>
           <div class="hud-club-display">
             <div id="hud-club-name">DRIVER</div>
@@ -339,7 +469,7 @@ export class GameHUD {
           <button id="btn-aim-right" class="hud-ctrl-btn" aria-label="Aim right">▶</button>
         </div>
 
-        <!-- Right Block: Swing Button -->
+        <!-- Right Block: Swing / Putt Button -->
         <button id="btn-trigger-swing" class="hud-swing-btn" type="button">SWING</button>
       </div>
 
@@ -415,6 +545,11 @@ export class GameHUD {
           pointer-events: auto;
           box-sizing: border-box;
           z-index: 35;
+        }
+
+        .hud-bottombar.putting-layout {
+          grid-template-columns: 1fr 1.2fr;
+          max-width: 440px;
         }
 
         .hud-club-selector {
@@ -508,6 +643,9 @@ export class GameHUD {
             grid-template-columns: 1.25fr 0.85fr 1fr;
             gap: 4px;
           }
+          .hud-bottombar.putting-layout {
+            grid-template-columns: 1fr 1.2fr;
+          }
           #hud-club-name { font-size: 10px; }
           #hud-club-detail { font-size: 8px; }
           .hud-swing-btn { font-size: 12px; padding: 7px 6px; }
@@ -517,6 +655,9 @@ export class GameHUD {
           .hud-bottombar {
             grid-template-columns: 1.2fr 0.8fr 1fr;
             gap: 3px;
+          }
+          .hud-bottombar.putting-layout {
+            grid-template-columns: 1fr 1.1fr;
           }
           .hud-ctrl-btn { padding: 4px 6px; font-size: 11px; }
           #hud-club-name { font-size: 9.5px; }
@@ -529,14 +670,22 @@ export class GameHUD {
     this.distElem = this.container.querySelector('#hud-dist')!;
     this.lieElem = this.container.querySelector('#hud-lie')!;
     this.windElem = this.container.querySelector('#hud-wind')!;
+    this.clubSelectorCapsule = this.container.querySelector('#hud-club-capsule')!;
     this.clubNameElem = this.container.querySelector('#hud-club-name')!;
     this.clubDetailElem = this.container.querySelector('#hud-club-detail')!;
     this.cameraBtnElem = this.container.querySelector('#btn-hud-cam')!;
     this.headerTitleElem = this.container.querySelector('#hud-title')!;
     this.headerSubtitleElem = this.container.querySelector('#hud-subtitle')!;
     this.swingButtonElem = this.container.querySelector('#btn-trigger-swing')!;
+    this.bottomBarElem = this.container.querySelector('#hud-bottombar-container')!;
 
-    this.container.querySelector('#btn-hud-cam')?.addEventListener('click', () => this.onCameraToggle?.());
+    this.container.querySelector('#btn-hud-cam')?.addEventListener('click', () => {
+      if (this.isPuttingMode) {
+        this.onReadGreenToggle?.();
+      } else {
+        this.onCameraToggle?.();
+      }
+    });
     this.container.querySelector('#btn-hud-replay')?.addEventListener('click', () => this.onResetLayout?.());
 
     this.container.querySelector('#btn-club-prev')?.addEventListener('click', () => this.onClubPrev?.());
@@ -544,8 +693,7 @@ export class GameHUD {
     this.container.querySelector('#btn-aim-left')?.addEventListener('click', () => this.onAimLeft?.());
     this.container.querySelector('#btn-aim-right')?.addEventListener('click', () => this.onAimRight?.());
 
-    // Single canonical touch/click listener with pointerdown handling
-    this.swingButtonElem.addEventListener('pointerdown', (e) => this.handleTriggerSwing(e));
+    this.swingButtonElem.addEventListener('pointerdown', (e) => this.handleTriggerAction(e));
   }
 
   private buildSwingMeterHTML(): void {
@@ -685,7 +833,88 @@ export class GameHUD {
     this.meterAccMarker = this.swingMeterContainer.querySelector('#meter-acc-marker')!;
     this.meterStatusElem = this.swingMeterContainer.querySelector('#meter-status')!;
 
-    this.swingMeterContainer.addEventListener('pointerdown', (e) => this.handleTriggerSwing(e));
+    this.swingMeterContainer.addEventListener('pointerdown', (e) => this.handleTriggerAction(e));
+  }
+
+  private buildPuttMeterHTML(): void {
+    this.puttMeterContainer.innerHTML = `
+      <div class="putt-popup-panel">
+        <div class="putt-readout" id="putt-readout-text">PACE: 0.0 m</div>
+        <div class="putt-track-container">
+          <div class="putt-track">
+            <div id="putt-power-bar"></div>
+            <div id="putt-target-marker"></div>
+          </div>
+          <div class="putt-scale" id="putt-scale-marks">
+            <span>0m</span>
+            <span>5m</span>
+            <span>10m</span>
+          </div>
+        </div>
+      </div>
+      <style>
+        .putt-popup-panel {
+          width: 300px;
+          max-width: calc(100vw - 20px);
+          box-sizing: border-box;
+          background: rgba(8, 22, 14, 0.95);
+          border: 2px solid #55ffff;
+          border-radius: 10px;
+          padding: 8px 12px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+          color: white;
+          font-family: monospace;
+          user-select: none;
+          touch-action: manipulation;
+        }
+        .putt-readout {
+          text-align: center;
+          font-weight: 800;
+          font-size: 12px;
+          margin-bottom: 6px;
+          color: #55ffff;
+          letter-spacing: 0.5px;
+        }
+        .putt-track {
+          height: 14px;
+          background: #1a202c;
+          border-radius: 4px;
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        #putt-power-bar {
+          height: 100%;
+          width: 0%;
+          background: linear-gradient(90deg, #48bb78 0%, #55ffff 80%, #fc8181 100%);
+        }
+        #putt-target-marker {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 3px;
+          background: #f6e05e;
+          box-shadow: 0 0 6px #f6e05e;
+          transform: translateX(-50%);
+          z-index: 2;
+        }
+        .putt-scale {
+          display: flex;
+          justify-content: space-between;
+          position: relative;
+          font-size: 8.5px;
+          color: #a0aec0;
+          margin-top: 3px;
+        }
+      </style>
+    `;
+
+    this.puttMeterBar = this.puttMeterContainer.querySelector('#putt-power-bar')!;
+    this.puttMeterTargetMarker = this.puttMeterContainer.querySelector('#putt-target-marker')!;
+    this.puttMeterReadout = this.puttMeterContainer.querySelector('#putt-readout-text')!;
+    this.puttMeterScaleElem = this.puttMeterContainer.querySelector('#putt-scale-marks')!;
+
+    this.puttMeterContainer.addEventListener('pointerdown', (e) => this.handleTriggerAction(e));
   }
 
   private buildCelebrationModalHTML(): void {

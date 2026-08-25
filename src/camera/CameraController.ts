@@ -86,21 +86,43 @@ export class CameraController {
 
   /**
    * Set behind-golfer camera position given ball position and aim angle (radians).
-   * Composed to place Sophie in the lower-left quadrant (25-35% screen height) inside the safe frame.
+   * For putting: camera is closer and pitched downward so 80-90% of screen is green turf.
    */
   public updateGolfAddressView(ballPos: Vector3, aimAngleRad: number, isPutting: boolean = false): void {
     if (this.mode !== 'GOLF') return;
 
     const isPortrait = this.camera.aspect < 1.0;
 
-    // Distances and heights tuned for 25-35% Sophie screen height and lower-left quadrant framing
-    const camDist = isPutting ? (isPortrait ? 4.8 : 3.8) : (isPortrait ? 6.8 : 5.8);
-    const camHeight = isPutting ? (isPortrait ? 1.40 : 1.25) : (isPortrait ? 1.80 : 1.65);
+    if (isPutting) {
+      // Putting camera: close behind ball, downward pitch for 80-90% green screen coverage
+      const camDist = isPortrait ? 3.4 : 2.7;
+      const camHeight = isPortrait ? 1.55 : 1.25;
+      const perpAngle = aimAngleRad + Math.PI / 2;
+      const lateralOffset = isPortrait ? -0.15 : -0.18;
 
-    // Negative lateral offset places camera slightly behind Sophie's stance,
-    // ensuring Sophie, her club, and backswing are safely inside the gameplay viewport (>8% from left screen edge)
+      const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
+      const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
+      const terrainY = this.getDisplayHeight(camX, camZ);
+      const camY = Math.max(terrainY + 0.45, ballPos.y + camHeight);
+
+      this.camera.position.set(camX, camY, camZ);
+
+      // Pitch look-at downward into the green surface between ball and cup
+      const lookAheadDist = isPortrait ? 6.5 : 8.0;
+      const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
+      const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
+      const lookY = ballPos.y + 0.08; // Downward pitch
+
+      this.target.set(lookX, lookY, lookZ);
+      this.camera.lookAt(this.target);
+      return;
+    }
+
+    // Full-shot address view
+    const camDist = isPortrait ? 6.8 : 5.8;
+    const camHeight = isPortrait ? 1.80 : 1.65;
     const perpAngle = aimAngleRad + Math.PI / 2;
-    const lateralOffset = isPutting ? (isPortrait ? -0.18 : -0.22) : (isPortrait ? -0.32 : -0.32);
+    const lateralOffset = isPortrait ? -0.32 : -0.32;
 
     const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
     const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
@@ -110,11 +132,10 @@ export class CameraController {
 
     this.camera.position.set(camX, camY, camZ);
 
-    // Look slightly down the corridor towards the target, with vertical offset to keep ball in lower third
-    const lookAheadDist = isPutting ? 16 : 55;
+    const lookAheadDist = 55;
     const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
     const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
-    const lookY = ballPos.y + (isPutting ? 0.35 : 1.15);
+    const lookY = ballPos.y + 1.15;
 
     this.target.set(lookX, lookY, lookZ);
     this.camera.lookAt(this.target);
@@ -123,7 +144,14 @@ export class CameraController {
   /**
    * Smoothly follow ball during flight and rolling.
    */
-  public updateBallFollowView(ballPos: Vector3, velocity: Vector3, aimAngleRad: number): void {
+  public updateBallFollowView(ballPos: Vector3, velocity: Vector3, aimAngleRad: number, isPutting: boolean = false): void {
+    if (isPutting) {
+      // For putting, keep camera mostly stable while smoothly tracking ball position
+      this.target.copy(ballPos);
+      this.camera.lookAt(this.target);
+      return;
+    }
+
     const camDist = 11.5;
     const camHeight = 4.2;
 

@@ -14,14 +14,17 @@ import { PlaytestSurfaceGenerator } from '../debug/PlaytestSurfaceGenerator';
 import { ClubManager } from '../golf/Club';
 import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
+import { PuttMeter, PuttResult } from '../golf/PuttMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
 import { BallPhysics } from '../physics/BallPhysics';
+import { PuttingPhysics } from '../physics/PuttingPhysics';
 import { AimingGuideRenderer } from '../rendering/AimingGuideRenderer';
 import { AlignmentGridOverlay } from '../rendering/AlignmentGridOverlay';
 import { AlignmentReviewRenderer } from '../rendering/AlignmentReviewRenderer';
 import { BallRenderer } from '../rendering/BallRenderer';
 import { CourseEnvironment } from '../rendering/CourseEnvironment';
 import { FlagRenderer } from '../rendering/FlagRenderer';
+import { GreenBreakRenderer } from '../rendering/GreenBreakRenderer';
 import { RetroRenderer } from '../rendering/RetroRenderer';
 import { SceneManager } from '../rendering/SceneManager';
 import { SurfaceMeshOverlay } from '../rendering/SurfaceMeshOverlay';
@@ -89,7 +92,9 @@ export class Game {
   private playtestLayout: PlaytestLayoutConfig | null = null;
   private clubManager: ClubManager;
   private swingMeter: SwingMeter;
+  private puttMeter: PuttMeter;
   private ballPhysics?: BallPhysics;
+  private puttingPhysics?: PuttingPhysics;
   private penaltyRules?: PenaltyRules;
   private sophieGolfer?: SophieGolfer;
 
@@ -97,6 +102,7 @@ export class Game {
   private ballRenderer?: BallRenderer;
   private flagRenderer?: FlagRenderer;
   private aimingGuideRenderer?: AimingGuideRenderer;
+  private greenBreakRenderer?: GreenBreakRenderer;
   private surfaceMeshOverlay?: SurfaceMeshOverlay;
   private alignmentGridOverlay?: AlignmentGridOverlay;
   private alignmentReviewRenderer?: AlignmentReviewRenderer;
@@ -142,6 +148,7 @@ export class Game {
     this.stateManager = new GameStateManager();
     this.clubManager = new ClubManager();
     this.swingMeter = new SwingMeter();
+    this.puttMeter = new PuttMeter();
     this.surfaceQuery = new SurfaceQuery();
     this.candidateStore = new CandidateAnnotations();
   }
@@ -216,6 +223,7 @@ export class Game {
     this.terrainQuery = new TerrainQuery(this.terrainData);
     this.geoTransform = new GeoTransform(this.terrainData);
     this.ballPhysics = new BallPhysics(this.terrainQuery, this.surfaceQuery);
+    this.puttingPhysics = new PuttingPhysics(this.terrainQuery);
     this.penaltyRules = new PenaltyRules(this.terrainQuery, this.surfaceQuery);
     this.configuredLayout = this.getConfiguredLayout();
 
@@ -281,6 +289,13 @@ export class Game {
       this.sceneManager.scene.add(this.treeRenderer.getGroup());
     } else {
       this.treeRenderer.setTerrainQuery(this.terrainQuery);
+    }
+
+    if (!this.greenBreakRenderer) {
+      this.greenBreakRenderer = new GreenBreakRenderer(this.terrainQuery);
+      this.sceneManager.scene.add(this.greenBreakRenderer.getGroup());
+    } else {
+      this.greenBreakRenderer.setTerrainQuery(this.terrainQuery);
     }
 
     // 7. Raycaster
@@ -429,6 +444,16 @@ export class Game {
     const distToCup = Math.hypot(dx, dz);
     const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(distToCup, isOnGreen);
+    this.gameHUD?.setPuttingMode(isOnGreen);
+    this.flagRenderer?.setPuttingMode(isOnGreen);
+
+    if (isOnGreen) {
+      this.greenBreakRenderer?.generateGrid(this.ballPhysics!.position, this.cupPosition);
+      this.puttMeter.reset(distToCup);
+      this.gameHUD?.updatePuttMeter(this.puttMeter);
+    } else {
+      this.greenBreakRenderer?.setVisible(false);
+    }
 
     this.stateManager.setState('ADDRESS');
   }
@@ -486,7 +511,9 @@ export class Game {
       onClubPrev: () => this.selectPrevClub(),
       onClubNext: () => this.selectNextClub(),
       onSwingTrigger: () => this.triggerSwingMeter(),
+      onPuttTrigger: () => this.handlePuttAction(),
       onCameraToggle: () => this.toggleCameraMode(),
+      onReadGreenToggle: () => this.toggleGreenBreakView(),
       onResetLayout: () => this.handleMenuAction(),
       onDevModeToggle: () => void this.toggleDevAlignmentMode(),
       onPlayAgain: () => void this.handleScorecardAction(),
@@ -763,6 +790,12 @@ export class Game {
   }
 
   private triggerSwingMeter(): void {
+    const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
+    if (isOnGreen) {
+      this.handlePuttAction();
+      return;
+    }
+
     const state = this.stateManager.getState();
 
     if (state === 'ADDRESS') {
@@ -783,6 +816,54 @@ export class Game {
         // Click 3: Locked accuracy -> Strike impact and launch ball
         this.executeSwing();
       }
+    }
+  }
+
+  private handlePuttAction(): void {
+    const state = this.stateManager.getState();
+    if (state === 'ADDRESS') {
+      this.stateManager.setState('SWINGING');
+      this.swingExecuted = false;
+      this.sophieGolfer?.resetPose();
+      const distToCup = Math.hypot(
+        this.cupPosition.x - this.ballPhysics!.position.x,
+        this.cupPosition.z - this.ballPhysics!.position.z
+      );
+      this.puttMeter.reset(distToCup);
+      this.puttMeter.triggerPuttAction(); // Begins CHARGING
+      this.gameHUD?.updatePuttMeter(this.puttMeter);
+    } else if (state === 'SWINGING') {
+      const res = this.puttMeter.triggerPuttAction(); // Locks pace and completes
+      if (res) {
+        this.executePutt(res);
+      }
+    }
+  }
+
+  private executePutt(puttResult: PuttResult): void {
+    if (!this.sophieGolfer || !this.ballPhysics || !this.puttingPhysics) return;
+    if (this.swingExecuted) return;
+    this.swingExecuted = true;
+
+    this.strokeCount++;
+    this.ballRenderer?.clearTracer();
+    this.shotOrigin = { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z };
+
+    this.puttingPhysics.setPosition(this.ballPhysics.position.x, this.ballPhysics.position.z);
+    this.puttingPhysics.launchPutt(puttResult.intendedDistanceMetres, this.aimAngleRadians);
+
+    this.sophieGolfer.strikeImpact(() => {
+      this.ballPhysics!.position.copy(this.puttingPhysics!.position);
+      this.ballPhysics!.velocity.copy(this.puttingPhysics!.velocity);
+      this.stateManager.setState('BALL_ROLLING');
+    });
+  }
+
+  private toggleGreenBreakView(): void {
+    if (!this.greenBreakRenderer) return;
+    const isVisible = this.greenBreakRenderer.toggle();
+    if (isVisible && this.ballPhysics) {
+      this.greenBreakRenderer.generateGrid(this.ballPhysics.position, this.cupPosition);
     }
   }
 
@@ -821,6 +902,7 @@ export class Game {
     this.lastFrameTime = now;
 
     const state = this.stateManager.getState();
+    const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
 
     // 1. Raycaster update
     let mouseHit = null;
@@ -833,34 +915,58 @@ export class Game {
 
     // 2. Physics & State Machine update
     if (state === 'SWINGING') {
-      const prevMeterState = this.swingMeter.getState();
-      this.swingMeter.update(dt);
-      const newMeterState = this.swingMeter.getState();
+      if (isOnGreen) {
+        this.puttMeter.update(dt);
+        this.gameHUD?.updatePuttMeter(this.puttMeter);
+      } else {
+        const prevMeterState = this.swingMeter.getState();
+        this.swingMeter.update(dt);
+        const newMeterState = this.swingMeter.getState();
 
-      if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
-        this.sophieGolfer?.startDownswing();
-      }
+        if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
+          this.sophieGolfer?.startDownswing();
+        }
 
-      if ((newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') && this.ballPhysics?.state === 'REST') {
-        this.executeSwing();
+        if ((newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') && this.ballPhysics?.state === 'REST') {
+          this.executeSwing();
+        }
       }
     } else if (state === 'BALL_FLIGHT' || state === 'BALL_ROLLING') {
-      const ballState = this.ballPhysics!.update(dt, this.cupPosition);
+      if (this.puttingPhysics && this.puttingPhysics.state === 'ROLLING') {
+        const pState = this.puttingPhysics.update(dt, this.cupPosition);
+        this.ballPhysics!.position.copy(this.puttingPhysics.position);
+        this.ballPhysics!.velocity.copy(this.puttingPhysics.velocity);
 
-      if (ballState === 'ROLLING') {
-        this.stateManager.setState('BALL_ROLLING');
-      } else if (ballState === 'HOLED') {
-        const holeTotal = this.strokeCount + this.penaltyStrokes;
-        this.finishHoleForScorecard(holeTotal, this.penaltyStrokes);
-      } else if (ballState === 'REST') {
-        this.onBallStoppedAtRest();
+        if (pState === 'HOLED') {
+          const holeTotal = this.strokeCount + this.penaltyStrokes;
+          this.gameHUD?.showPuttingFeedback(0, true, false);
+          this.finishHoleForScorecard(holeTotal, this.penaltyStrokes);
+        } else if (pState === 'REST') {
+          const distRemaining = Math.hypot(
+            this.ballPhysics!.position.x - this.cupPosition.x,
+            this.ballPhysics!.position.z - this.cupPosition.z
+          );
+          this.gameHUD?.showPuttingFeedback(distRemaining, false, this.puttingPhysics.wasLipOut);
+          this.onBallStoppedAtRest();
+        }
+      } else {
+        const ballState = this.ballPhysics!.update(dt, this.cupPosition);
+
+        if (ballState === 'ROLLING') {
+          this.stateManager.setState('BALL_ROLLING');
+        } else if (ballState === 'HOLED') {
+          const holeTotal = this.strokeCount + this.penaltyStrokes;
+          this.finishHoleForScorecard(holeTotal, this.penaltyStrokes);
+        } else if (ballState === 'REST') {
+          this.onBallStoppedAtRest();
+        }
       }
     }
 
     // 3. Update Camera View
     if (state === 'ADDRESS' || state === 'SWINGING') {
       if (this.cameraController.getMode() === 'GOLF') {
-        this.cameraController.updateGolfAddressView(this.ballPhysics!.position, this.aimAngleRadians);
+        this.cameraController.updateGolfAddressView(this.ballPhysics!.position, this.aimAngleRadians, isOnGreen);
       } else {
         this.cameraController.update();
       }
@@ -868,7 +974,8 @@ export class Game {
       this.cameraController.updateBallFollowView(
         this.ballPhysics!.position,
         this.ballPhysics!.velocity,
-        this.aimAngleRadians
+        this.aimAngleRadians,
+        isOnGreen
       );
     } else {
       this.cameraController.update();
@@ -888,6 +995,10 @@ export class Game {
 
     if (this.treeRenderer) {
       this.treeRenderer.update(this.cameraController.camera.position);
+    }
+
+    if (this.greenBreakRenderer) {
+      this.greenBreakRenderer.update(dt);
     }
 
     if (this.sophieGolfer && this.terrainQuery && this.ballPhysics) {
@@ -919,7 +1030,9 @@ export class Game {
         currentLie,
         this.cameraController.getMode()
       );
-      this.gameHUD.updateSwingMeter(this.swingMeter);
+      if (!isOnGreen) {
+        this.gameHUD.updateSwingMeter(this.swingMeter);
+      }
     }
 
     if (this.debugOverlay) {
@@ -960,6 +1073,16 @@ export class Game {
     const remainingDist = Math.hypot(dx, dz);
     const isOnGreen = this.ballPhysics.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(remainingDist, isOnGreen);
+    this.gameHUD?.setPuttingMode(isOnGreen);
+    this.flagRenderer?.setPuttingMode(isOnGreen);
+
+    if (isOnGreen) {
+      this.greenBreakRenderer?.generateGrid(this.ballPhysics.position, this.cupPosition);
+      this.puttMeter.reset(remainingDist);
+      this.gameHUD?.updatePuttMeter(this.puttMeter);
+    } else {
+      this.greenBreakRenderer?.setVisible(false);
+    }
 
     if (this.sophieGolfer && this.terrainQuery) {
       const terrainY = this.terrainQuery.getTerrainHeight(this.ballPhysics.position.x, this.ballPhysics.position.z, true);

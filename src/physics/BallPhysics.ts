@@ -303,9 +303,9 @@ export class BallPhysics {
 
     const normal = this.terrainQuery.getTerrainNormal(this.position.x, this.position.z);
 
-    // Slope acceleration along terrain surface: a_slope = -g * normal_xz
-    const slopeAccX = -this.gravity * normal.x;
-    const slopeAccZ = -this.gravity * normal.z;
+    // Slope acceleration along terrain surface: downhill direction is +normal.x and +normal.z
+    const slopeAccX = this.gravity * normal.x;
+    const slopeAccZ = this.gravity * normal.z;
 
     this.velocity.x += slopeAccX * dt;
     this.velocity.z += slopeAccZ * dt;

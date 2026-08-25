@@ -30,6 +30,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const game = new Game(canvas);
+  (window as any).__SOPHIE_GOLF_GAME__ = game;
   game.start(SOPHIE_HILLS_CONFIG);
 });
 
