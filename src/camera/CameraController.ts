@@ -205,9 +205,11 @@ export class CameraController {
     const centreZ = (tee.z + green.z) * 0.5;
     this.target.set(centreX, this.getDisplayHeight(centreX, centreZ), centreZ);
 
-    const holeLength = Math.max(90, Math.hypot(green.x - tee.x, green.z - tee.z));
     const verticalFov = this.camera.fov * Math.PI / 180;
-    const requiredVerticalSpan = Math.max(110, holeLength * (this.camera.aspect < 1 ? 1.25 : 0.62));
+    const corridorPadding = 90;
+    const xSpan = Math.abs(green.x - tee.x) + corridorPadding;
+    const zSpan = Math.abs(green.z - tee.z) + corridorPadding;
+    const requiredVerticalSpan = Math.max(140, zSpan, xSpan / Math.max(0.5, this.camera.aspect));
     this.distance = requiredVerticalSpan / (2 * Math.tan(verticalFov / 2));
     this.applyOverheadTransform();
   }

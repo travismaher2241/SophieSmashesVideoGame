@@ -575,8 +575,12 @@ export class Game {
 
     if (isLayoutSel) {
       this.cameraController?.setMode('OVERHEAD');
+      this.treeRenderer?.setVisible(false);
+      this.sceneManager.setOverheadMode(true);
     } else if (isGameplay && (newState === 'ADDRESS' || newState === 'SWINGING')) {
       this.cameraController?.setMode('GOLF');
+      this.treeRenderer?.setVisible(true);
+      this.sceneManager.setOverheadMode(false);
     } else if (isDev) {
       this.cameraController?.setMode('FREE');
     }
@@ -669,7 +673,10 @@ export class Game {
   private toggleCameraMode(): void {
     if (!this.cameraController) return;
     const current = this.cameraController.getMode();
-    this.cameraController.setMode(current === 'GOLF' ? 'OVERHEAD' : 'GOLF');
+    const next = current === 'GOLF' ? 'OVERHEAD' : 'GOLF';
+    this.cameraController.setMode(next);
+    this.treeRenderer?.setVisible(next !== 'OVERHEAD');
+    this.sceneManager.setOverheadMode(next === 'OVERHEAD');
   }
 
   private async startConfiguredRound(): Promise<void> {

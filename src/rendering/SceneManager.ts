@@ -19,11 +19,13 @@ export class SceneManager {
   public readonly ambientLight: AmbientLight;
 
   private canvas: HTMLCanvasElement;
+  private readonly skyBackground: CanvasTexture;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.scene = new Scene();
-    this.scene.background = this.createSkyTexture();
+    this.skyBackground = this.createSkyTexture();
+    this.scene.background = this.skyBackground;
     this.scene.fog = new Fog(new Color(0xb8d8d1), 260, 920);
 
     // WebGL Renderer
@@ -81,20 +83,6 @@ export class SceneManager {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, sky.width, sky.height);
 
-    const drawCloud = (x: number, y: number, scale: number): void => {
-      const cloud = ctx.createRadialGradient(x, y, 4, x, y, 95 * scale);
-      cloud.addColorStop(0, 'rgba(255,255,255,.72)');
-      cloud.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = cloud;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 120 * scale, 28 * scale, 0, 0, Math.PI * 2);
-      ctx.ellipse(x - 48 * scale, y + 5, 70 * scale, 22 * scale, 0, 0, Math.PI * 2);
-      ctx.ellipse(x + 50 * scale, y + 6, 82 * scale, 23 * scale, 0, 0, Math.PI * 2);
-      ctx.fill();
-    };
-    drawCloud(255, 150, 1.0);
-    drawCloud(760, 215, 0.82);
-
     const texture = new CanvasTexture(sky);
     texture.colorSpace = SRGBColorSpace;
     return texture;
@@ -102,6 +90,10 @@ export class SceneManager {
 
   public render(camera: PerspectiveCamera): void {
     this.renderer.render(this.scene, camera);
+  }
+
+  public setOverheadMode(enabled: boolean): void {
+    this.scene.background = enabled ? new Color(0x17392d) : this.skyBackground;
   }
 
   private onWindowResize(): void {
