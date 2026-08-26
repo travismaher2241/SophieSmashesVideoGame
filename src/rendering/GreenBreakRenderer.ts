@@ -21,6 +21,7 @@ interface BreakDot {
 export class GreenBreakRenderer {
   private group: Group;
   private pointsMesh: Points | null = null;
+  private pointsOutline: Points | null = null;
   private terrainQuery: TerrainQuery;
   private dots: BreakDot[] = [];
   private visible: boolean = false;
@@ -63,7 +64,7 @@ export class GreenBreakRenderer {
     const minZ = Math.min(ballPos.z, cupPos.z) - radius;
     const maxZ = Math.max(ballPos.z, cupPos.z) + radius;
 
-    const spacing = 1.2; // 1.2m grid spacing for retro subtlety
+    const spacing = 1.65;
 
     for (let x = minX; x <= maxX; x += spacing) {
       for (let z = minZ; z <= maxZ; z += spacing) {
@@ -71,15 +72,19 @@ export class GreenBreakRenderer {
         const normal = this.terrainQuery.getTerrainNormal(x, z);
         const slopeMag = Math.hypot(normal.x, normal.z);
 
-        // Downhill direction = (-normal.x, -normal.z)
-        const dirX = slopeMag > 0.001 ? -normal.x / slopeMag : 0;
-        const dirZ = slopeMag > 0.001 ? -normal.z / slopeMag : 0;
+        // Terrain normals are (-dh/dx, 1, -dh/dz), so their horizontal component
+        // already points downhill. PuttingPhysics uses this exact same sign.
+        const dirX = slopeMag > 0.001 ? normal.x / slopeMag : 0;
+        const dirZ = slopeMag > 0.001 ? normal.z / slopeMag : 0;
+
+        // Stagger beads so the grid reads as flowing rather than pulsing in lockstep.
+        const phase = Math.abs(Math.sin(x * 12.9898 + z * 78.233)) * 0.82;
 
         this.dots.push({
           origX: x,
           origZ: z,
-          currX: x,
-          currZ: z,
+          currX: x + dirX * phase,
+          currZ: z + dirZ * phase,
           dirX,
           dirZ,
           slopeMag
@@ -97,6 +102,10 @@ export class GreenBreakRenderer {
       this.pointsMesh.geometry.dispose();
       this.pointsMesh = null;
     }
+    if (this.pointsOutline) {
+      this.group.remove(this.pointsOutline);
+      this.pointsOutline = null;
+    }
   }
 
   private rebuildMesh(): void {
@@ -104,6 +113,10 @@ export class GreenBreakRenderer {
       this.group.remove(this.pointsMesh);
       this.pointsMesh.geometry.dispose();
       this.pointsMesh = null;
+    }
+    if (this.pointsOutline) {
+      this.group.remove(this.pointsOutline);
+      this.pointsOutline = null;
     }
 
     if (this.dots.length === 0) return;
@@ -114,37 +127,50 @@ export class GreenBreakRenderer {
       const d = this.dots[i];
       const terrainY = this.terrainQuery.getTerrainHeight(d.currX, d.currZ, true);
       positions[i * 3 + 0] = d.currX;
-      positions[i * 3 + 1] = terrainY + 0.04;
+      positions[i * 3 + 1] = terrainY + 0.10;
       positions[i * 3 + 2] = d.currZ;
     }
 
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(positions, 3));
 
-    const mat = new PointsMaterial({
-      color: 0x68d391,
-      size: 4.5,
+    const outlineMat = new PointsMaterial({
+      color: 0x071b14,
+      size: 11,
       sizeAttenuation: false,
       transparent: true,
-      opacity: 0.85
+      opacity: 0.9,
+      depthWrite: false
+    });
+    const coreMat = new PointsMaterial({
+      color: 0xf6ffb3,
+      size: 6.5,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false
     });
 
-    this.pointsMesh = new Points(geo, mat);
-    this.group.add(this.pointsMesh);
+    this.pointsOutline = new Points(geo, outlineMat);
+    this.pointsOutline.renderOrder = 20;
+    this.pointsMesh = new Points(geo, coreMat);
+    this.pointsMesh.renderOrder = 21;
+    this.group.add(this.pointsOutline, this.pointsMesh);
   }
 
   public update(dt: number): void {
     if (!this.visible || this.dots.length === 0 || !this.pointsMesh) return;
 
     const posAttr = this.pointsMesh.geometry.getAttribute('position') as BufferAttribute;
-    const maxOffset = 0.55; // Reset dot after drifting 0.55m
-    const animSpeed = 1.6;
+    const maxOffset = 0.9;
 
     for (let i = 0; i < this.dots.length; i++) {
       const d = this.dots[i];
       if (d.slopeMag > 0.002) {
-        d.currX += d.dirX * d.slopeMag * animSpeed * dt;
-        d.currZ += d.dirZ * d.slopeMag * animSpeed * dt;
+        // Keep shallow breaks readable while making steeper areas flow faster.
+        const flowSpeed = Math.min(0.9, 0.32 + d.slopeMag * 14);
+        d.currX += d.dirX * flowSpeed * dt;
+        d.currZ += d.dirZ * flowSpeed * dt;
 
         const offset = Math.hypot(d.currX - d.origX, d.currZ - d.origZ);
         if (offset > maxOffset) {
@@ -154,7 +180,7 @@ export class GreenBreakRenderer {
       }
 
       const terrainY = this.terrainQuery.getTerrainHeight(d.currX, d.currZ, true);
-      posAttr.setXYZ(i, d.currX, terrainY + 0.04, d.currZ);
+      posAttr.setXYZ(i, d.currX, terrainY + 0.10, d.currZ);
     }
 
     posAttr.needsUpdate = true;
