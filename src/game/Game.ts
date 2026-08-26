@@ -32,7 +32,7 @@ import { TerrainMeshBuilder } from '../rendering/TerrainMeshBuilder';
 import { TreeRenderer } from '../rendering/TreeRenderer';
 import { AnnotationTool } from '../ui/AnnotationTool';
 import { DebugOverlay } from '../ui/DebugOverlay';
-import { GameHUD } from '../ui/GameHUD';
+import { GameHUD, ShotMode } from '../ui/GameHUD';
 import { PlaytestLayoutHUD } from '../ui/PlaytestLayoutHUD';
 import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
@@ -54,12 +54,19 @@ export interface GameSource {
 
 export const SOPHIE_HILLS_CONFIG: GameSource = {
   terrainPath: '/courses/sophie-hills',
-  courseName: 'Sophie Hills (Fictional)',
-  courseSubtitle: 'Two-Hole Preview',
-  totalPar: 7,
+  courseName: 'Sophie Hills',
+  courseSubtitle: 'Front Nine',
+  totalPar: 35,
   holes: [
     { holePath: '/courses/sophie-hills/hole-01', holeName: 'Sunset Run' },
-    { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry' }
+    { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry' },
+    { holePath: '/courses/sophie-hills/hole-03', holeName: 'Wattle Bend' },
+    { holePath: '/courses/sophie-hills/hole-04', holeName: 'Long Paddock' },
+    { holePath: '/courses/sophie-hills/hole-05', holeName: 'Gumtree Rise' },
+    { holePath: '/courses/sophie-hills/hole-06', holeName: 'Billabong' },
+    { holePath: '/courses/sophie-hills/hole-07', holeName: 'Ridge Runner' },
+    { holePath: '/courses/sophie-hills/hole-08', holeName: 'Sandbelt Turn' },
+    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound' }
   ]
 };
 
@@ -123,6 +130,7 @@ export class Game {
   // Gameplay State Variables
   private strokeCount: number = 0;
   private penaltyStrokes: number = 0;
+  private shotMode: ShotMode = 'FULL_SWING';
   /** Guards against the same completed swing being played more than once. */
   private swingExecuted: boolean = false;
   /** Where the stroke currently in flight was played from, for stroke-and-distance relief. */
@@ -167,7 +175,7 @@ export class Game {
         : (source ?? SOPHIE_HILLS_CONFIG);
 
       if (parsedSource.holes.length === 0) {
-        throw new Error('Sophie Golf needs at least one hole in the course playlist.');
+        throw new Error('Sophie Smashes needs at least one hole in the course playlist.');
       }
 
       this.defaultSource = parsedSource;
@@ -408,6 +416,7 @@ export class Game {
 
     this.playtestLayout = layout;
     this.isRoundActive = true;
+    this.cameraController?.setOverheadHole(layout.tee, layout.hole);
 
     const surfaces = this.resolveSurfaces(layout);
     this.surfaceQuery.setPolygons(surfaces);
@@ -444,13 +453,15 @@ export class Game {
     const distToCup = Math.hypot(dx, dz);
     const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(distToCup, isOnGreen);
-    this.gameHUD?.setPuttingMode(isOnGreen);
-    this.flagRenderer?.setPuttingMode(isOnGreen);
+    const club = this.clubManager.getCurrentClub();
+    this.shotMode = (isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING';
 
-    if (isOnGreen) {
+    this.gameHUD?.setShotMode(this.shotMode);
+    this.flagRenderer?.setPuttingMode(this.shotMode === 'PUTTING');
+
+    if (this.shotMode === 'PUTTING') {
       this.greenBreakRenderer?.generateGrid(this.ballPhysics!.position, this.cupPosition);
       this.puttMeter.reset(distToCup);
-      this.gameHUD?.updatePuttMeter(this.puttMeter);
     } else {
       this.greenBreakRenderer?.setVisible(false);
     }
@@ -489,7 +500,7 @@ export class Game {
     }
 
     console.info(
-      `[SOPHIE GOLF] ${this.holeConfig?.courseId}/${this.holeConfig?.holeId} has no traced surfaces in hole.json. ` +
+      `[SOPHIE SMASHES] ${this.holeConfig?.courseId}/${this.holeConfig?.holeId} has no traced surfaces in hole.json. ` +
       'Falling back to development placeholder geometry — lies reported here are not the real course.'
     );
     return PlaytestSurfaceGenerator.generate(layout.tee, layout.hole);
@@ -523,10 +534,10 @@ export class Game {
     this.configureGameHUD();
 
     this.titleScreen = new TitleScreen({
-      courseName: this.source?.courseName ?? 'Sophie Hills (Fictional)',
-      courseSubtitle: this.source?.courseSubtitle ?? 'Two-Hole Preview',
-      holeCount: this.source?.holes.length ?? 2,
-      totalPar: this.source?.totalPar ?? 7,
+      courseName: this.source?.courseName ?? 'Sophie Hills',
+      courseSubtitle: this.source?.courseSubtitle ?? 'Front Nine',
+      holeCount: this.source?.holes.length ?? 9,
+      totalPar: this.source?.totalPar ?? 35,
       onStart: () => void this.startConfiguredRound(),
       onOpenPractice: () => void this.enterResearchMode()
     });
@@ -641,12 +652,18 @@ export class Game {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
     this.clubManager.selectNextClub();
+    const club = this.clubManager.getCurrentClub();
+    this.shotMode = club.isPutter ? 'PUTTING' : 'FULL_SWING';
+    this.gameHUD?.setShotMode(this.shotMode);
   }
 
   private selectPrevClub(): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
     this.clubManager.selectPrevClub();
+    const club = this.clubManager.getCurrentClub();
+    this.shotMode = club.isPutter ? 'PUTTING' : 'FULL_SWING';
+    this.gameHUD?.setShotMode(this.shotMode);
   }
 
   private toggleCameraMode(): void {
@@ -748,7 +765,7 @@ export class Game {
     }
 
     this.gameHUD?.configureHole({
-      courseName: this.source?.courseName ?? 'Sophie Hills (Fictional)',
+      courseName: this.source?.courseName ?? 'Sophie Hills',
       holeName: this.getCurrentHoleName(),
       holeNumber: this.holeConfig?.holeNumber ?? 1,
       par: this.holeConfig?.par ?? 4,
@@ -790,8 +807,7 @@ export class Game {
   }
 
   private triggerSwingMeter(): void {
-    const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
-    if (isOnGreen) {
+    if (this.shotMode === 'PUTTING') {
       this.handlePuttAction();
       return;
     }
@@ -915,13 +931,14 @@ export class Game {
 
     // 2. Physics & State Machine update
     if (state === 'SWINGING') {
-      if (isOnGreen) {
+      if (this.shotMode === 'PUTTING') {
         this.puttMeter.update(dt);
         this.gameHUD?.updatePuttMeter(this.puttMeter);
       } else {
         const prevMeterState = this.swingMeter.getState();
         this.swingMeter.update(dt);
         const newMeterState = this.swingMeter.getState();
+        this.gameHUD?.updateSwingMeter(this.swingMeter);
 
         if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
           this.sophieGolfer?.startDownswing();
@@ -1030,9 +1047,6 @@ export class Game {
         currentLie,
         this.cameraController.getMode()
       );
-      if (!isOnGreen) {
-        this.gameHUD.updateSwingMeter(this.swingMeter);
-      }
     }
 
     if (this.debugOverlay) {
@@ -1073,13 +1087,15 @@ export class Game {
     const remainingDist = Math.hypot(dx, dz);
     const isOnGreen = this.ballPhysics.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(remainingDist, isOnGreen);
-    this.gameHUD?.setPuttingMode(isOnGreen);
-    this.flagRenderer?.setPuttingMode(isOnGreen);
+    const club = this.clubManager.getCurrentClub();
+    this.shotMode = (isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING';
 
-    if (isOnGreen) {
+    this.gameHUD?.setShotMode(this.shotMode);
+    this.flagRenderer?.setPuttingMode(this.shotMode === 'PUTTING');
+
+    if (this.shotMode === 'PUTTING') {
       this.greenBreakRenderer?.generateGrid(this.ballPhysics.position, this.cupPosition);
       this.puttMeter.reset(remainingDist);
-      this.gameHUD?.updatePuttMeter(this.puttMeter);
     } else {
       this.greenBreakRenderer?.setVisible(false);
     }

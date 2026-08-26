@@ -1,0 +1,13 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-03", "holeNumber": 3,
+  "par": 4, "publishedLengthMetres": 194, "status": "fictional-gameplay-course",
+  "tee": { "x": 110, "y": 0, "z": 75 }, "greenCentre": { "x": 300, "y": 0, "z": 115 },
+  "surfaces": [
+    { "id": "h3-rough", "type": "ROUGH", "name": "Wattle Bend Rough", "points": [{"x":55,"z":35},{"x":345,"z":35},{"x":345,"z":175},{"x":55,"z":175}] },
+    { "id": "h3-fairway", "type": "FAIRWAY", "name": "Wattle Bend Fairway", "points": [{"x":105,"z":62},{"x":108,"z":90},{"x":170,"z":105},{"x":230,"z":91},{"x":285,"z":101},{"x":293,"z":129},{"x":230,"z":125},{"x":166,"z":132}] },
+    { "id": "h3-tee", "type": "TEE", "name": "Third Tee", "points": [{"x":102,"z":68},{"x":118,"z":68},{"x":118,"z":82},{"x":102,"z":82}] },
+    { "id": "h3-green", "type": "GREEN", "name": "Third Green", "points": [{"x":321,"z":115},{"x":315,"z":130},{"x":300,"z":137},{"x":285,"z":130},{"x":279,"z":115},{"x":285,"z":100},{"x":300,"z":93},{"x":315,"z":100}] },
+    { "id": "h3-bunker", "type": "BUNKER", "name": "Wattle Bunker", "points": [{"x":272,"z":132},{"x":286,"z":136},{"x":290,"z":147},{"x":275,"z":151},{"x":265,"z":142}] },
+    { "id": "h3-path", "type": "PATH", "name": "Wattle Path", "points": [{"x":82,"z":145},{"x":86,"z":151},{"x":315,"z":161},{"x":318,"z":154}] }
+  ], "features": [], "notes": ["A short dogleg framed by wattles and a front-left bunker."]
+}

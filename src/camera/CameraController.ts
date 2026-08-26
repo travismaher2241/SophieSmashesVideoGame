@@ -26,6 +26,9 @@ export class CameraController {
   private terrainData: TerrainData;
   private terrainQuery: TerrainQuery;
   private renderVerticalScale: number = 1;
+  private overheadTee = new Vector3();
+  private overheadGreen = new Vector3();
+  private hasOverheadHole = false;
 
   constructor(domElement: HTMLElement, terrainData: TerrainData, terrainQuery: TerrainQuery) {
     this.domElement = domElement;
@@ -59,8 +62,17 @@ export class CameraController {
     this.setMode(this.mode);
   }
 
+  /** Frame the active hole rather than exposing the full rectangular terrain tile. */
+  public setOverheadHole(tee: { x: number; z: number }, green: { x: number; z: number }): void {
+    this.overheadTee.set(tee.x, this.getDisplayHeight(tee.x, tee.z), tee.z);
+    this.overheadGreen.set(green.x, this.getDisplayHeight(green.x, green.z), green.z);
+    this.hasOverheadHole = true;
+    if (this.mode === 'OVERHEAD') this.configureOverheadView();
+  }
+
   public setMode(mode: CameraMode): void {
     this.mode = mode;
+    this.camera.up.set(0, 1, 0);
 
     if (mode === 'FREE') {
       const centreX = this.terrainData.vertexExtentX / 2;
@@ -73,12 +85,8 @@ export class CameraController {
       this.azimuth = -Math.PI / 4;
       this.elevation = Math.PI / 5;
     } else if (mode === 'OVERHEAD') {
-      const centreX = this.terrainData.vertexExtentX / 2;
-      const centreZ = this.terrainData.vertexExtentZ / 2;
-      this.target.set(centreX, this.getDisplayHeight(centreX, centreZ), centreZ);
-      this.distance = Math.max(this.terrainData.vertexExtentX, this.terrainData.vertexExtentZ) * 0.78;
-      this.azimuth = 0;
-      this.elevation = Math.PI / 2 - 0.01;
+      this.configureOverheadView();
+      return;
     }
 
     this.updateCameraTransform();
@@ -179,9 +187,36 @@ export class CameraController {
   }
 
   public update(): void {
-    if (this.mode === 'FREE' || this.mode === 'OVERHEAD') {
+    if (this.mode === 'OVERHEAD') {
+      this.applyOverheadTransform();
+    } else if (this.mode === 'FREE') {
       this.updateCameraTransform();
     }
+  }
+
+  private configureOverheadView(): void {
+    const tee = this.hasOverheadHole
+      ? this.overheadTee
+      : new Vector3(this.terrainData.vertexExtentX * 0.25, 0, this.terrainData.vertexExtentZ * 0.5);
+    const green = this.hasOverheadHole
+      ? this.overheadGreen
+      : new Vector3(this.terrainData.vertexExtentX * 0.75, 0, this.terrainData.vertexExtentZ * 0.5);
+    const centreX = (tee.x + green.x) * 0.5;
+    const centreZ = (tee.z + green.z) * 0.5;
+    this.target.set(centreX, this.getDisplayHeight(centreX, centreZ), centreZ);
+
+    const holeLength = Math.max(90, Math.hypot(green.x - tee.x, green.z - tee.z));
+    const verticalFov = this.camera.fov * Math.PI / 180;
+    const requiredVerticalSpan = Math.max(110, holeLength * (this.camera.aspect < 1 ? 1.25 : 0.62));
+    this.distance = requiredVerticalSpan / (2 * Math.tan(verticalFov / 2));
+    this.applyOverheadTransform();
+  }
+
+  private applyOverheadTransform(): void {
+    // A Z-axis up vector prevents the lookAt singularity caused by Y-up while looking down -Y.
+    this.camera.up.set(0, 0, -1);
+    this.camera.position.set(this.target.x, this.target.y + this.distance, this.target.z);
+    this.camera.lookAt(this.target);
   }
 
   public updateCameraTransform(): void {
@@ -212,7 +247,7 @@ export class CameraController {
     });
 
     this.domElement.addEventListener('pointerdown', (e) => {
-      if (this.mode !== 'FREE' && this.mode !== 'OVERHEAD') return;
+      if (this.mode !== 'FREE') return;
       this.isMouseDown = true;
       this.mouseButton = e.button;
       this.prevMouseX = e.clientX;
@@ -220,7 +255,7 @@ export class CameraController {
     });
 
     window.addEventListener('pointermove', (e) => {
-      if (!this.isMouseDown || (this.mode !== 'FREE' && this.mode !== 'OVERHEAD')) return;
+      if (!this.isMouseDown || this.mode !== 'FREE') return;
 
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
@@ -253,7 +288,7 @@ export class CameraController {
     });
 
     this.domElement.addEventListener('wheel', (e) => {
-      if (this.mode !== 'FREE' && this.mode !== 'OVERHEAD') return;
+      if (this.mode !== 'FREE') return;
       const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
       this.distance *= zoomFactor;
       this.updateCameraTransform();

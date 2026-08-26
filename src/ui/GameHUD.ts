@@ -4,6 +4,8 @@ import { SwingMeter } from '../golf/SwingMeter';
 import { PuttMeter } from '../golf/PuttMeter';
 import { summarizeRoundScore } from '../game/RoundScore';
 
+export type ShotMode = 'FULL_SWING' | 'PUTTING';
+
 export interface GameHUDHoleConfig {
   courseName: string;
   holeName: string;
@@ -60,8 +62,10 @@ export class GameHUD {
   private puttMeterBar!: HTMLElement;
   private puttMeterTargetMarker!: HTMLElement;
   private puttMeterReadout!: HTMLElement;
+  private puttTargetElem!: HTMLElement;
   private puttMeterScaleElem!: HTMLElement;
 
+  private shotMode: ShotMode = 'FULL_SWING';
   private isPuttingMode: boolean = false;
   private lastInputTime: number = 0;
 
@@ -115,12 +119,17 @@ export class GameHUD {
 
   public setVisible(visible: boolean): void {
     this.container.style.display = visible ? 'block' : 'none';
-    this.swingMeterContainer.style.display = visible ? 'block' : 'none';
-    this.puttMeterContainer.style.display = visible ? 'block' : 'none';
+    if (!visible) {
+      this.swingMeterContainer.style.display = 'none';
+      this.puttMeterContainer.style.display = 'none';
+    }
   }
 
-  public setPuttingMode(isPutting: boolean): void {
+  public setShotMode(mode: ShotMode): void {
+    this.shotMode = mode;
+    const isPutting = mode === 'PUTTING';
     this.isPuttingMode = isPutting;
+
     if (this.clubSelectorCapsule) {
       this.clubSelectorCapsule.style.display = isPutting ? 'none' : 'flex';
     }
@@ -137,16 +146,44 @@ export class GameHUD {
     if (this.swingButtonElem) {
       this.swingButtonElem.textContent = isPutting ? 'PUTT' : 'SWING';
     }
+
+    // Strict mode isolation: hide opposing meter container immediately
     if (isPutting) {
       this.swingMeterContainer.style.display = 'none';
     } else {
       this.puttMeterContainer.style.display = 'none';
     }
+
+    this.resetShotFeedback();
+  }
+
+  public setPuttingMode(isPutting: boolean): void {
+    this.setShotMode(isPutting ? 'PUTTING' : 'FULL_SWING');
+  }
+
+  public resetShotFeedback(): void {
+    if (this.meterStatusElem) {
+      this.meterStatusElem.innerHTML = '<span>PRESS SPACE / CLICK TO SWING</span>';
+    }
+    if (this.swingButtonElem) {
+      this.swingButtonElem.textContent = this.isPuttingMode ? 'PUTT' : 'SWING';
+    }
+    if (this.meterPowerBar) {
+      this.meterPowerBar.style.width = '0%';
+    }
+    if (this.meterAccMarker) {
+      this.meterAccMarker.style.left = '50%';
+    }
+    if (this.puttMeterBar) {
+      this.puttMeterBar.style.width = '0%';
+    }
+    this.swingMeterContainer.style.display = 'none';
+    this.puttMeterContainer.style.display = 'none';
   }
 
   public configureHole(config: GameHUDHoleConfig): void {
     if (this.headerTitleElem) {
-      this.headerTitleElem.textContent = 'SOPHIE GOLF';
+      this.headerTitleElem.textContent = 'SOPHIE SMASHES';
     }
     if (this.headerSubtitleElem) {
       this.headerSubtitleElem.textContent = `${config.courseName} · ${config.holeName} · PAR ${config.par} · ${config.distanceMetres}m`;
@@ -256,7 +293,10 @@ export class GameHUD {
   }
 
   public updatePuttMeter(puttMeter: PuttMeter): void {
-    if (!this.isPuttingMode) return;
+    if (!this.isPuttingMode || this.shotMode !== 'PUTTING') {
+      this.puttMeterContainer.style.display = 'none';
+      return;
+    }
 
     const state = puttMeter.getState();
     const ratio = puttMeter.getPaceRatio();
@@ -284,13 +324,18 @@ export class GameHUD {
     }
 
     if (this.puttMeterReadout) {
-      this.puttMeterReadout.textContent = `PACE: ${intendedDist.toFixed(1)} m (TARGET ${targetDist.toFixed(1)} m)`;
+      this.puttMeterReadout.textContent = `${intendedDist.toFixed(1)} m`;
+    }
+
+    if (this.puttTargetElem) {
+      this.puttTargetElem.textContent = `PIN ${targetDist.toFixed(1)}m`;
     }
 
     if (this.puttMeterScaleElem) {
+      const targetPct = Math.min(90, Math.max(10, (targetDist / maxDist) * 100));
       this.puttMeterScaleElem.innerHTML = `
         <span>0m</span>
-        <span style="left: ${(targetDist / maxDist) * 100}%; color: #68d391; font-weight: bold;">PIN ${targetDist.toFixed(1)}m</span>
+        <span style="position: absolute; left: ${targetPct}%; transform: translateX(-50%); color: #68d391; font-weight: bold;">PIN ${targetDist.toFixed(1)}m</span>
         <span style="position: absolute; right: 0;">${maxDist.toFixed(0)}m</span>
       `;
     }
@@ -432,7 +477,7 @@ export class GameHUD {
         <div class="hud-capsule hud-main-info">
           <div class="hud-hole-tag"><strong id="hud-hole-number">1</strong></div>
           <div class="hud-text-stack">
-            <div id="hud-title">⛳ SOPHIE GOLF</div>
+            <div id="hud-title">⛳ SOPHIE SMASHES</div>
             <div id="hud-subtitle">Sophie Hills · Hole 1 · PAR 4 · 234m</div>
           </div>
         </div>
@@ -839,7 +884,11 @@ export class GameHUD {
   private buildPuttMeterHTML(): void {
     this.puttMeterContainer.innerHTML = `
       <div class="putt-popup-panel">
-        <div class="putt-readout" id="putt-readout-text">PACE: 0.0 m</div>
+        <div class="putt-header">
+          <span class="putt-badge">PUTT PACE</span>
+          <span class="putt-readout" id="putt-readout-text">0.0 m</span>
+          <span class="putt-target" id="putt-target-text">PIN 5.0m</span>
+        </div>
         <div class="putt-track-container">
           <div class="putt-track">
             <div id="putt-power-bar"></div>
@@ -847,36 +896,53 @@ export class GameHUD {
           </div>
           <div class="putt-scale" id="putt-scale-marks">
             <span>0m</span>
-            <span>5m</span>
+            <span style="color: #68d391; font-weight: bold;">PIN</span>
             <span>10m</span>
           </div>
         </div>
       </div>
       <style>
         .putt-popup-panel {
-          width: 300px;
+          width: 260px;
           max-width: calc(100vw - 20px);
           box-sizing: border-box;
           background: rgba(8, 22, 14, 0.95);
           border: 2px solid #55ffff;
-          border-radius: 10px;
-          padding: 8px 12px;
+          border-radius: 8px;
+          padding: 6px 10px;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
           color: white;
           font-family: monospace;
           user-select: none;
           touch-action: manipulation;
         }
+        .putt-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+        .putt-badge {
+          background: #55ffff;
+          color: #062414;
+          font-weight: 900;
+          font-size: 9.5px;
+          padding: 1px 5px;
+          border-radius: 3px;
+        }
         .putt-readout {
-          text-align: center;
           font-weight: 800;
+          color: #f6e05e;
           font-size: 12px;
-          margin-bottom: 6px;
-          color: #55ffff;
           letter-spacing: 0.5px;
         }
+        .putt-target {
+          font-size: 9.5px;
+          color: #a0aec0;
+          font-weight: bold;
+        }
         .putt-track {
-          height: 14px;
+          height: 12px;
           background: #1a202c;
           border-radius: 4px;
           position: relative;
@@ -886,7 +952,7 @@ export class GameHUD {
         #putt-power-bar {
           height: 100%;
           width: 0%;
-          background: linear-gradient(90deg, #48bb78 0%, #55ffff 80%, #fc8181 100%);
+          background: linear-gradient(90deg, #48bb78 0%, #55ffff 75%, #fc8181 100%);
         }
         #putt-target-marker {
           position: absolute;
@@ -902,9 +968,9 @@ export class GameHUD {
           display: flex;
           justify-content: space-between;
           position: relative;
-          font-size: 8.5px;
+          font-size: 8px;
           color: #a0aec0;
-          margin-top: 3px;
+          margin-top: 2px;
         }
       </style>
     `;
@@ -912,6 +978,7 @@ export class GameHUD {
     this.puttMeterBar = this.puttMeterContainer.querySelector('#putt-power-bar')!;
     this.puttMeterTargetMarker = this.puttMeterContainer.querySelector('#putt-target-marker')!;
     this.puttMeterReadout = this.puttMeterContainer.querySelector('#putt-readout-text')!;
+    this.puttTargetElem = this.puttMeterContainer.querySelector('#putt-target-text')!;
     this.puttMeterScaleElem = this.puttMeterContainer.querySelector('#putt-scale-marks')!;
 
     this.puttMeterContainer.addEventListener('pointerdown', (e) => this.handleTriggerAction(e));

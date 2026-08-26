@@ -10,7 +10,7 @@ available as an explicitly labelled research mode until its real hole geometry
 has been verified; fictional Sophie Hills data must never be presented as
 Warragul course data.
 
-The playable vertical slice features **Sophie** as a 2D billboard sprite on real 3D LiDAR elevation terrain (**Warragul Country Club — Hole 6**), a 2-pass pixel-art upscaling renderer ($426 \times 240$), classic three-click swing meter, real 3D ball physics (aerodynamic drag, gravity, terrain normal bouncing and rolling), club selection, and playtest layout customization.
+The playable game features **Sophie** across the nine-hole, par-35 Sophie Hills course, a higher-detail pixel-art rendering pipeline, a classic three-click swing meter, real 3D ball physics (aerodynamic drag, gravity, terrain-normal bouncing and rolling), putting, club selection, and a dedicated research mode for external course data.
 
 ---
 
@@ -36,7 +36,7 @@ The playable vertical slice features **Sophie** as a 2D billboard sprite on real
   * Behind-golfer perspective camera.
   * Smooth ball-follow flight camera.
   * Overhead course map preview.
-* **16-Bit Retro Renderer (`RetroRenderer`)**: 2-pass upscaler rendering 3D scene into a $426 \times 240$ `WebGLRenderTarget` with `NearestFilter` nearest-neighbor scaling.
+* **16-Bit Retro Renderer (`RetroRenderer`)**: 2-pass upscaler rendering the scene at an aspect-correct 480p internal resolution on desktop, with nearest-neighbour scaling for a cleaner pixel-art finish.
 * **Dev Alignment Tool**: Accessible via `F2` for course-authoring work without exposing developer controls in the player HUD.
 
 ---

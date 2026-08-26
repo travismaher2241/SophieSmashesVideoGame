@@ -1,0 +1,13 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-06", "holeNumber": 6,
+  "par": 4, "publishedLengthMetres": 263, "status": "fictional-gameplay-course",
+  "tee": { "x": 90, "y": 0, "z": 180 }, "greenCentre": { "x": 330, "y": 0, "z": 285 },
+  "surfaces": [
+    { "id": "h6-rough", "type": "ROUGH", "name": "Billabong Rough", "points": [{"x":45,"z":135},{"x":380,"z":135},{"x":380,"z":312},{"x":45,"z":312}] },
+    { "id": "h6-fairway", "type": "FAIRWAY", "name": "Billabong Fairway", "points": [{"x":80,"z":173},{"x":99,"z":190},{"x":160,"z":204},{"x":222,"z":238},{"x":285,"z":263},{"x":313,"z":278},{"x":326,"z":257},{"x":292,"z":239},{"x":232,"z":211},{"x":170,"z":177}] },
+    { "id": "h6-tee", "type": "TEE", "name": "Sixth Tee", "points": [{"x":81,"z":171},{"x":98,"z":171},{"x":98,"z":188},{"x":81,"z":188}] },
+    { "id": "h6-green", "type": "GREEN", "name": "Sixth Green", "points": [{"x":352,"z":285},{"x":346,"z":301},{"x":330,"z":308},{"x":314,"z":301},{"x":308,"z":285},{"x":314,"z":269},{"x":330,"z":262},{"x":346,"z":269}] },
+    { "id": "h6-water", "type": "WATER", "name": "Billabong", "points": [{"x":190,"z":205},{"x":214,"z":196},{"x":254,"z":242},{"x":237,"z":255}] },
+    { "id": "h6-bunker", "type": "BUNKER", "name": "Billabong Bunker", "points": [{"x":305,"z":307},{"x":320,"z":309},{"x":326,"z":317},{"x":307,"z":317},{"x":297,"z":312}] }
+  ], "features": [], "notes": ["A risk-reward par four bending across the billabong."]
+}

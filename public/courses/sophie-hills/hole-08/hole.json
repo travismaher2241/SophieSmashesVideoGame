@@ -1,0 +1,13 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-08", "holeNumber": 8,
+  "par": 4, "publishedLengthMetres": 226, "status": "fictional-gameplay-course",
+  "tee": { "x": 410, "y": 0, "z": 285 }, "greenCentre": { "x": 185, "y": 0, "z": 260 },
+  "surfaces": [
+    { "id": "h8-rough", "type": "ROUGH", "name": "Sandbelt Rough", "points": [{"x":135,"z":205},{"x":455,"z":205},{"x":455,"z":310},{"x":135,"z":310}] },
+    { "id": "h8-fairway", "type": "FAIRWAY", "name": "Sandbelt Fairway", "points": [{"x":416,"z":271},{"x":410,"z":299},{"x":345,"z":298},{"x":280,"z":281},{"x":213,"z":282},{"x":206,"z":247},{"x":282,"z":251},{"x":350,"z":267}] },
+    { "id": "h8-tee", "type": "TEE", "name": "Eighth Tee", "points": [{"x":401,"z":277},{"x":419,"z":277},{"x":419,"z":293},{"x":401,"z":293}] },
+    { "id": "h8-green", "type": "GREEN", "name": "Eighth Green", "points": [{"x":207,"z":260},{"x":201,"z":276},{"x":185,"z":283},{"x":169,"z":276},{"x":163,"z":260},{"x":169,"z":244},{"x":185,"z":237},{"x":201,"z":244}] },
+    { "id": "h8-bunker-one", "type": "BUNKER", "name": "Sandbelt One", "points": [{"x":207,"z":232},{"x":222,"z":228},{"x":230,"z":237},{"x":222,"z":248},{"x":207,"z":245}] },
+    { "id": "h8-bunker-two", "type": "BUNKER", "name": "Sandbelt Two", "points": [{"x":157,"z":277},{"x":171,"z":283},{"x":169,"z":296},{"x":153,"z":297},{"x":146,"z":287}] }
+  ], "features": [], "notes": ["Classic sandbelt shaping with a narrow entrance between two greenside bunkers."]
+}

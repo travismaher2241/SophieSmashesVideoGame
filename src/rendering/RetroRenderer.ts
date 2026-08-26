@@ -122,12 +122,12 @@ export class RetroRenderer {
       let targetHeight: number;
 
       if (aspect < 1.0) {
-        // Mobile portrait mode (e.g. 240x426 for 9:16)
-        targetWidth = 240;
+        // Keep the pixel-art character while retaining enough detail for the golfer and green.
+        targetWidth = 360;
         targetHeight = Math.round(targetWidth / aspect);
       } else {
-        // Landscape / desktop mode (e.g. 426x240 for 16:9)
-        targetHeight = 240;
+        // 480p internal rendering is substantially cleaner on modern wide displays.
+        targetHeight = 480;
         targetWidth = Math.round(targetHeight * aspect);
       }
 

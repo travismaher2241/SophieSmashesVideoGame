@@ -69,27 +69,31 @@ export class SceneManager {
 
   private createSkyTexture(): CanvasTexture {
     const sky = document.createElement('canvas');
-    sky.width = 64;
-    sky.height = 256;
+    sky.width = 1024;
+    sky.height = 512;
     const ctx = sky.getContext('2d')!;
 
-    // 16-bit gradient sky
     const gradient = ctx.createLinearGradient(0, 0, 0, sky.height);
-    gradient.addColorStop(0, '#2b6cb0'); // Deep retro azure
-    gradient.addColorStop(0.40, '#4299e1');
-    gradient.addColorStop(0.72, '#90cdf4');
-    gradient.addColorStop(0.90, '#e2e8f0');
-    gradient.addColorStop(1.0, '#fed7aa'); // Golden horizon glow
+    gradient.addColorStop(0, '#287fbd');
+    gradient.addColorStop(0.52, '#65b5df');
+    gradient.addColorStop(0.84, '#c8dede');
+    gradient.addColorStop(1.0, '#efd5aa');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, sky.width, sky.height);
 
-    // Subtle 16-bit pixel cloud bands
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-    ctx.fillRect(8, 70, 24, 6);
-    ctx.fillRect(12, 66, 16, 4);
-    ctx.fillRect(38, 95, 20, 5);
-    ctx.fillRect(42, 92, 12, 3);
-    ctx.fillRect(4, 120, 18, 4);
+    const drawCloud = (x: number, y: number, scale: number): void => {
+      const cloud = ctx.createRadialGradient(x, y, 4, x, y, 95 * scale);
+      cloud.addColorStop(0, 'rgba(255,255,255,.72)');
+      cloud.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = cloud;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 120 * scale, 28 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(x - 48 * scale, y + 5, 70 * scale, 22 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 50 * scale, y + 6, 82 * scale, 23 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawCloud(255, 150, 1.0);
+    drawCloud(760, 215, 0.82);
 
     const texture = new CanvasTexture(sky);
     texture.colorSpace = SRGBColorSpace;

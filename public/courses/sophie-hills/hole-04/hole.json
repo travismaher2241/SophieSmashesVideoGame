@@ -1,0 +1,13 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-04", "holeNumber": 4,
+  "par": 4, "publishedLengthMetres": 220, "status": "fictional-gameplay-course",
+  "tee": { "x": 690, "y": 0, "z": 260 }, "greenCentre": { "x": 470, "y": 0, "z": 250 },
+  "surfaces": [
+    { "id": "h4-rough", "type": "ROUGH", "name": "Long Paddock Rough", "points": [{"x":425,"z":195},{"x":735,"z":195},{"x":735,"z":305},{"x":425,"z":305}] },
+    { "id": "h4-fairway", "type": "FAIRWAY", "name": "Long Paddock Fairway", "points": [{"x":694,"z":246},{"x":694,"z":274},{"x":620,"z":279},{"x":550,"z":267},{"x":490,"z":269},{"x":487,"z":236},{"x":550,"z":232},{"x":620,"z":239}] },
+    { "id": "h4-tee", "type": "TEE", "name": "Fourth Tee", "points": [{"x":681,"z":252},{"x":699,"z":252},{"x":699,"z":268},{"x":681,"z":268}] },
+    { "id": "h4-green", "type": "GREEN", "name": "Fourth Green", "points": [{"x":492,"z":250},{"x":486,"z":266},{"x":470,"z":273},{"x":454,"z":266},{"x":448,"z":250},{"x":454,"z":234},{"x":470,"z":227},{"x":486,"z":234}] },
+    { "id": "h4-bunker-left", "type": "BUNKER", "name": "Paddock Left", "points": [{"x":486,"z":220},{"x":499,"z":217},{"x":508,"z":226},{"x":501,"z":237},{"x":488,"z":234}] },
+    { "id": "h4-bunker-right", "type": "BUNKER", "name": "Paddock Right", "points": [{"x":444,"z":267},{"x":455,"z":274},{"x":453,"z":287},{"x":438,"z":288},{"x":432,"z":277}] }
+  ], "features": [], "notes": ["A broad reverse-direction par four with bunkers guarding both sides of the green."]
+}

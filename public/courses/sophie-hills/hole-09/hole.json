@@ -1,0 +1,14 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-09", "holeNumber": 9,
+  "par": 5, "publishedLengthMetres": 316, "status": "fictional-gameplay-course",
+  "tee": { "x": 300, "y": 0, "z": 60 }, "greenCentre": { "x": 560, "y": 0, "z": 240 },
+  "surfaces": [
+    { "id": "h9-rough", "type": "ROUGH", "name": "Homeward Rough", "points": [{"x":245,"z":25},{"x":615,"z":25},{"x":615,"z":295},{"x":245,"z":295}] },
+    { "id": "h9-fairway", "type": "FAIRWAY", "name": "Homeward Fairway", "points": [{"x":291,"z":55},{"x":310,"z":72},{"x":360,"z":86},{"x":413,"z":121},{"x":454,"z":169},{"x":520,"z":205},{"x":548,"z":229},{"x":566,"z":208},{"x":533,"z":179},{"x":477,"z":143},{"x":431,"z":94},{"x":371,"z":57}] },
+    { "id": "h9-tee", "type": "TEE", "name": "Ninth Tee", "points": [{"x":291,"z":52},{"x":309,"z":52},{"x":309,"z":68},{"x":291,"z":68}] },
+    { "id": "h9-green", "type": "GREEN", "name": "Home Green", "points": [{"x":583,"z":240},{"x":576,"z":257},{"x":560,"z":265},{"x":544,"z":257},{"x":537,"z":240},{"x":544,"z":223},{"x":560,"z":215},{"x":576,"z":223}] },
+    { "id": "h9-water", "type": "WATER", "name": "Home Lake", "points": [{"x":445,"z":145},{"x":468,"z":132},{"x":509,"z":180},{"x":493,"z":198}] },
+    { "id": "h9-bunker", "type": "BUNKER", "name": "Clubhouse Bunker", "points": [{"x":533,"z":262},{"x":549,"z":267},{"x":553,"z":281},{"x":535,"z":284},{"x":525,"z":274}] },
+    { "id": "h9-path", "type": "PATH", "name": "Clubhouse Path", "points": [{"x":575,"z":200},{"x":582,"z":204},{"x":602,"z":287},{"x":594,"z":289}] }
+  ], "features": [], "notes": ["The finishing par five crosses the lake on the second shot and climbs home toward the clubhouse."]
+}

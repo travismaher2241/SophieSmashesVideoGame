@@ -1,0 +1,13 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-07", "holeNumber": 7,
+  "par": 4, "publishedLengthMetres": 256, "status": "fictional-gameplay-course",
+  "tee": { "x": 700, "y": 0, "z": 120 }, "greenCentre": { "x": 450, "y": 0, "z": 65 },
+  "surfaces": [
+    { "id": "h7-rough", "type": "ROUGH", "name": "Ridge Runner Rough", "points": [{"x":405,"z":25},{"x":750,"z":25},{"x":750,"z":170},{"x":405,"z":170}] },
+    { "id": "h7-fairway", "type": "FAIRWAY", "name": "Ridge Runner Fairway", "points": [{"x":706,"z":107},{"x":698,"z":136},{"x":635,"z":132},{"x":574,"z":103},{"x":510,"z":91},{"x":470,"z":82},{"x":476,"z":51},{"x":520,"z":60},{"x":586,"z":74},{"x":644,"z":103}] },
+    { "id": "h7-tee", "type": "TEE", "name": "Seventh Tee", "points": [{"x":691,"z":112},{"x":708,"z":112},{"x":708,"z":128},{"x":691,"z":128}] },
+    { "id": "h7-green", "type": "GREEN", "name": "Seventh Green", "points": [{"x":472,"z":65},{"x":466,"z":80},{"x":450,"z":87},{"x":434,"z":80},{"x":428,"z":65},{"x":434,"z":50},{"x":450,"z":43},{"x":466,"z":50}] },
+    { "id": "h7-bunker-left", "type": "BUNKER", "name": "Ridge Left", "points": [{"x":422,"z":45},{"x":437,"z":40},{"x":445,"z":50},{"x":437,"z":60},{"x":422,"z":57}] },
+    { "id": "h7-path", "type": "PATH", "name": "Ridge Track", "points": [{"x":485,"z":125},{"x":487,"z":133},{"x":716,"z":158},{"x":718,"z":150}] }
+  ], "features": [], "notes": ["A downhill ridge hole where the best angle follows the left half of the fairway."]
+}

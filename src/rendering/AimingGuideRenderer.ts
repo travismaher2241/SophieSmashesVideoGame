@@ -50,23 +50,34 @@ export class AimingGuideRenderer {
     }
 
     const dist = club.maxDistanceMetres;
-    const stepCount = 35;
+    const stepCount = 36;
     const positions: number[] = [];
 
     const dirX = Math.cos(aimAngleRad);
     const dirZ = Math.sin(aimAngleRad);
 
-    let prevX = ballPos.x;
-    let prevZ = ballPos.z;
-    let prevY = this.terrainQuery.getTerrainHeight(prevX, prevZ, true) + 0.15;
+    // Ball is the fixed pivot for the straight line
+    const startX = ballPos.x;
+    const startY = ballPos.y + 0.08;
+    const startZ = ballPos.z;
+
+    const targetX = ballPos.x + dirX * dist;
+    const targetZ = ballPos.z + dirZ * dist;
+    const targetY = this.terrainQuery.getTerrainHeight(targetX, targetZ, true) + 0.15;
+
+    // A single, geometrically straight 3D line from ball pivot to target direction.
+    // Pure linear interpolation ensures zero bending, zero splining, and zero terrain kinks.
+    let prevX = startX;
+    let prevY = startY;
+    let prevZ = startZ;
 
     for (let i = 1; i <= stepCount; i++) {
-      const segDist = (i / stepCount) * dist;
-      const currX = ballPos.x + dirX * segDist;
-      const currZ = ballPos.z + dirZ * segDist;
-      const currY = this.terrainQuery.getTerrainHeight(currX, currZ, true) + 0.15;
+      const t = i / stepCount;
+      const currX = startX + t * (targetX - startX);
+      const currY = startY + t * (targetY - startY);
+      const currZ = startZ + t * (targetZ - startZ);
 
-      // Dashed line pattern
+      // Clean dashed pattern
       if (i % 2 === 1) {
         positions.push(prevX, prevY, prevZ, currX, currY, currZ);
       }
@@ -81,30 +92,32 @@ export class AimingGuideRenderer {
 
     const mat = new LineBasicMaterial({
       color: 0xffff44,
-      linewidth: 2
+      linewidth: 2,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.95
     });
 
     this.lineMesh = new LineSegments(geo, mat);
+    this.lineMesh.renderOrder = 999;
     this.group.add(this.lineMesh);
 
-    // 2. Approximate landing reference marker (ring on terrain)
-    const targetX = ballPos.x + dirX * dist;
-    const targetZ = ballPos.z + dirZ * dist;
-    const targetY = this.terrainQuery.getTerrainHeight(targetX, targetZ, true) + 0.2;
-
+    // 2. Landing reference marker (ring on terrain)
     const ringRadius = club.isPutter ? 0.8 : 3.5;
-    const ringGeo = new RingGeometry(ringRadius * 0.75, ringRadius, 24);
+    const ringGeo = new RingGeometry(ringRadius * 0.75, ringRadius, 32);
     ringGeo.rotateX(-Math.PI / 2);
 
     const ringMat = new MeshBasicMaterial({
-      color: club.isPutter ? 0x66ff66 : 0xffcc33,
+      color: club.isPutter ? 0x55ffff : 0xffcc33,
       side: DoubleSide,
       transparent: true,
-      opacity: 0.85
+      opacity: 0.85,
+      depthTest: false
     });
 
     this.targetRing = new Mesh(ringGeo, ringMat);
-    this.targetRing.position.set(targetX, targetY, targetZ);
+    this.targetRing.renderOrder = 998;
+    this.targetRing.position.set(targetX, targetY + 0.05, targetZ);
     this.group.add(this.targetRing);
   }
 }

@@ -1,0 +1,13 @@
+{
+  "courseId": "sophie-hills", "courseName": "Sophie Hills", "holeId": "hole-05", "holeNumber": 5,
+  "par": 3, "publishedLengthMetres": 141, "status": "fictional-gameplay-course",
+  "tee": { "x": 620, "y": 0, "z": 55 }, "greenCentre": { "x": 720, "y": 0, "z": 155 },
+  "surfaces": [
+    { "id": "h5-rough", "type": "ROUGH", "name": "Gumtree Rise Rough", "points": [{"x":575,"z":25},{"x":765,"z":25},{"x":765,"z":205},{"x":575,"z":205}] },
+    { "id": "h5-fairway", "type": "FAIRWAY", "name": "Gumtree Approach", "points": [{"x":610,"z":49},{"x":630,"z":43},{"x":675,"z":86},{"x":710,"z":132},{"x":695,"z":149},{"x":655,"z":108}] },
+    { "id": "h5-tee", "type": "TEE", "name": "Fifth Tee", "points": [{"x":611,"z":47},{"x":627,"z":47},{"x":627,"z":63},{"x":611,"z":63}] },
+    { "id": "h5-green", "type": "GREEN", "name": "Fifth Green", "points": [{"x":742,"z":155},{"x":736,"z":170},{"x":720,"z":178},{"x":704,"z":170},{"x":698,"z":155},{"x":704,"z":140},{"x":720,"z":132},{"x":736,"z":140}] },
+    { "id": "h5-bunker-front", "type": "BUNKER", "name": "Rise Bunker", "points": [{"x":686,"z":139},{"x":702,"z":136},{"x":709,"z":147},{"x":700,"z":157},{"x":684,"z":153}] },
+    { "id": "h5-bunker-back", "type": "BUNKER", "name": "Back Bunker", "points": [{"x":733,"z":177},{"x":748,"z":174},{"x":755,"z":184},{"x":747,"z":193},{"x":732,"z":190}] }
+  ], "features": [], "notes": ["An uphill diagonal par three demanding a clean carry over the front bunker."]
+}

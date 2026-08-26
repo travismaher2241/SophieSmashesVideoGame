@@ -90,7 +90,7 @@ export interface LieInfo {
 export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   TEE: {
     type: 'TEE',
-    name: 'Teeing Ground',
+    name: 'Tee',
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
     restitution: 0.38,
@@ -120,7 +120,7 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   },
   ROUGH: {
     type: 'ROUGH',
-    name: 'Primary Rough',
+    name: 'Rough',
     distanceMultiplier: 0.82,
     controlMultiplier: 0.75,
     restitution: 0.18,
@@ -130,7 +130,7 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   },
   DEEP_ROUGH: {
     type: 'DEEP_ROUGH',
-    name: 'Deep Heavy Rough',
+    name: 'Deep Rough',
     distanceMultiplier: 0.65,
     controlMultiplier: 0.50,
     restitution: 0.12,
@@ -140,7 +140,7 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   },
   FRINGE: {
     type: 'FRINGE',
-    name: 'Green Fringe',
+    name: 'Fringe',
     distanceMultiplier: 0.98,
     controlMultiplier: 0.95,
     restitution: 0.30,
@@ -150,7 +150,7 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   },
   GREEN: {
     type: 'GREEN',
-    name: 'Putting Green',
+    name: 'Green',
     distanceMultiplier: 1.0,
     controlMultiplier: 1.0,
     restitution: 0.25,
@@ -160,7 +160,7 @@ export const SURFACE_PROPERTIES: Record<SurfaceType, LieInfo> = {
   },
   BUNKER: {
     type: 'BUNKER',
-    name: 'Sand Bunker',
+    name: 'Bunker',
     distanceMultiplier: 0.60,
     controlMultiplier: 0.55,
     restitution: 0.08, // Heavy sand damping
