@@ -58,7 +58,7 @@ export class AimingGuideRenderer {
 
     // Ball is the fixed pivot for the straight line
     const startX = ballPos.x;
-    const startY = ballPos.y + 0.08;
+    const startY = ballPos.y + 0.045;
     const startZ = ballPos.z;
 
     const targetX = ballPos.x + dirX * dist;

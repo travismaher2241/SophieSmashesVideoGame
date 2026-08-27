@@ -342,9 +342,9 @@ export class GameHUD {
 
     if (this.swingButtonElem) {
       if (state === 'CHARGING') {
-        this.swingButtonElem.textContent = `PACE ${intendedDist.toFixed(1)}m`;
-      } else if (state === 'COMPLETE') {
-        this.swingButtonElem.textContent = `${intendedDist.toFixed(1)}m PUTT`;
+        this.swingButtonElem.textContent = 'STRIKE';
+      } else {
+        this.swingButtonElem.textContent = 'PUTT';
       }
     }
   }

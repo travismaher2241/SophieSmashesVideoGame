@@ -102,11 +102,11 @@ export class CameraController {
     const isPortrait = this.camera.aspect < 1.0;
 
     if (isPutting) {
-      // Putting camera: close behind ball, downward pitch for 80-90% green screen coverage
-      const camDist = isPortrait ? 3.4 : 2.7;
-      const camHeight = isPortrait ? 1.55 : 1.25;
+      // Putting camera: behind ball, downward pitch for green screen coverage and clear ball visibility
+      const camDist = isPortrait ? 3.8 : 3.2;
+      const camHeight = isPortrait ? 1.65 : 1.40;
       const perpAngle = aimAngleRad + Math.PI / 2;
-      const lateralOffset = isPortrait ? -0.15 : -0.18;
+      const lateralOffset = isPortrait ? -0.22 : -0.25;
 
       const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
       const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
@@ -119,7 +119,7 @@ export class CameraController {
       const lookAheadDist = isPortrait ? 6.5 : 8.0;
       const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
       const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
-      const lookY = ballPos.y + 0.08; // Downward pitch
+      const lookY = ballPos.y + 0.15; // Balanced pitch
 
       this.target.set(lookX, lookY, lookZ);
       this.camera.lookAt(this.target);

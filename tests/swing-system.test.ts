@@ -244,4 +244,30 @@ describe('Three-Click Swing System', () => {
     expect(s4).toBe('IMPACT');
     expect(meter.getInputCount()).toBe(3);
   });
+
+  it('Test 8: Reaching 100% holds power and still requires separate Click 2 and Click 3 inputs', () => {
+    const meter = new SwingMeter();
+
+    meter.trigger(); // Click 1: start power
+    meter.update(2); // Run well past the time needed to reach 100%
+
+    expect(meter.getPowerValue()).toBe(1);
+    expect(meter.getState()).toBe('POWER_RUNNING');
+    expect(meter.getInputCount()).toBe(1);
+    expect(meter.getResult()).toBeNull();
+
+    meter.trigger(); // Click 2: explicitly lock 100% power
+    expect(meter.getState()).toBe('ACCURACY_RUNNING');
+    expect(meter.getInputCount()).toBe(2);
+    expect(meter.getPowerValue()).toBe(1);
+    expect(meter.getResult()).toBeNull();
+
+    meter.update(1 / 1.5); // Let accuracy return to the centre
+    meter.trigger(); // Click 3: explicitly lock accuracy
+
+    expect(meter.getState()).toBe('IMPACT');
+    expect(meter.getInputCount()).toBe(3);
+    expect(meter.getResult()?.powerRatio).toBe(1);
+    expect(meter.getResult()?.strikeQuality).toBe('PURE');
+  });
 });

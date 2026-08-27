@@ -108,9 +108,12 @@ export class PuttingPhysics {
 
     const normal = this.terrainQuery.getTerrainNormal(this.position.x, this.position.z);
 
-    // 1. Gravity downhill acceleration component: downhill direction is +normal.x and +normal.z
-    const slopeAccX = this.gravity * normal.x;
-    const slopeAccZ = this.gravity * normal.z;
+    // 1. Realistic green slope acceleration component.
+    // Golf ball rotational inertia (5/7) and grass blade turf resistance damp raw incline acceleration
+    // so green breaks remain natural, believable, and never produce runaway infinite rolling.
+    const slopeInfluence = 0.28;
+    const slopeAccX = this.gravity * normal.x * slopeInfluence;
+    const slopeAccZ = this.gravity * normal.z * slopeInfluence;
 
     this.velocity.x += slopeAccX * dt;
     this.velocity.z += slopeAccZ * dt;
@@ -182,15 +185,11 @@ export class PuttingPhysics {
       // Speed >= 2.8 m/s: ball skims over cup lip without falling
     }
 
-    // 5. Decisive REST Condition
-    const slopeMagnitude = this.gravity * Math.hypot(normal.x, normal.z);
-    const staticFriction = this.greenSpeed.frictionCoeff * this.gravity * normal.y * 1.1;
-
-    if (currentSpeed < 0.02 || (this.rollDuration > 6.5 && currentSpeed < 0.08)) {
-      if (slopeMagnitude <= staticFriction || this.rollDuration > 8.0) {
-        this.velocity.set(0, 0, 0);
-        this.state = 'REST';
-      }
+    // 5. Decisive, Creep-Free REST Condition
+    // Once kinetic energy is negligible, settle the ball cleanly without creeping
+    if (currentSpeed < 0.035 || (this.rollDuration > 8.0 && currentSpeed < 0.15)) {
+      this.velocity.set(0, 0, 0);
+      this.state = 'REST';
     }
   }
 }

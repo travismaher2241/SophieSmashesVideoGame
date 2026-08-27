@@ -1,22 +1,106 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  Camera,
+  CanvasTexture,
+  CylinderGeometry,
   Group,
   LineBasicMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
-  MeshStandardMaterial,
-  RingGeometry,
-  SphereGeometry,
+  NearestFilter,
+  PlaneGeometry,
+  SRGBColorSpace,
   Vector3
 } from 'three';
 import { TerrainQuery } from '../course/TerrainQuery';
+
+/**
+ * Creates a crisp 32x32 pixel-art golf ball texture with 16-bit retro shading,
+ * directional lighting, specular highlight, subtle dimple detail, and high-contrast outline.
+ */
+function createGolfBallTexture(): CanvasTexture {
+  // Support both browser and Node/mock environments
+  if (typeof document === 'undefined') {
+    const fallbackCanvas = { width: 32, height: 32 } as any;
+    return new CanvasTexture(fallbackCanvas);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+
+  if (ctx) {
+    ctx.clearRect(0, 0, 32, 32);
+
+    const cx = 16, cy = 16, r = 12;
+    const cOutline = '#112214';
+    const cDeepShadow = '#5a6e60';
+    const cShadow = '#8ba192';
+    const cMid = '#c6d6cb';
+    const cBase = '#eef5f0';
+    const cBright = '#ffffff';
+
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > r + 0.5) {
+          continue;
+        } else if (dist >= r - 0.7) {
+          ctx.fillStyle = cOutline;
+          ctx.fillRect(x, y, 1, 1);
+        } else {
+          const nz = Math.sqrt(Math.max(0, r * r - dx * dx - dy * dy)) / r;
+          const nx = dx / r;
+          const ny = dy / r;
+
+          // Light direction from top-left front: (-0.55, -0.65, 0.52)
+          const lx = -0.55, ly = -0.65, lz = 0.52;
+          const dot = nx * lx + ny * ly + nz * lz;
+
+          // Highlight at top-left
+          const hx = x - (cx - 4.5);
+          const hy = y - (cy - 4.5);
+          const hDist = Math.sqrt(hx * hx + hy * hy);
+
+          if (hDist < 3.0) {
+            ctx.fillStyle = cBright;
+          } else if (dot > 0.40) {
+            const isDimple = ((x * 2 + y) % 3 === 0) && (hDist > 4.5);
+            ctx.fillStyle = isDimple ? cMid : cBase;
+          } else if (dot > 0.05) {
+            const isDimple = ((x + y * 2) % 3 === 0);
+            ctx.fillStyle = isDimple ? cShadow : cMid;
+          } else if (dot > -0.30) {
+            const isDimple = ((x + y * 2) % 3 === 0);
+            ctx.fillStyle = isDimple ? cDeepShadow : cShadow;
+          } else {
+            ctx.fillStyle = cDeepShadow;
+          }
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.minFilter = NearestFilter;
+  texture.magFilter = NearestFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
 
 export class BallRenderer {
   private group: Group;
   private ballMesh: Mesh;
   private shadowMesh: Mesh;
+  private teeMesh: Mesh;
   private tracerMesh: LineSegments | null = null;
   private terrainQuery: TerrainQuery;
 
@@ -26,27 +110,37 @@ export class BallRenderer {
     this.terrainQuery = terrainQuery;
     this.group = new Group();
 
-    // 1. Golf Ball Mesh (Radius 0.18m for crisp 16-bit retro readability)
-    const ballGeo = new SphereGeometry(0.18, 16, 16);
-    const ballMat = new MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.15,
-      metalness: 0.05
+    // 1. Pixel-Art Golf Ball Sprite (Diameter 0.088m / Radius 0.044m for believable golf scale)
+    const ballTexture = createGolfBallTexture();
+    const ballGeo = new PlaneGeometry(0.088, 0.088);
+    const ballMat = new MeshBasicMaterial({
+      map: ballTexture,
+      transparent: true,
+      alphaTest: 0.05,
+      depthWrite: true
     });
     this.ballMesh = new Mesh(ballGeo, ballMat);
-    this.ballMesh.castShadow = true;
+    this.ballMesh.renderOrder = 60;
     this.group.add(this.ballMesh);
 
-    // 2. Drop shadow projection disc on terrain
-    const shadowGeo = new RingGeometry(0.02, 0.38, 16);
+    // 2. Crisp Ground Contact Shadow Disc
+    const shadowGeo = new PlaneGeometry(0.10, 0.075);
     shadowGeo.rotateX(-Math.PI / 2);
     const shadowMat = new MeshBasicMaterial({
-      color: 0x051a05,
+      color: 0x021004,
       transparent: true,
-      opacity: 0.72
+      opacity: 0.70
     });
     this.shadowMesh = new Mesh(shadowGeo, shadowMat);
+    this.shadowMesh.renderOrder = 20;
     this.group.add(this.shadowMesh);
+
+    // 3. Subtle wooden tee peg (visible when on teeing ground)
+    const teeGeo = new CylinderGeometry(0.004, 0.002, 0.040, 6);
+    const teeMat = new MeshBasicMaterial({ color: 0xd4a055 });
+    this.teeMesh = new Mesh(teeGeo, teeMat);
+    this.teeMesh.visible = false;
+    this.group.add(this.teeMesh);
   }
 
   public setTerrainQuery(terrainQuery: TerrainQuery): void {
@@ -91,25 +185,37 @@ export class BallRenderer {
     geo.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
     const mat = new LineBasicMaterial({
       color: 0xffea33,
-      linewidth: 3
+      linewidth: 2
     });
 
     this.tracerMesh = new LineSegments(geo, mat);
     this.group.add(this.tracerMesh);
   }
 
-  public update(ballPos: Vector3): void {
+  public update(ballPos: Vector3, camera?: Camera, isTee: boolean = false): void {
     this.ballMesh.position.copy(ballPos);
 
-    // Ground shadow position
-    const terrainY = this.terrainQuery.getTerrainHeight(ballPos.x, ballPos.z, true);
-    this.shadowMesh.position.set(ballPos.x, terrainY + 0.02, ballPos.z);
+    if (camera) {
+      const dx = camera.position.x - ballPos.x;
+      const dz = camera.position.z - ballPos.z;
+      this.ballMesh.rotation.y = Math.atan2(dx, dz);
+    }
 
-    // Scale shadow based on height above ground
+    // Ground shadow placement on terrain
+    const terrainY = this.terrainQuery.getTerrainHeight(ballPos.x, ballPos.z, true);
+    this.shadowMesh.position.set(ballPos.x, terrainY + 0.004, ballPos.z);
+
+    // Scale and fade shadow based on height above ground
     const heightAboveGround = Math.max(0, ballPos.y - terrainY);
-    const shadowScale = Math.max(0.35, 1.0 - heightAboveGround * 0.04);
-    const shadowOpacity = Math.max(0.2, 0.72 - heightAboveGround * 0.03);
+    const shadowScale = Math.max(0.30, 1.0 - heightAboveGround * 0.035);
+    const shadowOpacity = Math.max(0.08, 0.70 - heightAboveGround * 0.03);
     this.shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
     (this.shadowMesh.material as MeshBasicMaterial).opacity = shadowOpacity;
+
+    // Tee peg visibility
+    this.teeMesh.visible = isTee && heightAboveGround < 0.08;
+    if (this.teeMesh.visible) {
+      this.teeMesh.position.set(ballPos.x, terrainY + 0.020, ballPos.z);
+    }
   }
 }

@@ -100,9 +100,9 @@ export class SwingMeter {
       this.powerValue += dt * this.powerSpeed;
       if (this.powerValue >= 1.0) {
         this.powerValue = 1.0;
-        // Auto-rebound at top if player didn't click
-        this.state = 'ACCURACY_RUNNING';
-        this.accuracyMarker = 1.0;
+        // Hold full power until Click 2. Automatically entering accuracy here makes
+        // the player's intended 100% power click count as Click 3 and causes an
+        // immediate maximum-early miss.
       }
     } else if (this.state === 'ACCURACY_RUNNING') {
       this.accuracyMarker -= dt * this.accuracySpeed;

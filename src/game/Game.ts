@@ -1007,7 +1007,8 @@ export class Game {
 
     // 4. Update 3D Object Renderers
     if (this.ballRenderer && this.ballPhysics) {
-      this.ballRenderer.update(this.ballPhysics.position);
+      const isTee = this.ballPhysics.getCurrentLie().type === 'TEE';
+      this.ballRenderer.update(this.ballPhysics.position, this.cameraController?.camera, isTee);
       if (state === 'BALL_FLIGHT' || state === 'BALL_ROLLING') {
         this.ballRenderer.addTracerPoint(this.ballPhysics.position);
       }

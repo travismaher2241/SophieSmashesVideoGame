@@ -103,8 +103,8 @@ export class SophieGolfer {
    */
   public updateStance(ballPos: Vector3, terrainY: number, aimAngleRad: number): void {
     const leftAngle = aimAngleRad - Math.PI / 2;
-    const offsetX = Math.cos(leftAngle) * 0.72 - Math.cos(aimAngleRad) * 0.18;
-    const offsetZ = Math.sin(leftAngle) * 0.72 - Math.sin(aimAngleRad) * 0.18;
+    const offsetX = Math.cos(leftAngle) * 0.52 - Math.cos(aimAngleRad) * 0.06;
+    const offsetZ = Math.sin(leftAngle) * 0.52 - Math.sin(aimAngleRad) * 0.06;
 
     this.basePosition.set(ballPos.x + offsetX, terrainY, ballPos.z + offsetZ);
     this.group.position.copy(this.basePosition);
