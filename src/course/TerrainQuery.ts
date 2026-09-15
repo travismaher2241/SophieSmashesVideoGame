@@ -23,6 +23,15 @@ export class TerrainQuery {
   }
 
   /**
+   * Playable extent of the loaded heightfield in metres. Callers that place
+   * objects on the terrain need this to cull anything off the edge — hard-coded
+   * bounds break as soon as a hole ships its own differently-sized terrain.
+   */
+  public getWorldExtent(): { x: number; z: number } {
+    return { x: this.terrainData.vertexExtentX, z: this.terrainData.vertexExtentZ };
+  }
+
+  /**
    * Query local world Y in metres at world position (x, z).
    * World Y is the DEM offset above baseElevationMetres matching the mesh.
    */

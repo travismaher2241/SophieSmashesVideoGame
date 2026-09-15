@@ -8,6 +8,22 @@ export interface Vector3Data {
   provisional?: boolean;
 }
 
+/** Kinds of tree billboard a hole may place. Mirrors TreeRenderer's TreeType. */
+export const HOLE_TREE_TYPES = ['GUM_LARGE', 'GUM_MEDIUM', 'PINE', 'CLUSTER', 'BUSH'] as const;
+
+export type HoleTreeType = (typeof HOLE_TREE_TYPES)[number];
+
+/**
+ * A tree placed explicitly by course data, in the same local metre coordinates as
+ * the surface polygons. Holes that omit these fall back to procedural scatter.
+ */
+export interface HoleTree {
+  x: number;
+  z: number;
+  type: HoleTreeType;
+  scale?: number;
+}
+
 export interface HoleConfig {
   courseId: string;
   courseName?: string;
@@ -19,6 +35,7 @@ export interface HoleConfig {
   tee: Vector3Data | null;
   greenCentre: Vector3Data | null;
   surfaces: SurfacePolygon[];
+  trees?: HoleTree[];
   features?: unknown[];
   notes?: string[];
 }
@@ -40,8 +57,52 @@ export class HoleData {
     const data = (await response.json()) as HoleConfig;
     const surfaces = data.surfaces ?? [];
     HoleData.validateSurfaces(surfaces, data, holeUrl);
+    HoleData.validateTrees(data.trees, data, holeUrl);
 
     return { ...data, surfaces };
+  }
+
+  public static validateTrees(
+    trees: HoleTree[] | undefined,
+    hole: Pick<HoleConfig, 'courseId' | 'holeId'>,
+    sourceUrl: string
+  ): void {
+    if (trees === undefined) return;
+
+    const where = `${hole.courseId ?? 'unknown-course'}/${hole.holeId ?? 'unknown-hole'} (${sourceUrl})`;
+
+    if (!Array.isArray(trees)) {
+      throw new Error(`Invalid course data for ${where}: expected "trees" to be an array, got ${typeof trees}.`);
+    }
+
+    for (let i = 0; i < trees.length; i++) {
+      const tree = trees[i];
+
+      if (!tree || typeof tree !== 'object') {
+        throw new Error(`Invalid course data for ${where}: tree at index ${i} is not an object.`);
+      }
+
+      if (!Number.isFinite(tree.x) || !Number.isFinite(tree.z)) {
+        throw new Error(
+          `Invalid course data for ${where}: tree at index ${i} has non-finite coordinates ` +
+          `(x=${tree.x}, z=${tree.z}). Expected finite metres in local world space.`
+        );
+      }
+
+      if (!HOLE_TREE_TYPES.includes(tree.type)) {
+        throw new Error(
+          `Invalid course data for ${where}: tree at index ${i} has unknown type "${tree.type}".\n` +
+          `Expected one of: ${HOLE_TREE_TYPES.join(', ')}.`
+        );
+      }
+
+      if (tree.scale !== undefined && (!Number.isFinite(tree.scale) || tree.scale <= 0)) {
+        throw new Error(
+          `Invalid course data for ${where}: tree at index ${i} has scale ${tree.scale}. ` +
+          `Expected a positive number, or omit it for the default size.`
+        );
+      }
+    }
   }
 
   public static validateSurfaces(

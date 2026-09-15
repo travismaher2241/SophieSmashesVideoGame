@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { HoleConfig, HoleData } from '../src/course/HoleData';
 import { GameStateManager } from '../src/game/GameState';
 import { summarizeRoundScore } from '../src/game/RoundScore';
+import { SOPHIE_HILLS_CONFIG, Game } from '../src/game/Game';
+
+/** Playable extent of whichever terrain the given Sophie Hills hole loads. */
+function terrainExtentForHole(holeId: string): { x: number; z: number } {
+  const index = SOPHIE_HILLS_CONFIG.holes.findIndex((entry) => entry.holePath.endsWith(holeId));
+  if (index < 0) throw new Error(`${holeId} is not in the Sophie Hills playlist.`);
+
+  const terrainPath = Game.resolveTerrainPath(SOPHIE_HILLS_CONFIG, index);
+  const metaUrl = new URL(`../public${terrainPath}/terrain_meta.json`, import.meta.url);
+  const meta = JSON.parse(readFileSync(metaUrl, 'utf8'));
+  return {
+    x: (meta.widthSamples - 1) * meta.gridSpacingMetres,
+    z: (meta.heightSamples - 1) * meta.gridSpacingMetres
+  };
+}
 
 describe('playable game flow', () => {
   it('begins at the title screen', () => {
@@ -64,21 +79,24 @@ describe('Sophie Hills fictional hole data', () => {
     expect(secondHole.notes?.join(' ')).toMatch(/never be presented as Warragul/i);
   });
 
-  it('keeps every gameplay coordinate inside the installed terrain extent', () => {
-    const points = [
-      { x: hole.tee!.x, z: hole.tee!.z },
-      { x: hole.greenCentre!.x, z: hole.greenCentre!.z },
-      ...hole.surfaces.flatMap((surface) => surface.points),
-      { x: secondHole.tee!.x, z: secondHole.tee!.z },
-      { x: secondHole.greenCentre!.x, z: secondHole.greenCentre!.z },
-      ...secondHole.surfaces.flatMap((surface) => surface.points)
-    ];
+  it('keeps every gameplay coordinate inside the terrain the hole plays on', () => {
+    // Each hole is checked against its own terrain, not one course-wide extent:
+    // a hole that ships its own heightfield owns its coordinate space.
+    for (const entry of [hole, secondHole]) {
+      const extent = terrainExtentForHole(entry.holeId);
+      const points = [
+        { x: entry.tee!.x, z: entry.tee!.z },
+        { x: entry.greenCentre!.x, z: entry.greenCentre!.z },
+        ...entry.surfaces.flatMap((surface) => surface.points),
+        ...(entry.trees ?? []).map((tree) => ({ x: tree.x, z: tree.z }))
+      ];
 
-    for (const point of points) {
-      expect(point.x).toBeGreaterThanOrEqual(0);
-      expect(point.x).toBeLessThanOrEqual(778);
-      expect(point.z).toBeGreaterThanOrEqual(0);
-      expect(point.z).toBeLessThanOrEqual(318);
+      for (const point of points) {
+        expect(point.x).toBeGreaterThanOrEqual(0);
+        expect(point.x).toBeLessThanOrEqual(extent.x);
+        expect(point.z).toBeGreaterThanOrEqual(0);
+        expect(point.z).toBeLessThanOrEqual(extent.z);
+      }
     }
   });
 });

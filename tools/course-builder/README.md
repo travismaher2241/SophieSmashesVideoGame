@@ -23,3 +23,24 @@ boundaries directly on the terrain:
 Every exported candidate surface is marked `provisional: true`. A candidate
 must be checked against authoritative imagery or survey data, assigned verified
 provenance, and reviewed before it is copied into `hole.json`.
+
+## Generated holes
+
+`build-sophie-hills-hole-01.mjs` builds Sophie Hills hole 1 — `terrain.bin`,
+`terrain_meta.json` and `hole.json` — from one declarative trace at the top of
+the file: a metres-per-pixel scale, the corridor edges, the fairway spine, and
+the tree list.
+
+```bash
+node tools/course-builder/build-sophie-hills-hole-01.mjs
+```
+
+Edit the trace and re-run rather than editing the generated JSON by hand, so the
+coordinates stay derivable from the reference they came from. The F2 alignment
+tool is the easiest way to find corrections: read positions off the terrain
+in-game, then paste them back into the trace.
+
+Traced-by-eye geometry carries a tolerance of a few metres. The generator treats
+the traced rough corridor as a minimum and widens it wherever a mown surface
+would otherwise poke outside, so a fairway edge can never end up sitting on
+unclassified ground.

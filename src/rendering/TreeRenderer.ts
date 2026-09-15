@@ -82,8 +82,25 @@ export class TreeRenderer {
     return geo;
   }
 
-  public populateCourseTrees(holeTee: { x: number; z: number }, holeGreen: { x: number; z: number }): void {
+  /**
+   * Place the hole's trees.
+   *
+   * When the hole ships an authored tree list those positions are used exactly —
+   * on a tree-lined hole the trees are the architecture, not decoration, and a
+   * procedural scatter cannot reproduce a stand sitting in the middle of the
+   * fairway. Holes without authored trees keep the generated corridor framing.
+   */
+  public populateCourseTrees(
+    holeTee: { x: number; z: number },
+    holeGreen: { x: number; z: number },
+    authored?: TreeInstance[]
+  ): void {
     this.clear();
+
+    if (authored && authored.length > 0) {
+      this.buildMeshes(authored);
+      return;
+    }
 
     const instances: TreeInstance[] = [];
     const minX = 40;
@@ -158,9 +175,22 @@ export class TreeRenderer {
       instances.push({ x: bx + 16, z: maxZ - 8 - (bx % 10), type: 'CLUSTER', scale: 1.25 });
     }
 
-    // Build meshes
+    this.buildMeshes(instances);
+  }
+
+  private buildMeshes(instances: TreeInstance[]): void {
+    const extent = this.terrainQuery.getWorldExtent();
+    const margin = 4;
+
     for (const inst of instances) {
-      if (inst.x < 10 || inst.x > 760 || inst.z < 10 || inst.z > 310) continue;
+      if (
+        inst.x < margin ||
+        inst.x > extent.x - margin ||
+        inst.z < margin ||
+        inst.z > extent.z - margin
+      ) {
+        continue;
+      }
 
       const y = this.terrainQuery.getTerrainHeight(inst.x, inst.z, true);
       const geo = this.geometries.get(inst.type)!;

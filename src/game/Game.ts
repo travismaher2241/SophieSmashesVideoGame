@@ -41,6 +41,15 @@ import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
 export interface GameHoleSource {
   holePath: string;
   holeName: string;
+  /**
+   * Terrain directory for this hole, overriding the course-level one.
+   *
+   * Holes authored at true scale need more room than a shared course-wide
+   * heightfield can give them, and a hole traced from real ground needs its own
+   * elevation rather than a neighbour's. A hole with its own terrain owns its
+   * coordinate space: its polygons are local to that field, not to the course.
+   */
+  terrainPath?: string;
 }
 
 export interface GameSource {
@@ -58,7 +67,13 @@ export const SOPHIE_HILLS_CONFIG: GameSource = {
   courseSubtitle: 'Front Nine',
   totalPar: 35,
   holes: [
-    { holePath: '/courses/sophie-hills/hole-01', holeName: 'Sunset Run' },
+    // Hole 1 is authored at true scale on its own heightfield; the rest still share
+    // the course-wide field until they are rebuilt the same way.
+    {
+      holePath: '/courses/sophie-hills/hole-01',
+      holeName: 'Clubhouse Climb',
+      terrainPath: '/courses/sophie-hills/hole-01'
+    },
     { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry' },
     { holePath: '/courses/sophie-hills/hole-03', holeName: 'Wattle Bend' },
     { holePath: '/courses/sophie-hills/hole-04', holeName: 'Long Paddock' },
@@ -145,6 +160,8 @@ export class Game {
   private isPracticeMode: boolean = false;
   private isRoundActive: boolean = false;
   private holeIndex: number = 0;
+  /** Terrain directory currently loaded, so hole changes only reload it when it differs. */
+  private loadedTerrainPath?: string;
   private completedHoleScores: Array<{ strokes: number; penaltyStrokes: number; par: number }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -224,7 +241,9 @@ export class Game {
     this.holeIndex = holeIndex;
 
     // 1. Load course DEM data
-    this.terrainData = await this.terrainLoader.load(source.terrainPath);
+    const terrainPath = Game.resolveTerrainPath(source, holeIndex);
+    this.terrainData = await this.terrainLoader.load(terrainPath);
+    this.loadedTerrainPath = terrainPath;
     this.holeConfig = await HoleData.load(source.holes[holeIndex].holePath);
 
     // 2. Initialize Terrain & Surface Query Systems
@@ -422,10 +441,11 @@ export class Game {
     this.surfaceQuery.setPolygons(surfaces);
     this.surfaceMeshOverlay?.rebuild(surfaces);
 
-    // Populate camera-facing 16-bit trees framing the hole corridor
+    // Authored trees where the hole supplies them, procedural corridor framing otherwise.
     this.treeRenderer?.populateCourseTrees(
       { x: layout.tee.x, z: layout.tee.z },
-      { x: layout.hole.x, z: layout.hole.z }
+      { x: layout.hole.x, z: layout.hole.z },
+      this.holeConfig?.trees
     );
 
     // Cup position. Clamping is correct here: the layout is already bounds-checked,
@@ -692,10 +712,55 @@ export class Game {
     this.initPlaytestLayout(this.configuredLayout);
   }
 
+  /** Terrain directory a hole plays on: its own if it declares one, else the course's. */
+  public static resolveTerrainPath(source: GameSource, holeIndex: number): string {
+    return source.holes[holeIndex]?.terrainPath ?? source.terrainPath;
+  }
+
+  /**
+   * Swap in a different heightfield mid-round.
+   *
+   * The TerrainQuery instance is reused rather than replaced: every renderer and
+   * physics system holds a reference to it, so mutating it in place keeps them
+   * all pointing at the new terrain without a second round of wiring.
+   */
+  private async applyTerrain(terrainPath: string): Promise<void> {
+    if (!this.terrainQuery || !this.geoTransform) {
+      throw new Error('Cannot swap terrain before the course has been loaded.');
+    }
+
+    this.terrainData = await this.terrainLoader.load(terrainPath);
+    this.loadedTerrainPath = terrainPath;
+
+    this.terrainQuery.setTerrainData(this.terrainData);
+    this.geoTransform.setTerrainData(this.terrainData);
+    this.cameraController?.setTerrain(this.terrainData, this.terrainQuery);
+
+    if (this.terrainMeshBuilder) {
+      this.sceneManager.scene.remove(this.terrainMeshBuilder.getMesh());
+    }
+    this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
+    this.sceneManager.scene.add(this.terrainMeshBuilder.getMesh());
+
+    if (this.courseEnvironment) {
+      this.sceneManager.scene.remove(this.courseEnvironment.getGroup());
+      this.courseEnvironment = undefined;
+    }
+    if (!this.source?.isResearchMode) {
+      this.courseEnvironment = new CourseEnvironment(this.terrainData, this.terrainQuery);
+      this.sceneManager.scene.add(this.courseEnvironment.getGroup());
+    }
+  }
+
   private async loadCourseHole(index: number): Promise<void> {
     const holeSource = this.source?.holes[index];
-    if (!holeSource) {
+    if (!holeSource || !this.source) {
       throw new Error(`Cannot load Sophie Hills hole index ${index}: it is not in the course playlist.`);
+    }
+
+    const terrainPath = Game.resolveTerrainPath(this.source, index);
+    if (terrainPath !== this.loadedTerrainPath) {
+      await this.applyTerrain(terrainPath);
     }
 
     this.holeConfig = await HoleData.load(holeSource.holePath);

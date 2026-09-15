@@ -2,15 +2,43 @@
 
 **SOPHIE GOLF** is a web-based retro 16-bit-inspired golf game built with **TypeScript**, **Vite**, and **Three.js**.
 
-The default game is now a two-hole **Sophie Hills** fictional preview: the par-4
-**Sunset Run** followed by the par-3 **Creekside Carry**. It includes a title
-screen, authored playing surfaces, penalties, hole progression, cumulative
+The default game is the nine-hole **Sophie Hills** fictional course, opening with
+the par-4 **Clubhouse Climb** and the par-3 **Creekside Carry**. It includes a
+title screen, authored playing surfaces, penalties, hole progression, cumulative
 course scoring, replay, and main-menu flow. Warragul Country Club remains
 available as an explicitly labelled research mode until its real hole geometry
 has been verified; fictional Sophie Hills data must never be presented as
 Warragul course data.
 
 The playable game features **Sophie** across the nine-hole, par-35 Sophie Hills course, a higher-detail pixel-art rendering pipeline, a classic three-click swing meter, real 3D ball physics (aerodynamic drag, gravity, terrain-normal bouncing and rolling), putting, club selection, and a dedicated research mode for external course data.
+
+---
+
+## ⛳ Course Authoring
+
+Holes live in `public/courses/<course>/<hole>/` as a `hole.json` layout plus an
+optional `terrain.bin` / `terrain_meta.json` heightfield.
+
+* **Surfaces** are polygons in local metres (`TEE`, `FAIRWAY`, `FIRST_CUT`,
+  `ROUGH`, `GREEN`, `BUNKER`, `WATER`, `PATH`, `OUT_OF_BOUNDS`, …). Lie detection,
+  penalties and roll physics all derive from them.
+* **Trees** may be authored explicitly in `hole.json` as `{ x, z, type, scale }`.
+  A hole that lists trees gets exactly those; a hole that omits them falls back to
+  procedural corridor scatter. On a tree-lined hole the trees are the
+  architecture, so they are worth placing by hand.
+* **Per-hole terrain**: a hole may declare its own `terrainPath`, overriding the
+  course-wide heightfield. Holes authored at true scale need more room than a
+  shared field can give them. Hole 1 works this way; the rest still share the
+  course field.
+
+Hole 1 is generated from a documented trace rather than hand-typed JSON:
+
+```bash
+node tools/course-builder/build-sophie-hills-hole-01.mjs
+```
+
+Sophie Hills is **fictional**. Layouts drawn with real-world imagery as reference
+must never be presented as that real course's data.
 
 ---
 
