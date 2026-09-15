@@ -35,14 +35,6 @@ function playingLineXAt(z: number): number {
   return hole.tee!.x + (hole.greenCentre!.x - hole.tee!.x) * t;
 }
 
-/** Perpendicular distance from a point to the straight tee-to-green line. */
-function distanceToPlayingLine(point: { x: number; z: number }): number {
-  const dx = hole.greenCentre!.x - hole.tee!.x;
-  const dz = hole.greenCentre!.z - hole.tee!.z;
-  const length = Math.hypot(dx, dz);
-  return Math.abs(dz * (point.x - hole.tee!.x) - dx * (point.z - hole.tee!.z)) / length;
-}
-
 /** Absolute ground elevation in metres at a world position, from the heightfield. */
 function elevationAt(x: number, z: number): number {
   const bin = readFileSync(resolve(HOLE_DIR, 'terrain.bin'));
@@ -90,36 +82,23 @@ describe('Sophie Hills hole 1', () => {
     }
   });
 
-  it('blocks the direct line to the green with the stand of trees', () => {
-    // The hole's defining feature: aiming straight at the green from the tee runs
-    // into the trees in the middle of the hole, so the tee shot has to favour the
-    // right. If the stand ever drifts off that line the decision disappears.
-    const stand = (hole.trees ?? []).filter(
-      (tree) => tree.z > 80 && tree.z < 175 && tree.x > 120 && tree.x < 150
-    );
-    expect(stand.length).toBeGreaterThan(8);
-
-    const blocking = stand.filter((tree) => distanceToPlayingLine(tree) < 8);
-    expect(blocking.length).toBeGreaterThanOrEqual(3);
+  it('leaves the fairway clear of trees', () => {
+    // Corrected by the design owner: the real hole has no trees in the fairway.
+    // It is lined by trees from both sides, and the corridor itself is open.
+    const fairway = surface('hole-01-fairway').points;
+    const inPlay = (hole.trees ?? []).filter((tree) => containsPoint(fairway, tree));
+    expect(inPlay).toEqual([]);
   });
 
-  it('routes the fairway to the right of that stand', () => {
-    const fairway = surface('hole-01-fairway').points;
-    const stand = (hole.trees ?? []).filter(
-      (tree) => tree.z > 80 && tree.z < 175 && tree.x > 120 && tree.x < 150
-    );
+  it('lines the hole with trees from both sides', () => {
+    // Clear is not the same as bare: the hole should still be a tree-lined avenue.
+    const trees = hole.trees ?? [];
+    const landing = trees.filter((tree) => tree.z > 80 && tree.z < 200);
+    const left = landing.filter((tree) => tree.x < playingLineXAt(tree.z));
+    const right = landing.filter((tree) => tree.x > playingLineXAt(tree.z));
 
-    // Edge trees may sit on the fairway boundary — that is true to the reference —
-    // but the body of the stand has to be off it.
-    const onFairway = stand.filter((tree) => containsPoint(fairway, tree));
-    expect(onFairway.length).toBeLessThanOrEqual(1);
-
-    // And the fairway itself sits right of the direct line through the landing area.
-    const landingEdges = fairway.filter((point) => point.z > 90 && point.z < 160);
-    expect(landingEdges.length).toBeGreaterThan(0);
-    for (const point of landingEdges) {
-      expect(point.x).toBeGreaterThan(playingLineXAt(point.z));
-    }
+    expect(left.length).toBeGreaterThan(5);
+    expect(right.length).toBeGreaterThan(5);
   });
 
   it('authors its trees rather than relying on procedural scatter', () => {

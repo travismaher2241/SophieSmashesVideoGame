@@ -86,94 +86,20 @@ export class TreeRenderer {
    * Place the hole's trees.
    *
    * When the hole ships an authored tree list those positions are used exactly —
-   * on a tree-lined hole the trees are the architecture, not decoration, and a
-   * procedural scatter cannot reproduce a stand sitting in the middle of the
-   * fairway. Holes without authored trees keep the generated corridor framing.
+   * on a tree-lined hole the trees are the architecture, not decoration. Holes
+   * without authored trees get the generated corridor framing.
    */
   public populateCourseTrees(
     holeTee: { x: number; z: number },
     holeGreen: { x: number; z: number },
-    authored?: TreeInstance[]
+    authored?: TreeInstance[],
+    fairways: { x: number; z: number }[][] = []
   ): void {
     this.clear();
 
-    if (authored && authored.length > 0) {
-      this.buildMeshes(authored);
-      return;
-    }
-
-    const instances: TreeInstance[] = [];
-    const minX = 40;
-    const maxX = 620;
-    const minZ = 30;
-    const maxZ = 290;
-
-    // Direction from tee to green
-    const dx = holeGreen.x - holeTee.x;
-    const dz = holeGreen.z - holeTee.z;
-    const length = Math.hypot(dx, dz);
-    const dirX = dx / (length || 1);
-    const dirZ = dz / (length || 1);
-    const perpX = -dirZ;
-    const perpZ = dirX;
-
-    // 1. Place flanking tree lines along left & right margins of the fairway corridor
-    const numFlanking = 32;
-    for (let i = 0; i <= numFlanking; i++) {
-      const progress = i / numFlanking;
-      const corridorDist = progress * (length + 80) - 30;
-      const baseCorrX = holeTee.x + dirX * corridorDist;
-      const baseCorrZ = holeTee.z + dirZ * corridorDist;
-
-      // Left flank trees (30m to 75m offset)
-      const leftDist = 30 + (Math.sin(i * 1.7) * 0.5 + 0.5) * 35;
-      const leftX = baseCorrX + perpX * leftDist + (Math.cos(i * 2.3) * 6);
-      const leftZ = baseCorrZ + perpZ * leftDist + (Math.sin(i * 2.1) * 6);
-      const typeLeft: TreeType = i % 3 === 0 ? 'GUM_LARGE' : i % 3 === 1 ? 'PINE' : 'GUM_MEDIUM';
-      instances.push({ x: leftX, z: leftZ, type: typeLeft, scale: 0.9 + (i % 4) * 0.1 });
-
-      // Left outer cluster/bushes
-      if (i % 2 === 0) {
-        instances.push({
-          x: leftX + perpX * 18 + (i % 3) * 4,
-          z: leftZ + perpZ * 18,
-          type: i % 4 === 0 ? 'CLUSTER' : 'BUSH',
-          scale: 1.0 + (i % 2) * 0.2
-        });
-      }
-
-      // Right flank trees (30m to 75m offset)
-      const rightDist = -(32 + (Math.cos(i * 1.5) * 0.5 + 0.5) * 34);
-      const rightX = baseCorrX + perpX * rightDist + (Math.sin(i * 2.7) * 6);
-      const rightZ = baseCorrZ + perpZ * rightDist + (Math.cos(i * 1.9) * 6);
-      const typeRight: TreeType = i % 3 === 0 ? 'PINE' : i % 3 === 1 ? 'GUM_LARGE' : 'CLUSTER';
-      instances.push({ x: rightX, z: rightZ, type: typeRight, scale: 0.9 + (i % 3) * 0.15 });
-
-      if (i % 2 === 1) {
-        instances.push({
-          x: rightX + perpX * -16,
-          z: rightZ + perpZ * -16,
-          type: 'BUSH',
-          scale: 0.9 + (i % 3) * 0.15
-        });
-      }
-    }
-
-    // 2. Background backdrop behind the green
-    for (let j = 0; j < 16; j++) {
-      const angle = (j / 15) * Math.PI - Math.PI / 2;
-      const bgDist = 35 + (j % 3) * 10;
-      const bgX = holeGreen.x + (Math.cos(angle) * perpX + Math.sin(angle) * dirX) * bgDist + dirX * 15;
-      const bgZ = holeGreen.z + (Math.cos(angle) * perpZ + Math.sin(angle) * dirZ) * bgDist + dirZ * 15;
-      const t: TreeType = j % 2 === 0 ? 'GUM_LARGE' : 'CLUSTER';
-      instances.push({ x: bgX, z: bgZ, type: t, scale: 1.1 + (j % 3) * 0.15 });
-    }
-
-    // 3. Dense boundary forest perimeter
-    for (let bx = minX; bx <= maxX; bx += 38) {
-      instances.push({ x: bx, z: minZ + 6 + (bx % 12), type: 'CLUSTER', scale: 1.25 });
-      instances.push({ x: bx + 16, z: maxZ - 8 - (bx % 10), type: 'CLUSTER', scale: 1.25 });
-    }
+    const instances = authored && authored.length > 0
+      ? authored
+      : generateCorridorTrees(holeTee, holeGreen, this.terrainQuery.getWorldExtent(), fairways);
 
     this.buildMeshes(instances);
   }
@@ -400,4 +326,207 @@ export class TreeRenderer {
       }
     }
   }
+}
+
+/**
+ * Half-width of the playing corridor kept clear of trees, in metres.
+ *
+ * Trees may line a hole but must never stand in it. Anything closer to the
+ * tee-to-green line than this is dropped.
+ */
+const PLAY_CORRIDOR_HALF_WIDTH = 22;
+
+/**
+ * How far short of the green the approach must stay open, in metres.
+ *
+ * A green you cannot fly a ball into is not a golf hole. This is checked against
+ * the same corridor half-width, so the last stretch into the green is clear.
+ */
+const APPROACH_CLEARANCE = 80;
+
+/**
+ * Generate corridor framing for a hole with no authored trees.
+ *
+ * Pure so the placement rules can be tested without a renderer: given a tee, a
+ * green and the terrain extent, it returns where the trees go.
+ */
+export function generateCorridorTrees(
+  holeTee: { x: number; z: number },
+  holeGreen: { x: number; z: number },
+  extent: { x: number; z: number },
+  fairways: { x: number; z: number }[][] = []
+): TreeInstance[] {
+  const instances: TreeInstance[] = [];
+
+  // Perimeter forest follows the loaded terrain rather than fixed numbers, which
+  // would fall inside or outside the map depending on the field's size.
+  const minX = Math.min(40, extent.x * 0.06);
+  const maxX = extent.x - Math.min(40, extent.x * 0.06);
+  const minZ = Math.min(30, extent.z * 0.06);
+  const maxZ = extent.z - Math.min(30, extent.z * 0.06);
+
+  // Direction from tee to green
+  const dx = holeGreen.x - holeTee.x;
+  const dz = holeGreen.z - holeTee.z;
+  const length = Math.hypot(dx, dz);
+  const dirX = dx / (length || 1);
+  const dirZ = dz / (length || 1);
+  const perpX = -dirZ;
+  const perpZ = dirX;
+
+  // 1. Place flanking tree lines along left & right margins of the fairway corridor
+  const numFlanking = 32;
+  for (let i = 0; i <= numFlanking; i++) {
+    const progress = i / numFlanking;
+    const corridorDist = progress * (length + 80) - 30;
+    const baseCorrX = holeTee.x + dirX * corridorDist;
+    const baseCorrZ = holeTee.z + dirZ * corridorDist;
+
+    // Left flank trees (30m to 75m offset)
+    const leftDist = 30 + (Math.sin(i * 1.7) * 0.5 + 0.5) * 35;
+    const leftX = baseCorrX + perpX * leftDist + (Math.cos(i * 2.3) * 6);
+    const leftZ = baseCorrZ + perpZ * leftDist + (Math.sin(i * 2.1) * 6);
+    const typeLeft: TreeType = i % 3 === 0 ? 'GUM_LARGE' : i % 3 === 1 ? 'PINE' : 'GUM_MEDIUM';
+    instances.push({ x: leftX, z: leftZ, type: typeLeft, scale: 0.9 + (i % 4) * 0.1 });
+
+    // Left outer cluster/bushes
+    if (i % 2 === 0) {
+      instances.push({
+        x: leftX + perpX * 18 + (i % 3) * 4,
+        z: leftZ + perpZ * 18,
+        type: i % 4 === 0 ? 'CLUSTER' : 'BUSH',
+        scale: 1.0 + (i % 2) * 0.2
+      });
+    }
+
+    // Right flank trees (30m to 75m offset)
+    const rightDist = -(32 + (Math.cos(i * 1.5) * 0.5 + 0.5) * 34);
+    const rightX = baseCorrX + perpX * rightDist + (Math.sin(i * 2.7) * 6);
+    const rightZ = baseCorrZ + perpZ * rightDist + (Math.cos(i * 1.9) * 6);
+    const typeRight: TreeType = i % 3 === 0 ? 'PINE' : i % 3 === 1 ? 'GUM_LARGE' : 'CLUSTER';
+    instances.push({ x: rightX, z: rightZ, type: typeRight, scale: 0.9 + (i % 3) * 0.15 });
+
+    if (i % 2 === 1) {
+      instances.push({
+        x: rightX + perpX * -16,
+        z: rightZ + perpZ * -16,
+        type: 'BUSH',
+        scale: 0.9 + (i % 3) * 0.15
+      });
+    }
+  }
+
+  // 2. Backdrop behind the green.
+  //
+  // Strictly behind: the arc is parametrised so its along-hole component is
+  // always positive. Sweeping a half-circle around the green instead put the
+  // first trees ~20m SHORT of it, walling off the approach on every hole.
+  for (let j = 0; j < 16; j++) {
+    const theta = (j / 15) * Math.PI;
+    const bgDist = 35 + (j % 3) * 10;
+    const across = Math.cos(theta) * bgDist;
+    const behind = Math.sin(theta) * bgDist + 14;
+    const bgX = holeGreen.x + perpX * across + dirX * behind;
+    const bgZ = holeGreen.z + perpZ * across + dirZ * behind;
+    const t: TreeType = j % 2 === 0 ? 'GUM_LARGE' : 'CLUSTER';
+    instances.push({ x: bgX, z: bgZ, type: t, scale: 1.1 + (j % 3) * 0.15 });
+  }
+
+  // 3. Dense boundary forest perimeter
+  for (let bx = minX; bx <= maxX; bx += 38) {
+    instances.push({ x: bx, z: minZ + 6 + (bx % 12), type: 'CLUSTER', scale: 1.25 });
+    instances.push({ x: bx + 16, z: maxZ - 8 - (bx % 10), type: 'CLUSTER', scale: 1.25 });
+  }
+
+  // Two filters, because neither catches everything. The line test keeps the
+  // approach and the corridor open; the fairway test handles doglegs, where a
+  // line drawn tee-to-green leaves the mown grass entirely and trees offset from
+  // it can land in the middle of the fairway.
+  return instances.filter(
+    (tree) => isClearOfPlay(tree, holeTee, holeGreen) && isClearOfFairways(tree, fairways)
+  );
+}
+
+/**
+ * True when a tree is far enough off the playing line to leave the hole playable.
+ *
+ * Applied to every generated tree rather than trusting each placement rule to
+ * behave, so one bad arc cannot block a hole again.
+ */
+export function isClearOfPlay(
+  tree: { x: number; z: number },
+  holeTee: { x: number; z: number },
+  holeGreen: { x: number; z: number }
+): boolean {
+  const dx = holeGreen.x - holeTee.x;
+  const dz = holeGreen.z - holeTee.z;
+  const length = Math.hypot(dx, dz) || 1;
+
+  // Distance along the tee-to-green line, and perpendicular distance from it.
+  const along = ((tree.x - holeTee.x) * dx + (tree.z - holeTee.z) * dz) / length;
+  const across = Math.abs(dz * (tree.x - holeTee.x) - dx * (tree.z - holeTee.z)) / length;
+
+  if (across >= PLAY_CORRIDOR_HALF_WIDTH) return true;
+
+  // Close to the line: only allowed well behind the green, never in the corridor
+  // itself and never on the approach.
+  return along > length + 12 || along < -APPROACH_CLEARANCE;
+}
+
+/** Setback kept between the fairway edge and the nearest generated tree, in metres. */
+const FAIRWAY_SETBACK = 8;
+
+/**
+ * True when a tree is off every fairway on the hole, by at least the setback.
+ *
+ * Needed alongside the line test: a doglegged fairway curves away from the
+ * tee-to-green line, so "far enough from the line" does not imply "off the grass".
+ */
+export function isClearOfFairways(
+  tree: { x: number; z: number },
+  fairways: { x: number; z: number }[][]
+): boolean {
+  for (const polygon of fairways) {
+    if (polygon.length < 3) continue;
+    if (pointInPolygon(polygon, tree)) return false;
+    if (distanceToPolygonEdge(polygon, tree) < FAIRWAY_SETBACK) return false;
+  }
+  return true;
+}
+
+function pointInPolygon(polygon: { x: number; z: number }[], point: { x: number; z: number }): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const { x: xi, z: zi } = polygon[i];
+    const { x: xj, z: zj } = polygon[j];
+    const straddles = zi > point.z !== zj > point.z;
+    if (straddles && point.x < ((xj - xi) * (point.z - zi)) / (zj - zi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function distanceToPolygonEdge(
+  polygon: { x: number; z: number }[],
+  point: { x: number; z: number }
+): number {
+  let nearest = Infinity;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const ax = polygon[j].x;
+    const az = polygon[j].z;
+    const bx = polygon[i].x;
+    const bz = polygon[i].z;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const lengthSq = dx * dx + dz * dz;
+
+    // Project the point onto the segment, clamped to its ends.
+    const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - ax) * dx + (point.z - az) * dz) / lengthSq));
+    const distance = Math.hypot(point.x - (ax + t * dx), point.z - (az + t * dz));
+    if (distance < nearest) nearest = distance;
+  }
+
+  return nearest;
 }

@@ -441,11 +441,14 @@ export class Game {
     this.surfaceQuery.setPolygons(surfaces);
     this.surfaceMeshOverlay?.rebuild(surfaces);
 
-    // Authored trees where the hole supplies them, procedural corridor framing otherwise.
+    // Authored trees where the hole supplies them, procedural corridor framing
+    // otherwise. The fairway shapes go along so generated trees stay off the
+    // mown grass on doglegs, where the tee-to-green line leaves the fairway.
     this.treeRenderer?.populateCourseTrees(
       { x: layout.tee.x, z: layout.tee.z },
       { x: layout.hole.x, z: layout.hole.z },
-      this.holeConfig?.trees
+      this.holeConfig?.trees,
+      surfaces.filter((surface) => surface.type === 'FAIRWAY').map((surface) => surface.points)
     );
 
     // Cup position. Clamping is correct here: the layout is already bounds-checked,

@@ -18,6 +18,8 @@
  *   - Ground rises ~20 m gradually from tee to green.
  *   - No bunkers on this hole (the sand visible in the reference belongs to the
  *     adjacent hole).
+ *   - No trees in the fairway. The hole is lined by trees on both sides; the
+ *     corridor itself is open.
  *
  * The trace is in reference-image pixels, converted by PX_TO_METRES below. Tracing
  * was done by eye, so surface edges are accurate to roughly +/-5 m. Refine in-game
@@ -219,26 +221,49 @@ const CORRIDOR_RIGHT = [
 ];
 
 /**
- * Fairway centreline. Note this is NOT the playing line: the stand of trees in
- * the middle of the hole forces the fairway up the right-hand side before it
- * swings back left towards the green. The 22 m waist through the landing area is
- * the gap measured on the reference overhead.
+ * Fairway width profile along the hole, in metres.
+ *
+ * The centreline is the playing line itself: the design owner confirmed there are
+ * no trees in the fairway, so nothing forces the fairway off to one side. The
+ * trees line the hole from both edges instead.
  */
-const FAIRWAY_SPINE = [
-  { x: 150, z: 58, width: 24 },
-  { x: 154, z: 80, width: 24 },
-  { x: 157, z: 105, width: 22 },
-  { x: 159, z: 130, width: 22 },
-  { x: 159, z: 155, width: 22 },
-  { x: 157, z: 180, width: 24 },
-  { x: 153, z: 205, width: 26 },
-  { x: 147, z: 235, width: 28 },
-  { x: 141, z: 265, width: 30 },
-  { x: 134, z: 295, width: 30 },
-  { x: 128, z: 325, width: 30 },
-  { x: 124, z: 350, width: 28 },
-  { x: 121, z: 368, width: 26 }
+const FAIRWAY_WIDTHS = [
+  { z: 58, width: 24 },
+  { z: 85, width: 24 },
+  { z: 115, width: 24 },
+  { z: 145, width: 24 },
+  { z: 175, width: 24 },
+  { z: 205, width: 26 },
+  { z: 240, width: 28 },
+  { z: 275, width: 28 },
+  { z: 310, width: 28 },
+  { z: 340, width: 26 },
+  { z: 366, width: 24 }
 ];
+
+/** Fairway half-width at a given z, interpolated between the stations above. */
+function fairwayHalfWidthAt(z) {
+  if (z <= FAIRWAY_WIDTHS[0].z) return FAIRWAY_WIDTHS[0].width / 2;
+  const last = FAIRWAY_WIDTHS[FAIRWAY_WIDTHS.length - 1];
+  if (z >= last.z) return last.width / 2;
+
+  for (let i = 1; i < FAIRWAY_WIDTHS.length; i++) {
+    if (z <= FAIRWAY_WIDTHS[i].z) {
+      const a = FAIRWAY_WIDTHS[i - 1];
+      const b = FAIRWAY_WIDTHS[i];
+      const t = (z - a.z) / (b.z - a.z);
+      return (a.width + (b.width - a.width) * t) / 2;
+    }
+  }
+  return last.width / 2;
+}
+
+/** Fairway centreline stations, taken straight from the playing line. */
+const FAIRWAY_SPINE = FAIRWAY_WIDTHS.map(({ z, width }) => ({
+  x: round2(centrelineXAt(z)),
+  z,
+  width
+}));
 
 /** Linear interpolation across a table of edge samples sorted by z. */
 function edgeXAt(samples, z) {
@@ -314,6 +339,20 @@ function ribbon(spine, widthDelta = 0) {
   }
 
   return [...left, ...right.reverse()];
+}
+
+/** Ray-cast point-in-polygon test, matching the game's own containment rule. */
+function pointInPolygon(polygon, point) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const { x: xi, z: zi } = polygon[i];
+    const { x: xj, z: zj } = polygon[j];
+    const straddles = zi > point.z !== zj > point.z;
+    if (straddles && point.x < ((xj - xi) * (point.z - zi)) / (zj - zi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 /** Closed ellipse, used for the green and its fringe. */
@@ -392,20 +431,7 @@ const TREES_PX = [
   [212, 518, 'GUM_LARGE', 1.05], [220, 544, 'PINE', 1.0], [214, 570, 'GUM_MEDIUM', 0.95],
   [206, 596, 'GUM_LARGE', 1.05], [198, 620, 'PINE', 1.0],
 
-  // Specimen trees standing in the open upper half — these shape the second shot.
-  [122, 64, 'GUM_LARGE', 1.15], [148, 92, 'GUM_MEDIUM', 1.0], [106, 128, 'GUM_LARGE', 1.1],
-  [136, 152, 'PINE', 1.05], [160, 178, 'GUM_MEDIUM', 1.0], [114, 192, 'GUM_LARGE', 1.1],
-  [146, 216, 'GUM_MEDIUM', 1.0], [126, 248, 'GUM_LARGE', 1.05], [156, 272, 'PINE', 1.0],
-  [134, 300, 'GUM_MEDIUM', 0.95], [164, 326, 'GUM_LARGE', 1.05],
-
-  // The stand through the middle of the hole that splits the corridor in two.
-  [112, 424, 'GUM_LARGE', 1.15], [128, 436, 'CLUSTER', 1.1], [142, 452, 'GUM_LARGE', 1.1],
-  [118, 462, 'GUM_MEDIUM', 1.0], [134, 478, 'GUM_LARGE', 1.15], [148, 492, 'CLUSTER', 1.05],
-  [122, 500, 'GUM_MEDIUM', 1.0], [138, 516, 'GUM_LARGE', 1.1], [152, 530, 'GUM_MEDIUM', 1.0],
-  [126, 540, 'GUM_LARGE', 1.15], [140, 556, 'CLUSTER', 1.1], [154, 570, 'GUM_MEDIUM', 1.0],
-  [130, 580, 'GUM_LARGE', 1.1], [144, 596, 'GUM_MEDIUM', 1.0],
-
-  // Between that stand and the right-hand avenue.
+  // Between the left-hand trees and the right-hand avenue.
   [170, 430, 'GUM_MEDIUM', 1.0], [182, 456, 'GUM_LARGE', 1.05], [174, 486, 'PINE', 1.0],
   [186, 512, 'GUM_MEDIUM', 0.95], [178, 540, 'GUM_LARGE', 1.05], [190, 566, 'PINE', 1.0],
   [182, 592, 'GUM_MEDIUM', 0.95],
@@ -415,9 +441,90 @@ const TREES_PX = [
   [180, 672, 'BUSH', 1.0]
 ];
 
+/**
+ * Canopies the reference overhead appeared to show standing in the middle of the
+ * hole.
+ *
+ * They are not there: the design owner, who has played the hole, confirmed the
+ * fairway has no trees in it. Reading a tree line as an island in the middle was
+ * a mistake in the trace, not a feature of the hole. The canopies are real
+ * though, so they are kept as part of the left-hand tree line — same z spacing as
+ * traced, set against the corridor edge instead of out in the fairway.
+ *
+ * Each entry is [z, sideOffset, type, scale]; sideOffset is metres inside the
+ * corridor's left edge.
+ */
+const LEFT_LINE_TREES = [
+  [86, 2, 'GUM_LARGE', 1.15], [92, 6, 'CLUSTER', 1.1], [99, 1, 'GUM_LARGE', 1.1],
+  [105, 5, 'GUM_MEDIUM', 1.0], [113, 1, 'GUM_LARGE', 1.15], [120, 6, 'CLUSTER', 1.05],
+  [127, 2, 'GUM_MEDIUM', 1.0], [134, 5, 'GUM_LARGE', 1.1], [141, 1, 'GUM_MEDIUM', 1.0],
+  [148, 6, 'GUM_LARGE', 1.15], [155, 2, 'CLUSTER', 1.1], [162, 5, 'GUM_MEDIUM', 1.0],
+  [169, 1, 'GUM_LARGE', 1.1], [176, 6, 'GUM_MEDIUM', 1.0],
+  // The scattered canopies further up the hole belong to the tree lines too,
+  // alternating sides as the corridor opens out.
+  [196, 3, 'GUM_LARGE', 1.15], [214, 2, 'GUM_LARGE', 1.1], [232, 4, 'PINE', 1.05],
+  [252, 2, 'GUM_MEDIUM', 1.0], [272, 5, 'GUM_LARGE', 1.05], [292, 3, 'PINE', 1.0],
+  [312, 2, 'GUM_MEDIUM', 0.95]
+];
+
+/** Same idea on the right-hand side of the corridor. */
+const RIGHT_LINE_TREES = [
+  // Carries the canopies traced down the right-hand side of the corridor.
+  [88, 1, 'GUM_MEDIUM', 1.0], [101, 4, 'GUM_LARGE', 1.05], [114, 1, 'PINE', 1.0],
+  [128, 5, 'GUM_MEDIUM', 0.95], [140, 2, 'GUM_LARGE', 1.05], [155, 4, 'PINE', 1.0],
+  [168, 1, 'GUM_MEDIUM', 0.95],
+  [188, 3, 'GUM_MEDIUM', 1.0], [206, 1, 'GUM_LARGE', 1.1], [224, 4, 'GUM_MEDIUM', 1.0],
+  [244, 2, 'PINE', 1.0], [264, 5, 'GUM_LARGE', 1.05], [284, 3, 'GUM_MEDIUM', 1.0],
+  [304, 1, 'GUM_LARGE', 1.05], [324, 4, 'PINE', 1.0]
+];
+
+/**
+ * Clearance between the fairway edge and the nearest tree, in metres.
+ *
+ * The hole is tree-lined and tight — the reference measures about 24 m between
+ * tree lines through the landing area — but the corridor itself has to stay open.
+ */
+const TREE_SETBACK = 7;
+
+/** Metres short of the green that must stay clear of trees near the line. */
+const APPROACH_CLEARANCE = 70;
+
+/**
+ * Place a tree against one of the tree lines, offset from the fairway edge rather
+ * than from the corridor boundary, so the lines stay a fixed distance out of play
+ * however the fairway is shaped. Clamped to stay inside the hole corridor.
+ */
+function lineTree(z, extraOffset, type, scale, side) {
+  const centre = centrelineXAt(z);
+  const offset = fairwayHalfWidthAt(z) + TREE_SETBACK + extraOffset;
+  const x = side === 'left' ? centre - offset : centre + offset;
+
+  const limit = side === 'left'
+    ? Math.max(x, edgeXAt(CORRIDOR_LEFT, z) + 2)
+    : Math.min(x, edgeXAt(CORRIDOR_RIGHT, z) - 2);
+
+  return { x: round2(limit), z, type, scale };
+}
+
+/**
+ * Perpendicular distance from the tee-to-green line, and distance along it.
+ */
+function playLineCoords(point) {
+  const dx = GREEN_CENTRE.x - TEE.x;
+  const dz = GREEN_CENTRE.z - TEE.z;
+  const length = Math.hypot(dx, dz);
+  return {
+    along: ((point.x - TEE.x) * dx + (point.z - TEE.z) * dz) / length,
+    across: Math.abs(dz * (point.x - TEE.x) - dx * (point.z - TEE.z)) / length,
+    length
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Assembly
 // ---------------------------------------------------------------------------
+
+let treesPushed = 0;
 
 function buildHole() {
   // Mown surfaces first: the rough corridor is then fitted around them.
@@ -490,10 +597,56 @@ function buildHole() {
     }
   ];
 
-  const trees = TREES_PX.map(([x, y, type, scale]) => {
-    const world = px(x, y);
-    return { x: world.x, z: world.z, type, scale };
+  const trees = [
+    ...TREES_PX.map(([x, y, type, scale]) => {
+      const world = px(x, y);
+      return { x: world.x, z: world.z, type, scale };
+    }),
+    ...LEFT_LINE_TREES.map(([z, offset, type, scale]) => lineTree(z, offset, type, scale, 'left')),
+    ...RIGHT_LINE_TREES.map(([z, offset, type, scale]) => lineTree(z, offset, type, scale, 'right'))
+  ];
+
+  // Nothing stands in the fairway. Traced positions carry a few metres of error,
+  // so any canopy that lands in play is pushed sideways to the setback line
+  // rather than being silently kept or silently dropped.
+  let pushed = 0;
+  for (const tree of trees) {
+    const centre = centrelineXAt(tree.z);
+    const clearance = fairwayHalfWidthAt(tree.z) + TREE_SETBACK;
+    const offset = tree.x - centre;
+    if (Math.abs(offset) >= clearance) continue;
+
+    const side = offset === 0 ? 1 : Math.sign(offset);
+    tree.x = round2(centre + side * clearance);
+    pushed++;
+  }
+
+  // Post-conditions. A tree in the fairway or across the approach is a broken
+  // hole, so these throw rather than warn.
+  const inPlay = trees.filter(
+    (tree) => Math.abs(tree.x - centrelineXAt(tree.z)) < fairwayHalfWidthAt(tree.z) + 1
+  );
+  if (inPlay.length > 0) {
+    throw new Error(
+      `${inPlay.length} tree(s) stand in the fairway: ` +
+      inPlay.map((t) => `(${t.x}, ${t.z})`).join(', ')
+    );
+  }
+
+  // "In front of the green" means short of it and near the line. A tree level with
+  // the green or behind it, off to one side, is ordinary golf and stays.
+  const blockingApproach = trees.filter((tree) => {
+    const { along, across, length } = playLineCoords(tree);
+    return across < 16 && along > length - APPROACH_CLEARANCE && along < length - 8;
   });
+  if (blockingApproach.length > 0) {
+    throw new Error(
+      `${blockingApproach.length} tree(s) block the approach to the green: ` +
+      blockingApproach.map((t) => `(${t.x}, ${t.z})`).join(', ')
+    );
+  }
+
+  treesPushed = pushed;
 
   return {
     courseId: 'sophie-hills',
@@ -512,7 +665,7 @@ function buildHole() {
       'Sophie Hills is a fictional gameplay course.',
       'Its layout must never be presented as Warragul Country Club or any other real course.',
       'Shape drawn from a reference overhead supplied by the design owner: 337 m par 4, no bunkers, ~20 m of climb from tee to green.',
-      'The playing line runs straight into the stand of trees mid-hole, so the fairway favours the right-hand side.',
+      'The hole is a tree-lined avenue: trees down both sides, an open fairway between them.',
       'Surface edges and tree positions were traced by eye and are accurate to roughly +/-5 m.',
       'Regenerate with: node tools/course-builder/build-sophie-hills-hole-01.mjs'
     ]
@@ -591,7 +744,7 @@ function main() {
   console.log(`  elevation      ${(BASE_ELEVATION + min).toFixed(2)} m to ${(BASE_ELEVATION + max).toFixed(2)} m`);
   console.log(`  climb tee->pin ${(elevationAt(GREEN_CENTRE.x, GREEN_CENTRE.z) - elevationAt(TEE.x, TEE.z)).toFixed(2)} m`);
   console.log(`  surfaces       ${hole.surfaces.length}`);
-  console.log(`  trees          ${hole.trees.length}`);
+  console.log(`  trees          ${hole.trees.length} (${treesPushed} nudged clear of the fairway)`);
 }
 
 main();
