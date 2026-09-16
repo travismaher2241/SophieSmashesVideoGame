@@ -28,7 +28,74 @@ function runToImpact(golfer: SophieGolfer, camera: PerspectiveCamera, limitSecon
   return impactAt;
 }
 
+/** The frame index currently bound, by the pose it shows. */
+const FRAME = {
+  ADDRESS_1: 0,
+  ADDRESS_2: 1,
+  BACKSWING_TOP: 2,
+  DOWNSWING_IMPACT: 3,
+  FOLLOW_THROUGH: 4
+} as const;
+
+/** Which frame index the golfer is showing right now. */
+function currentFrame(golfer: SophieGolfer): number {
+  return golfer.getFrameIndex();
+}
+
+describe('waiting over the ball', () => {
+  it('alternates between the two address poses', () => {
+    const { golfer, camera } = makeGolfer();
+    const seen = new Set<number>();
+
+    for (let i = 0; i < 400; i++) {
+      golfer.updateAnimation(1 / 60, camera);
+      seen.add(currentFrame(golfer));
+    }
+
+    expect(seen).toEqual(new Set([FRAME.ADDRESS_1, FRAME.ADDRESS_2]));
+  });
+
+  it('never shows a mid-swing pose while waiting', () => {
+    const { golfer, camera } = makeGolfer();
+
+    for (let i = 0; i < 400; i++) {
+      golfer.updateAnimation(1 / 60, camera);
+      expect(currentFrame(golfer)).toBeLessThanOrEqual(FRAME.ADDRESS_2);
+    }
+  });
+});
+
 describe('the swing plays as one motion after the third click', () => {
+  it('runs address 2, backswing top, downswing, follow through, in that order', () => {
+    const { golfer, camera } = makeGolfer();
+    const frames: number[] = [];
+
+    golfer.playSwing(() => {});
+    for (let i = 0; i < 200 && golfer.isSwinging(); i++) {
+      const frame = currentFrame(golfer);
+      if (frames[frames.length - 1] !== frame) frames.push(frame);
+      golfer.updateAnimation(1 / 60, camera);
+    }
+
+    expect(frames).toEqual([
+      FRAME.ADDRESS_2,
+      FRAME.BACKSWING_TOP,
+      FRAME.DOWNSWING_IMPACT,
+      FRAME.FOLLOW_THROUGH
+    ]);
+  });
+
+  it('never shows the resting address pose mid-swing', () => {
+    // Address 1 is the waiting pose only; the swing starts from address 2.
+    const { golfer, camera } = makeGolfer();
+
+    golfer.playSwing(() => {});
+    for (let i = 0; i < 200 && golfer.isSwinging(); i++) {
+      expect(currentFrame(golfer)).not.toBe(FRAME.ADDRESS_1);
+      golfer.updateAnimation(1 / 60, camera);
+    }
+  });
+
   it('does not launch the ball on the click that starts it', () => {
     // The fault: every click snapped a pose and the third fired the ball on the
     // same tick, so there was no swing to watch.

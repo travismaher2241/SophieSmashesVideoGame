@@ -22,13 +22,34 @@ export class SophieGolfer {
   private static readonly DOWNSWING_SECONDS = 0.14;
   private static readonly FOLLOW_THROUGH_SECONDS = 0.75;
 
+  /**
+   * The sprite frames, by the pose they show.
+   *
+   * The swing runs ADDRESS_2 -> BACKSWING_TOP -> DOWNSWING_IMPACT ->
+   * FOLLOW_THROUGH. ADDRESS_1 is only ever seen at rest, where the two address
+   * poses alternate.
+   */
+  private static readonly FRAME = {
+    ADDRESS_1: 0,
+    ADDRESS_2: 1,
+    BACKSWING_TOP: 2,
+    DOWNSWING_IMPACT: 3,
+    FOLLOW_THROUGH: 4
+  } as const;
+
+  /** How long each address pose is held while waiting, in seconds. */
+  private static readonly IDLE_POSE_SECONDS = 0.85;
+
+  /** Fraction of the backswing spent still at address before the club goes back. */
+  private static readonly BACKSWING_SETUP_FRACTION = 0.42;
+
   /** The sprite frame each phase settles on. */
   private static readonly PHASE_FRAMES: Record<GolferSwingPhase, number> = {
-    REST: 0,
-    BACKSWING: 0,
-    TOP_HOLD: 2,
-    DOWNSWING: 3,
-    FOLLOW_THROUGH: 4
+    REST: SophieGolfer.FRAME.ADDRESS_1,
+    BACKSWING: SophieGolfer.FRAME.ADDRESS_2,
+    TOP_HOLD: SophieGolfer.FRAME.BACKSWING_TOP,
+    DOWNSWING: SophieGolfer.FRAME.DOWNSWING_IMPACT,
+    FOLLOW_THROUGH: SophieGolfer.FRAME.FOLLOW_THROUGH
   };
 
   /** Total time from the third click to the ball leaving the clubface. */
@@ -45,6 +66,8 @@ export class SophieGolfer {
   /** Seconds elapsed in the current swing phase. */
   private phaseSeconds: number = 0;
   private idleTimer: number = 0;
+  /** Which frame is showing. Tracked separately from the texture, which needs a DOM. */
+  private frameIndex: number = 0;
   private onImpactCallback?: () => void;
 
   private basePosition: Vector3 = new Vector3();
@@ -153,7 +176,7 @@ export class SophieGolfer {
     this.currentPhase = 'BACKSWING';
     this.phaseSeconds = 0;
     this.onImpactCallback = onImpact;
-    this.setFrame(0);
+    this.setFrame(SophieGolfer.FRAME.ADDRESS_2);
   }
 
   /** True while a stroke is playing, so callers can wait for it to finish. */
@@ -168,7 +191,7 @@ export class SophieGolfer {
    * worth animating from the full-swing frames.
    */
   public strikeImpact(onImpact: () => void): void {
-    this.setFrame(3);
+    this.setFrame(SophieGolfer.FRAME.DOWNSWING_IMPACT);
     this.currentPhase = 'FOLLOW_THROUGH';
     this.phaseSeconds = 0;
     this.onImpactCallback = undefined;
@@ -181,15 +204,25 @@ export class SophieGolfer {
   public resetPose(): void {
     this.currentPhase = 'REST';
     this.phaseSeconds = 0;
+    this.idleTimer = 0;
     this.onImpactCallback = undefined;
-    this.setFrame(0);
+    this.setFrame(SophieGolfer.FRAME.ADDRESS_1);
   }
 
   private setFrame(index: number): void {
+    // Recorded whether or not a texture is loaded, so the pose can be read back
+    // without a browser — the frames need a DOM to decode into.
+    this.frameIndex = index;
+
     if (this.frameTextures[index]) {
       this.material.map = this.frameTextures[index];
       this.material.needsUpdate = true;
     }
+  }
+
+  /** The pose currently showing, as an index into the frame set. */
+  public getFrameIndex(): number {
+    return this.frameIndex;
   }
 
   public updateAnimation(dt: number, camera: Camera): void {
@@ -203,10 +236,11 @@ export class SophieGolfer {
     this.spriteMesh.position.set(0, 0, 0);
 
     if (this.currentPhase === 'REST') {
+      // Waiting on the player: settle between the two address poses so she is
+      // alive over the ball rather than frozen.
       this.idleTimer += dt;
-      // Subtle idle wiggle between frame 0 (address 1) and frame 1 (address 2)
-      const isWiggle = (this.idleTimer % 4.0) > 3.6;
-      this.setFrame(isWiggle ? 1 : 0);
+      const onSecondPose = Math.floor(this.idleTimer / SophieGolfer.IDLE_POSE_SECONDS) % 2 === 1;
+      this.setFrame(onSecondPose ? SophieGolfer.FRAME.ADDRESS_2 : SophieGolfer.FRAME.ADDRESS_1);
       return;
     }
 
@@ -214,10 +248,14 @@ export class SophieGolfer {
 
     switch (this.currentPhase) {
       case 'BACKSWING': {
-        // Address, waggle, then the top of the backswing. Held in that order so
-        // the club reads as travelling back rather than teleporting there.
+        // Set at address, then the top of the backswing, so the club reads as
+        // travelling back rather than teleporting there.
         const progress = this.phaseSeconds / SophieGolfer.BACKSWING_SECONDS;
-        this.setFrame(progress < 0.3 ? 0 : progress < 0.6 ? 1 : 2);
+        this.setFrame(
+          progress < SophieGolfer.BACKSWING_SETUP_FRACTION
+            ? SophieGolfer.FRAME.ADDRESS_2
+            : SophieGolfer.FRAME.BACKSWING_TOP
+        );
 
         if (this.phaseSeconds >= SophieGolfer.BACKSWING_SECONDS) {
           this.advanceTo('TOP_HOLD');
@@ -227,7 +265,7 @@ export class SophieGolfer {
 
       case 'TOP_HOLD': {
         // A beat at the top, which is what makes the downswing feel quick.
-        this.setFrame(2);
+        this.setFrame(SophieGolfer.FRAME.BACKSWING_TOP);
         if (this.phaseSeconds >= SophieGolfer.TOP_HOLD_SECONDS) {
           this.advanceTo('DOWNSWING');
         }
@@ -235,7 +273,7 @@ export class SophieGolfer {
       }
 
       case 'DOWNSWING': {
-        this.setFrame(3);
+        this.setFrame(SophieGolfer.FRAME.DOWNSWING_IMPACT);
         if (this.phaseSeconds >= SophieGolfer.DOWNSWING_SECONDS) {
           // Impact: the ball leaves here, at the bottom of the swing.
           const onImpact = this.onImpactCallback;
@@ -247,11 +285,12 @@ export class SophieGolfer {
       }
 
       case 'FOLLOW_THROUGH': {
-        this.setFrame(4);
+        this.setFrame(SophieGolfer.FRAME.FOLLOW_THROUGH);
         if (this.phaseSeconds >= SophieGolfer.FOLLOW_THROUGH_SECONDS) {
           this.currentPhase = 'REST';
           this.phaseSeconds = 0;
-          this.setFrame(0);
+          this.idleTimer = 0;
+          this.setFrame(SophieGolfer.FRAME.ADDRESS_1);
         }
         break;
       }
