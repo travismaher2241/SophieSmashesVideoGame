@@ -972,9 +972,11 @@ export class Game {
     this.shotOrigin = { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z };
 
     this.puttingPhysics.setPosition(this.ballPhysics.position.x, this.ballPhysics.position.z);
-    this.puttingPhysics.launchPutt(puttResult.intendedDistanceMetres, this.aimAngleRadians);
 
-    this.sophieGolfer.strikeImpact(() => {
+    // The stroke plays out and the ball leaves when the putter reaches it, the
+    // same way a full swing works. Nothing is set moving before then.
+    this.sophieGolfer.playPutt(() => {
+      this.puttingPhysics!.launchPutt(puttResult.intendedDistanceMetres, this.aimAngleRadians);
       this.ballPhysics!.position.copy(this.puttingPhysics!.position);
       this.ballPhysics!.velocity.copy(this.puttingPhysics!.velocity);
       this.stateManager.setState('BALL_ROLLING');

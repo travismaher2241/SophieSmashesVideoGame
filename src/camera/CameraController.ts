@@ -103,12 +103,14 @@ export class CameraController {
 
     if (isPutting) {
       // Putting camera: behind ball, downward pitch for green screen coverage and clear ball visibility
-      const camDist = isPortrait ? 3.8 : 3.2;
-      const camHeight = isPortrait ? 1.65 : 1.40;
+      const camDist = isPortrait ? 4.8 : 4.4;
+      const camHeight = isPortrait ? 1.95 : 1.80;
       const perpAngle = aimAngleRad + Math.PI / 2;
       // Opposite side of the line from the golfer, as in the full-shot view: on
-      // her side she stood over the ball and hid it.
-      const lateralOffset = isPortrait ? 0.55 : 0.60;
+      // her side she stood over the ball and hid it. Further back than it was,
+      // because the rear-view artwork fills much more of the frame than the
+      // front-on sprite it replaced.
+      const lateralOffset = isPortrait ? 0.80 : 0.90;
 
       const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
       const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;

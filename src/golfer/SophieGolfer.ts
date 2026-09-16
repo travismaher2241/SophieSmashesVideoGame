@@ -23,6 +23,13 @@ export type GolferSwingPhase = 'REST' | 'BACKSWING' | 'TOP_HOLD' | 'DOWNSWING' |
  * `aspect` is that canvas's width over its height; `figureHeightFraction` is how
  * much of it the golfer actually fills, which is what sizes her in the world.
  */
+interface StrokeTiming {
+  backswing: number;
+  topHold: number;
+  downswing: number;
+  followThrough: number;
+}
+
 interface FrameSetSpec {
   directory: string;
   aspect: number;
@@ -33,8 +40,7 @@ const FRAME_SETS: Record<SwingStyle, FrameSetSpec> = {
   // Rear-view artwork, 556x760 and 511x760, the golfer filling ~95% of the height.
   DRIVER: { directory: '/assets/sprites/driver', aspect: 556 / 760, figureHeightFraction: 0.95 },
   IRON: { directory: '/assets/sprites/iron', aspect: 511 / 760, figureHeightFraction: 0.96 },
-  // The original front-on frames, still used for putting until it has its own art.
-  PUTT: { directory: '/assets/sprites/frames', aspect: 553 / 989, figureHeightFraction: 1 }
+  PUTT: { directory: '/assets/sprites/putter', aspect: 520 / 760, figureHeightFraction: 0.99 }
 };
 
 const FRAME_FILES = [
@@ -46,12 +52,26 @@ const FRAME_FILES = [
 ];
 
 export class SophieGolfer {
-  // Swing timings, in seconds. Back slowly, pause at the top, down quickly —
-  // the contrast is what makes five frames read as a golf swing.
-  private static readonly BACKSWING_SECONDS = 0.5;
-  private static readonly TOP_HOLD_SECONDS = 0.12;
-  private static readonly DOWNSWING_SECONDS = 0.14;
-  private static readonly FOLLOW_THROUGH_SECONDS = 0.75;
+  /**
+   * Phase lengths for a stroke, in seconds.
+   *
+   * Back slowly, pause at the top, down quickly — the contrast is what makes
+   * five frames read as a golf swing. A putt is a different motion: shorter,
+   * smoother, and with no pause to speak of.
+   */
+  private static readonly FULL_SWING_TIMING: StrokeTiming = {
+    backswing: 0.5,
+    topHold: 0.12,
+    downswing: 0.14,
+    followThrough: 0.75
+  };
+
+  private static readonly PUTT_TIMING: StrokeTiming = {
+    backswing: 0.34,
+    topHold: 0.05,
+    downswing: 0.11,
+    followThrough: 0.5
+  };
 
   /**
    * The sprite frames, by the pose they show.
@@ -88,7 +108,15 @@ export class SophieGolfer {
 
   /** Total time from the third click to the ball leaving the clubface. */
   public static readonly TIME_TO_IMPACT_SECONDS =
-    SophieGolfer.BACKSWING_SECONDS + SophieGolfer.TOP_HOLD_SECONDS + SophieGolfer.DOWNSWING_SECONDS;
+    SophieGolfer.FULL_SWING_TIMING.backswing +
+    SophieGolfer.FULL_SWING_TIMING.topHold +
+    SophieGolfer.FULL_SWING_TIMING.downswing;
+
+  /** Total time from locking the pace to the putter reaching the ball. */
+  public static readonly PUTT_TIME_TO_IMPACT_SECONDS =
+    SophieGolfer.PUTT_TIMING.backswing +
+    SophieGolfer.PUTT_TIMING.topHold +
+    SophieGolfer.PUTT_TIMING.downswing;
 
   private group: Group;
   private spriteMesh: Mesh;
@@ -98,6 +126,7 @@ export class SophieGolfer {
   private frameTextures: Texture[] = [];
   private frameSets: Map<SwingStyle, Texture[]> = new Map();
   private swingStyle: SwingStyle = 'DRIVER';
+  private timing: StrokeTiming = SophieGolfer.FULL_SWING_TIMING;
   private currentPhase: GolferSwingPhase = 'REST';
   /** Seconds elapsed in the current swing phase. */
   private phaseSeconds: number = 0;
@@ -176,6 +205,22 @@ export class SophieGolfer {
    * reaches the ball rather than at the moment of the click.
    */
   public playSwing(onImpact: () => void): void {
+    this.startStroke(onImpact, SophieGolfer.FULL_SWING_TIMING);
+  }
+
+  /**
+   * Play the putting stroke.
+   *
+   * Same four poses as a full swing but paced as a putt: shorter back, almost no
+   * pause, and a shorter finish. The ball leaves at impact, part-way through,
+   * rather than the instant the pace is locked.
+   */
+  public playPutt(onImpact: () => void): void {
+    this.startStroke(onImpact, SophieGolfer.PUTT_TIMING);
+  }
+
+  private startStroke(onImpact: () => void, timing: StrokeTiming): void {
+    this.timing = timing;
     this.currentPhase = 'BACKSWING';
     this.phaseSeconds = 0;
     this.onImpactCallback = onImpact;
@@ -185,20 +230,6 @@ export class SophieGolfer {
   /** True while a stroke is playing, so callers can wait for it to finish. */
   public isSwinging(): boolean {
     return this.currentPhase !== 'REST';
-  }
-
-  /**
-   * Strike immediately, without the wind-up.
-   *
-   * Used by putting, which has its own two-click pace meter and no backswing
-   * worth animating from the full-swing frames.
-   */
-  public strikeImpact(onImpact: () => void): void {
-    this.setFrame(SophieGolfer.FRAME.DOWNSWING_IMPACT);
-    this.currentPhase = 'FOLLOW_THROUGH';
-    this.phaseSeconds = 0;
-    this.onImpactCallback = undefined;
-    onImpact();
   }
 
   /**
@@ -307,14 +338,14 @@ export class SophieGolfer {
       case 'BACKSWING': {
         // Set at address, then the top of the backswing, so the club reads as
         // travelling back rather than teleporting there.
-        const progress = this.phaseSeconds / SophieGolfer.BACKSWING_SECONDS;
+        const progress = this.phaseSeconds / this.timing.backswing;
         this.setFrame(
           progress < SophieGolfer.BACKSWING_SETUP_FRACTION
             ? SophieGolfer.FRAME.ADDRESS_2
             : SophieGolfer.FRAME.BACKSWING_TOP
         );
 
-        if (this.phaseSeconds >= SophieGolfer.BACKSWING_SECONDS) {
+        if (this.phaseSeconds >= this.timing.backswing) {
           this.advanceTo('TOP_HOLD');
         }
         break;
@@ -323,7 +354,7 @@ export class SophieGolfer {
       case 'TOP_HOLD': {
         // A beat at the top, which is what makes the downswing feel quick.
         this.setFrame(SophieGolfer.FRAME.BACKSWING_TOP);
-        if (this.phaseSeconds >= SophieGolfer.TOP_HOLD_SECONDS) {
+        if (this.phaseSeconds >= this.timing.topHold) {
           this.advanceTo('DOWNSWING');
         }
         break;
@@ -331,7 +362,7 @@ export class SophieGolfer {
 
       case 'DOWNSWING': {
         this.setFrame(SophieGolfer.FRAME.DOWNSWING_IMPACT);
-        if (this.phaseSeconds >= SophieGolfer.DOWNSWING_SECONDS) {
+        if (this.phaseSeconds >= this.timing.downswing) {
           // Impact: the ball leaves here, at the bottom of the swing.
           const onImpact = this.onImpactCallback;
           this.onImpactCallback = undefined;
@@ -343,7 +374,7 @@ export class SophieGolfer {
 
       case 'FOLLOW_THROUGH': {
         this.setFrame(SophieGolfer.FRAME.FOLLOW_THROUGH);
-        if (this.phaseSeconds >= SophieGolfer.FOLLOW_THROUGH_SECONDS) {
+        if (this.phaseSeconds >= this.timing.followThrough) {
           this.currentPhase = 'REST';
           this.phaseSeconds = 0;
           this.idleTimer = 0;

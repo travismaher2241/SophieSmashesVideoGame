@@ -159,14 +159,45 @@ describe('the swing plays as one motion after the third click', () => {
     expect(impacts).toBe(1);
   });
 
-  it('still lets a putt strike immediately, having no backswing to play', () => {
-    const { golfer } = makeGolfer();
-    let struck = false;
+  it('plays the putting stroke too, at a putt\'s pace', () => {
+    const { golfer, camera } = makeGolfer();
+    let impactAt: number | null = null;
+    let elapsed = 0;
 
-    golfer.strikeImpact(() => {
-      struck = true;
+    golfer.playPutt(() => {
+      impactAt = elapsed;
     });
 
-    expect(struck).toBe(true);
+    // Not on the click that started it.
+    expect(impactAt).toBeNull();
+
+    while (elapsed < 5 && impactAt === null) {
+      elapsed += 1 / 60;
+      golfer.updateAnimation(1 / 60, camera);
+    }
+
+    expect(impactAt).not.toBeNull();
+    expect(impactAt!).toBeCloseTo(SophieGolfer.PUTT_TIME_TO_IMPACT_SECONDS, 1);
+    // A putt is a shorter motion than a full swing.
+    expect(impactAt!).toBeLessThan(SophieGolfer.TIME_TO_IMPACT_SECONDS);
+  });
+
+  it('runs the putt through the same poses as a swing', () => {
+    const { golfer, camera } = makeGolfer();
+    const frames: number[] = [];
+
+    golfer.playPutt(() => {});
+    for (let i = 0; i < 200 && golfer.isSwinging(); i++) {
+      const frame = currentFrame(golfer);
+      if (frames[frames.length - 1] !== frame) frames.push(frame);
+      golfer.updateAnimation(1 / 60, camera);
+    }
+
+    expect(frames).toEqual([
+      FRAME.ADDRESS_2,
+      FRAME.BACKSWING_TOP,
+      FRAME.DOWNSWING_IMPACT,
+      FRAME.FOLLOW_THROUGH
+    ]);
   });
 });
