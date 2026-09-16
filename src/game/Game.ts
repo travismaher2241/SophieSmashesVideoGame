@@ -39,10 +39,19 @@ import { PlaytestLayoutHUD } from '../ui/PlaytestLayoutHUD';
 import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
+import { buildScorecard } from './Scorecard';
 
 export interface GameHoleSource {
   holePath: string;
   holeName: string;
+  /**
+   * Par for the hole, so the scorecard can show what is still to come.
+   *
+   * The authority is the hole's own file; this is the playlist's copy, kept so
+   * the card can be drawn before those files are loaded. A test holds the two
+   * together.
+   */
+  par: number;
   /**
    * Terrain directory for this hole, overriding the course-level one.
    *
@@ -72,15 +81,15 @@ export const SOPHIE_HILLS_CONFIG: GameSource = {
     // Every hole owns its heightfield. They used to share one 778x318m field, so
     // each had to be short enough to fit beside its neighbours — which left every
     // par 4 on the course drivable from the tee.
-    { holePath: '/courses/sophie-hills/hole-01', holeName: 'Clubhouse Climb', terrainPath: '/courses/sophie-hills/hole-01' },
-    { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry', terrainPath: '/courses/sophie-hills/hole-02' },
-    { holePath: '/courses/sophie-hills/hole-03', holeName: 'Wattle Bend', terrainPath: '/courses/sophie-hills/hole-03' },
-    { holePath: '/courses/sophie-hills/hole-04', holeName: 'Long Paddock', terrainPath: '/courses/sophie-hills/hole-04' },
-    { holePath: '/courses/sophie-hills/hole-05', holeName: 'Gumtree Rise', terrainPath: '/courses/sophie-hills/hole-05' },
-    { holePath: '/courses/sophie-hills/hole-06', holeName: 'Billabong', terrainPath: '/courses/sophie-hills/hole-06' },
-    { holePath: '/courses/sophie-hills/hole-07', holeName: 'Ridge Runner', terrainPath: '/courses/sophie-hills/hole-07' },
-    { holePath: '/courses/sophie-hills/hole-08', holeName: 'Sandbelt Turn', terrainPath: '/courses/sophie-hills/hole-08' },
-    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound', terrainPath: '/courses/sophie-hills/hole-09' }
+    { holePath: '/courses/sophie-hills/hole-01', holeName: 'Clubhouse Climb', par: 4, terrainPath: '/courses/sophie-hills/hole-01' },
+    { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry', par: 3, terrainPath: '/courses/sophie-hills/hole-02' },
+    { holePath: '/courses/sophie-hills/hole-03', holeName: 'Wattle Bend', par: 4, terrainPath: '/courses/sophie-hills/hole-03' },
+    { holePath: '/courses/sophie-hills/hole-04', holeName: 'Long Paddock', par: 4, terrainPath: '/courses/sophie-hills/hole-04' },
+    { holePath: '/courses/sophie-hills/hole-05', holeName: 'Gumtree Rise', par: 3, terrainPath: '/courses/sophie-hills/hole-05' },
+    { holePath: '/courses/sophie-hills/hole-06', holeName: 'Billabong', par: 4, terrainPath: '/courses/sophie-hills/hole-06' },
+    { holePath: '/courses/sophie-hills/hole-07', holeName: 'Ridge Runner', par: 4, terrainPath: '/courses/sophie-hills/hole-07' },
+    { holePath: '/courses/sophie-hills/hole-08', holeName: 'Sandbelt Turn', par: 4, terrainPath: '/courses/sophie-hills/hole-08' },
+    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound', par: 5, terrainPath: '/courses/sophie-hills/hole-09' }
   ]
 };
 
@@ -90,7 +99,7 @@ export const WARRAGUL_RESEARCH_CONFIG: GameSource = {
   courseSubtitle: 'Hole 6 Alignment & GIS Study',
   totalPar: 4,
   holes: [
-    { holePath: '/courses/warragul/hole-06', holeName: 'Hole 6 (Provisional)' }
+    { holePath: '/courses/warragul/hole-06', holeName: 'Hole 6 (Provisional)', par: 4 }
   ],
   isResearchMode: true
 };
@@ -202,7 +211,7 @@ export class Game {
             courseName: 'Warragul Country Club (Research Mode)',
             courseSubtitle: 'Playtest Layout',
             totalPar: 4,
-            holes: [{ holePath: source, holeName: 'Playtest Layout' }],
+            holes: [{ holePath: source, holeName: 'Playtest Layout', par: 4 }],
             isResearchMode: true
           }
         : (source ?? SOPHIE_HILLS_CONFIG);
@@ -1344,6 +1353,17 @@ export class Game {
       const isFinalHole = this.holeIndex === (this.source?.holes.length ?? 1) - 1;
       this.gameHUD?.configureCompletionAction(isFinalHole ? '↻ PLAY COURSE AGAIN' : 'NEXT HOLE →');
     }
+
+    // The card for the round so far, including the holes still to play.
+    this.gameHUD?.showScorecard(
+      this.isPracticeMode || !this.source
+        ? null
+        : buildScorecard(
+            this.source.holes.map((hole) => hole.par),
+            this.completedHoleScores,
+            this.holeIndex
+          )
+    );
 
     const completedScores = this.completedHoleScores.filter(Boolean);
     const courseProgress = this.isPracticeMode ? undefined : {

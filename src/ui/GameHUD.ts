@@ -1,4 +1,5 @@
 import { describeShotResult, ShotShape } from '../golf/ShotShape';
+import { Scorecard } from '../game/Scorecard';
 import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
@@ -55,6 +56,8 @@ export class GameHUD {
   private celebrationCourseElem!: HTMLElement;
   private celebrationActionBtn!: HTMLButtonElement;
   private celebrationProgressElem!: HTMLElement;
+  private celebrationCardElem!: HTMLElement;
+  private celebrationCardBody!: HTMLElement;
   private penaltyBanner!: HTMLElement;
   private flightElem!: HTMLElement;
   private flightValueElem!: HTMLElement;
@@ -399,6 +402,50 @@ export class GameHUD {
     } else {
       this.swingButtonElem.textContent = `${distRemaining.toFixed(1)}m REMAINING`;
     }
+  }
+
+  /**
+   * Draw the card for the round so far.
+   *
+   * Every hole, not only the ones played: a card you can read forwards tells you
+   * what is still coming, which is half of why anyone looks at one.
+   */
+  public showScorecard(card: Scorecard | null): void {
+    if (!this.celebrationCardElem) return;
+
+    if (!card || card.holes.length < 2) {
+      this.celebrationCardElem.style.display = 'none';
+      return;
+    }
+
+    // The total strokes sit under the par for the whole course, so a round in
+    // progress reads as "24 against 35" unless the running score against par is
+    // there beside it — which is the number a golfer actually wants.
+    const relativeClass = card.relativeToPar < 0 ? 'is-under' : card.relativeToPar > 0 ? 'is-over' : 'is-level';
+
+    const holeCells = card.holes
+      .map((hole) => `<th${hole.isCurrent ? ' class="is-current"' : ''}>${hole.number}</th>`)
+      .join('');
+    const parCells = card.holes.map((hole) => `<th>${hole.par}</th>`).join('');
+    const scoreCells = card.holes
+      .map((hole) => {
+        const classes = `score-${hole.result}${hole.isCurrent ? ' is-current' : ''}`;
+        return `<td class="${classes}">${hole.strokes ?? '·'}</td>`;
+      })
+      .join('');
+
+    this.celebrationCardBody.innerHTML = `
+      <tr><td class="card-label">HOLE</td>${holeCells}<th class="card-total">TOT</th></tr>
+      <tr><td class="card-label">PAR</td>${parCells}<th class="card-total">${card.parTotal}</th></tr>
+      <tr>
+        <td class="card-label">SCORE</td>${scoreCells}
+        <td class="card-total">
+          ${card.holesPlayed > 0 ? card.strokesPlayed : '·'}
+          ${card.holesPlayed > 0 ? `<span class="card-total-rel ${relativeClass}">${card.relativeLabel}</span>` : ''}
+        </td>
+      </tr>
+    `;
+    this.celebrationCardElem.style.display = 'block';
   }
 
   public showCelebration(
@@ -1236,7 +1283,11 @@ export class GameHUD {
         <div id="celeb-score" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 auto 16px;">
           <div><span>PAR</span><strong>4</strong></div><div><span>SCORE</span><strong>4</strong></div><div><span>TO PAR</span><strong>E</strong></div>
         </div>
-        <p id="celeb-course" style="font-size: 11px; color: #aaffaa; margin-bottom: 22px;">Warragul Country Club · Hole 6 · Par 4</p>
+        <div id="celeb-card" style="display:none;">
+          <div class="celeb-card-title">SCORECARD</div>
+          <table id="celeb-card-table"><tbody></tbody></table>
+        </div>
+        <p id="celeb-course" style="font-size: 11px; color: #aaffaa; margin: 14px 0 18px;">Warragul Country Club · Hole 6 · Par 4</p>
         <p id="celeb-progress" style="display:none; color:#ffe66d; font-size:11px;"></p>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1244,6 +1295,43 @@ export class GameHUD {
           <button id="btn-celeb-title" style="background:#18331a; border:2px solid #77aa77; color:#ddffdd; font-family:inherit; font-weight:bold;">⌂ MAIN MENU</button>
         </div>
         <style>
+          .celeb-card-title {
+            color: #8ee89b; font-size: 9px; letter-spacing: 3px; margin-bottom: 5px;
+          }
+          #celeb-card-table {
+            width: 100%; border-collapse: collapse; font-family: inherit;
+            font-variant-numeric: tabular-nums;
+          }
+          #celeb-card-table th, #celeb-card-table td {
+            border: 1px solid #2f6b3a; padding: 3px 0; text-align: center; width: 10%;
+          }
+          #celeb-card-table th {
+            color: #8fbe97; font-size: 9px; font-weight: 700;
+          }
+          #celeb-card-table td { font-size: 13px; font-weight: 800; color: #dff5e2; }
+          #celeb-card-table .card-label {
+            color: #8fbe97; font-size: 9px; font-weight: 700; width: 12%; text-align: right;
+            padding-right: 5px; border: 0;
+          }
+          #celeb-card-table .card-total {
+            background: #0b2410; color: #fff07a; line-height: 1.1;
+          }
+          #celeb-card-table .card-total-rel {
+            display: block; font-size: 9px; font-weight: 700;
+          }
+          #celeb-card-table .is-under { color: #8bff8b; }
+          #celeb-card-table .is-level { color: #dff5e2; }
+          #celeb-card-table .is-over { color: #ffb36b; }
+          /* Scored against par rather than in the abstract: the eye should find
+             the birdies and the blow-ups without reading every number. */
+          #celeb-card-table .score-EAGLE_OR_BETTER { color: #7df5ff; }
+          #celeb-card-table .score-BIRDIE { color: #8bff8b; }
+          #celeb-card-table .score-PAR { color: #ffffff; }
+          #celeb-card-table .score-BOGEY { color: #ffe066; }
+          #celeb-card-table .score-WORSE { color: #ff8a6b; }
+          #celeb-card-table .score-UNPLAYED { color: #46704e; }
+          #celeb-card-table .is-current { outline: 2px solid #55ff55; outline-offset: -2px; }
+
           #celeb-score > div { border: 1px solid #4c9b59; background: #091d0d; padding: 8px; }
           #celeb-score span { display: block; color: #8fbe97; font-size: 9px; }
           #celeb-score strong { display: block; color: #fff07a; font-size: 22px; margin-top: 2px; }
@@ -1255,6 +1343,8 @@ export class GameHUD {
     this.celebrationScoreElem = this.celebrationModal.querySelector('#celeb-score')!;
     this.celebrationCourseElem = this.celebrationModal.querySelector('#celeb-course')!;
     this.celebrationProgressElem = this.celebrationModal.querySelector('#celeb-progress')!;
+    this.celebrationCardElem = this.celebrationModal.querySelector('#celeb-card')!;
+    this.celebrationCardBody = this.celebrationModal.querySelector('#celeb-card-table tbody')!;
     this.celebrationActionBtn = this.celebrationModal.querySelector('#btn-celeb-play-again')!;
 
     this.celebrationModal.querySelector('#btn-celeb-play-again')?.addEventListener('click', () => {
