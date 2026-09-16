@@ -16,6 +16,11 @@
     "y": 0,
     "z": 375
   },
+  "drivingLine": {
+    "x": 144,
+    "y": 0,
+    "z": 240
+  },
   "surfaces": [
     {
       "id": "hole-01-corridor",

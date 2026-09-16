@@ -142,7 +142,13 @@ describe('Sophie Hills hole 1', () => {
 
   it('plays on its own heightfield rather than the shared course terrain', () => {
     expect(Game.resolveTerrainPath(SOPHIE_HILLS_CONFIG, 0)).toBe('/courses/sophie-hills/hole-01');
-    expect(Game.resolveTerrainPath(SOPHIE_HILLS_CONFIG, 1)).toBe('/courses/sophie-hills');
+
+    // A hole without its own terrain still falls back to the course-wide field.
+    const fallback = {
+      ...SOPHIE_HILLS_CONFIG,
+      holes: [{ holePath: '/courses/sophie-hills/hole-01', holeName: 'Shared' }]
+    };
+    expect(Game.resolveTerrainPath(fallback, 0)).toBe('/courses/sophie-hills');
 
     // The shared field is too short to hold a 337 m hole, which is why this one
     // carries its own.

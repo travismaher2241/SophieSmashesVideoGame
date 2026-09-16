@@ -658,6 +658,8 @@ function buildHole() {
     status: 'fictional-gameplay-course',
     tee: { x: TEE.x, y: 0, z: TEE.z },
     greenCentre: { x: GREEN_CENTRE.x, y: 0, z: GREEN_CENTRE.z },
+    // The hole bends left 200m out; that corner is the tee-shot target.
+    drivingLine: { x: BEND.x, y: 0, z: BEND.z },
     surfaces,
     trees,
     features: [],

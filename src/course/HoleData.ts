@@ -34,6 +34,14 @@ export interface HoleConfig {
   status: string;
   tee: Vector3Data | null;
   greenCentre: Vector3Data | null;
+  /**
+   * Where the tee shot should be aimed, when that is not simply at the green.
+   *
+   * On a dogleg the green sits around a corner, so aiming at it sends a good
+   * drive across the bend and into the trees. Holes that bend name the point on
+   * the fairway to play to instead; straight holes omit it.
+   */
+  drivingLine?: Vector3Data;
   surfaces: SurfacePolygon[];
   trees?: HoleTree[];
   features?: unknown[];
@@ -58,6 +66,13 @@ export class HoleData {
     const surfaces = data.surfaces ?? [];
     HoleData.validateSurfaces(surfaces, data, holeUrl);
     HoleData.validateTrees(data.trees, data, holeUrl);
+
+    if (data.drivingLine && (!Number.isFinite(data.drivingLine.x) || !Number.isFinite(data.drivingLine.z))) {
+      throw new Error(
+        `Invalid course data for ${data.courseId}/${data.holeId} (${holeUrl}): ` +
+        `drivingLine has non-finite coordinates (x=${data.drivingLine.x}, z=${data.drivingLine.z}).`
+      );
+    }
 
     return { ...data, surfaces };
   }

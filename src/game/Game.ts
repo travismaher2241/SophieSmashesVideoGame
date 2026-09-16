@@ -67,21 +67,18 @@ export const SOPHIE_HILLS_CONFIG: GameSource = {
   courseSubtitle: 'Front Nine',
   totalPar: 35,
   holes: [
-    // Hole 1 is authored at true scale on its own heightfield; the rest still share
-    // the course-wide field until they are rebuilt the same way.
-    {
-      holePath: '/courses/sophie-hills/hole-01',
-      holeName: 'Clubhouse Climb',
-      terrainPath: '/courses/sophie-hills/hole-01'
-    },
-    { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry' },
-    { holePath: '/courses/sophie-hills/hole-03', holeName: 'Wattle Bend' },
-    { holePath: '/courses/sophie-hills/hole-04', holeName: 'Long Paddock' },
-    { holePath: '/courses/sophie-hills/hole-05', holeName: 'Gumtree Rise' },
-    { holePath: '/courses/sophie-hills/hole-06', holeName: 'Billabong' },
-    { holePath: '/courses/sophie-hills/hole-07', holeName: 'Ridge Runner' },
-    { holePath: '/courses/sophie-hills/hole-08', holeName: 'Sandbelt Turn' },
-    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound' }
+    // Every hole owns its heightfield. They used to share one 778x318m field, so
+    // each had to be short enough to fit beside its neighbours — which left every
+    // par 4 on the course drivable from the tee.
+    { holePath: '/courses/sophie-hills/hole-01', holeName: 'Clubhouse Climb', terrainPath: '/courses/sophie-hills/hole-01' },
+    { holePath: '/courses/sophie-hills/hole-02', holeName: 'Creekside Carry', terrainPath: '/courses/sophie-hills/hole-02' },
+    { holePath: '/courses/sophie-hills/hole-03', holeName: 'Wattle Bend', terrainPath: '/courses/sophie-hills/hole-03' },
+    { holePath: '/courses/sophie-hills/hole-04', holeName: 'Long Paddock', terrainPath: '/courses/sophie-hills/hole-04' },
+    { holePath: '/courses/sophie-hills/hole-05', holeName: 'Gumtree Rise', terrainPath: '/courses/sophie-hills/hole-05' },
+    { holePath: '/courses/sophie-hills/hole-06', holeName: 'Billabong', terrainPath: '/courses/sophie-hills/hole-06' },
+    { holePath: '/courses/sophie-hills/hole-07', holeName: 'Ridge Runner', terrainPath: '/courses/sophie-hills/hole-07' },
+    { holePath: '/courses/sophie-hills/hole-08', holeName: 'Sandbelt Turn', terrainPath: '/courses/sophie-hills/hole-08' },
+    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound', terrainPath: '/courses/sophie-hills/hole-09' }
   ]
 };
 
@@ -467,13 +464,16 @@ export class Game {
     this.shotOrigin = { x: layout.tee.x, z: layout.tee.z };
     this.ballPhysics!.setPosition(layout.tee.x, layout.tee.z);
 
-    // Aim angle pointing from Tee directly to Hole
-    const dx = layout.hole.x - layout.tee.x;
-    const dz = layout.hole.z - layout.tee.z;
+    // Opening aim: down the fairway on a hole that bends, otherwise at the green.
+    // Aiming at the green from the tee of a dogleg points across the corner.
+    const aimTarget = this.holeConfig?.drivingLine ?? layout.hole;
+    const dx = aimTarget.x - layout.tee.x;
+    const dz = aimTarget.z - layout.tee.z;
     this.aimAngleRadians = Math.atan2(dz, dx);
 
-    // Auto-select club for distance
-    const distToCup = Math.hypot(dx, dz);
+    // Club is chosen for the distance to the pin, not to the aim point: on a
+    // dogleg those differ, and you still play a driver at the corner.
+    const distToCup = Math.hypot(layout.hole.x - layout.tee.x, layout.hole.z - layout.tee.z);
     const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(distToCup, isOnGreen);
     const club = this.clubManager.getCurrentClub();
