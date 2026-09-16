@@ -10,6 +10,7 @@ import {
   WebGLRenderer,
   WebGLRenderTarget
 } from 'three';
+import { applyViewportAspect } from '../camera/FieldOfView';
 
 export interface RetroRendererConfig {
   targetWidth: number;  // Default: 426
@@ -141,10 +142,7 @@ export class RetroRenderer {
         this.initRenderTarget();
       }
 
-      if (camera.aspect !== aspect) {
-        camera.aspect = aspect;
-        camera.updateProjectionMatrix();
-      }
+      applyViewportAspect(camera, aspect);
 
       if (this.renderTarget) {
         // Pass 1: Render 3D scene to low-res render target

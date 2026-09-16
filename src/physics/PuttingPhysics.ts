@@ -18,6 +18,19 @@ export const GREEN_SPEEDS: Record<GreenSpeedMode, GreenSpeedConfig> = {
 
 export type PuttingState = 'REST' | 'ROLLING' | 'HOLED';
 
+/** Regulation cup: 108mm across. */
+export const CUP_RADIUS_METRES = 0.054;
+
+/**
+ * How close the ball's centre has to come for the cup to take it.
+ *
+ * A little wider than the cup itself, because a ball only has to get its centre
+ * over the edge to fall in. This is the number the drawn hole must match: if the
+ * black is wider than this, balls roll over the hole without dropping and the
+ * picture is lying about where the target is.
+ */
+export const CUP_CAPTURE_RADIUS_METRES = CUP_RADIUS_METRES + 0.02135 * 0.45;
+
 export class PuttingPhysics {
   public position: Vector3 = new Vector3();
   public velocity: Vector3 = new Vector3();
@@ -30,7 +43,7 @@ export class PuttingPhysics {
 
   // Real physical constants
   public readonly ballRadius: number = 0.02135; // Standard golf ball radius (metres)
-  public readonly cupRadius: number = 0.054;     // Standard 108mm diameter golf cup (metres)
+  public readonly cupRadius: number = CUP_RADIUS_METRES;
   private readonly gravity: number = 9.81;
 
   private rollDuration: number = 0;
@@ -148,8 +161,7 @@ export class PuttingPhysics {
     const distToCup = Math.hypot(dx, dz);
     const currentSpeed = Math.hypot(this.velocity.x, this.velocity.z);
 
-    // Capture radius = cup radius (0.054m) + partial ball overlap
-    const captureRadius = this.cupRadius + this.ballRadius * 0.45;
+    const captureRadius = CUP_CAPTURE_RADIUS_METRES;
 
     if (distToCup <= captureRadius) {
       if (this.wasLipOut) {

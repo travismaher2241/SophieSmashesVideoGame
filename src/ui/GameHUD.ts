@@ -530,7 +530,7 @@ export class GameHUD {
         <div class="hud-capsule hud-shot-info">
           <span id="hud-stroke" class="hud-highlight">STROKE 1</span>
           <span id="hud-dist" class="hud-accent">234.0 m TO PIN</span>
-          <span id="hud-wind" class="hud-hide-mobile">WIND CALM</span>
+          <span id="hud-wind">WIND CALM</span>
           <span id="hud-lie">LIE <strong style="color: #68d391;">TEE (100%)</strong></span>
         </div>
 
@@ -760,10 +760,8 @@ export class GameHUD {
         .hud-swing-btn:active { transform: scale(0.97); }
 
         @media (max-width: 768px) {
-          .hud-topbar { flex-wrap: wrap; gap: 4px; }
           .hud-shot-info { font-size: 10px; gap: 6px; }
           #hud-subtitle { display: none; }
-          .hud-hide-mobile { display: none; }
           .hud-bottombar {
             grid-template-columns: 1.1fr 0.65fr 0.9fr 0.9fr;
             gap: 4px;
@@ -776,18 +774,66 @@ export class GameHUD {
           .hud-swing-btn { font-size: 12px; padding: 7px 6px; }
         }
 
-        @media (max-width: 380px) {
+        /*
+         * Phone-shaped screens.
+         *
+         * Four controls abreast is a desktop toolbar. At 400px each one gets
+         * about 90px, which truncates the club to "230m car..." and leaves the
+         * swing button lying across the shape control. So the row becomes two:
+         * the settings you adjust along the top, and the button you actually
+         * press across the bottom, where a thumb reaches it.
+         *
+         * The top bar splits the same way rather than wrapping by accident —
+         * name and menu on one line, the shot's numbers on their own line under
+         * it, wind included. Wind used to be dropped on small screens, which was
+         * fair enough when it did nothing and is not now.
+         */
+        @media (max-width: 560px) {
+          .hud-topbar { flex-wrap: wrap; gap: 4px; }
+          .hud-main-info { order: 1; flex: 1 1 auto; min-width: 0; }
+          .hud-nav-actions { order: 2; flex: 0 0 auto; }
+          .hud-shot-info {
+            order: 3;
+            flex: 1 0 100%;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 2px 8px;
+          }
+          /* Each reading stays whole: a wind that needs two lines takes two
+             lines, rather than breaking across "336.3 m TO / PIN". */
+          .hud-shot-info > span { white-space: nowrap; }
+          #hud-title { font-size: 11px; }
+
           .hud-bottombar {
-            /* Narrow screens: club and aim on top, shape and swing beneath. */
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 3px;
+            grid-template-columns: 1.25fr 0.7fr 1fr;
+            grid-template-areas:
+              "club aim shape"
+              "swing swing swing";
+            gap: 5px;
+            max-width: none;
           }
+          #hud-club-capsule { grid-area: club; }
+          .hud-aim-controls { grid-area: aim; }
+          #hud-shape-capsule { grid-area: shape; }
+          #btn-trigger-swing { grid-area: swing; }
+
           .hud-bottombar.putting-layout {
-            grid-template-columns: 1fr 1.1fr;
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "aim"
+              "swing";
           }
-          .hud-ctrl-btn { padding: 4px 6px; font-size: 11px; }
-          #hud-club-name { font-size: 9.5px; }
-          .hud-swing-btn { font-size: 11px; padding: 6px 4px; }
+
+          .hud-ctrl-btn { padding: 6px 8px; font-size: 12px; }
+          #hud-club-name { font-size: 10px; }
+          #hud-club-detail { font-size: 8px; }
+          /* The one control that is pressed every shot, sized to be pressed. */
+          .hud-swing-btn { font-size: 14px; padding: 11px 6px; }
+        }
+
+        @media (max-width: 360px) {
+          .hud-shot-info { font-size: 9px; }
+          #hud-club-detail { display: none; }
         }
       </style>
     `;

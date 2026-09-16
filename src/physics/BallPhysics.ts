@@ -5,6 +5,7 @@ import { ClubConfig } from '../golf/Club';
 import { SwingResult } from '../golf/SwingMeter';
 import { CALM, Wind, windVector } from '../golf/Wind';
 import { TreeObstacle } from '../course/TreeShapes';
+import { CUP_CAPTURE_RADIUS_METRES } from './PuttingPhysics';
 import { findTreeHit, TreeHit } from './TreeCollision';
 
 export type BallState = 'REST' | 'AIRBORNE' | 'BOUNCING' | 'ROLLING' | 'HOLED';
@@ -237,7 +238,15 @@ export class BallPhysics {
 
       const speed = this.velocity.length();
 
-      if (distToCup < 0.55 && speed < 3.2 && this.position.y <= cupPosition.y + 0.4) {
+      // The same hole the putting model uses, and the same one that is drawn.
+      // This used to take anything within 55cm — eight cup widths — so a chip
+      // that finished a foot away was announced as holed. The drawn cup and the
+      // played cup have to be one thing, from off the green as much as on it.
+      if (
+        distToCup < CUP_CAPTURE_RADIUS_METRES &&
+        speed < 3.2 &&
+        this.position.y <= cupPosition.y + 0.4
+      ) {
         this.position.set(cupPosition.x, cupPosition.y + this.ballRadius, cupPosition.z);
         this.velocity.set(0, 0, 0);
         this.state = 'HOLED';

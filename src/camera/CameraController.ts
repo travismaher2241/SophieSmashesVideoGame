@@ -1,4 +1,5 @@
 import { PerspectiveCamera, Vector3 } from 'three';
+import { applyViewportAspect, verticalFovForAspect } from './FieldOfView';
 import { TerrainData } from '../course/TerrainData';
 import { TerrainQuery } from '../course/TerrainQuery';
 
@@ -35,12 +36,8 @@ export class CameraController {
     this.terrainData = terrainData;
     this.terrainQuery = terrainQuery;
 
-    this.camera = new PerspectiveCamera(
-      52,
-      window.innerWidth / window.innerHeight,
-      0.2,
-      3000
-    );
+    const aspect = window.innerWidth / window.innerHeight;
+    this.camera = new PerspectiveCamera(verticalFovForAspect(aspect), aspect, 0.2, 3000);
 
     this.setupEvents();
     this.setMode('GOLF');
@@ -103,8 +100,15 @@ export class CameraController {
 
     if (isPutting) {
       // Putting camera: behind ball, downward pitch for green screen coverage and clear ball visibility
-      const camDist = isPortrait ? 4.8 : 4.4;
-      const camHeight = isPortrait ? 1.95 : 1.80;
+      // Higher than eye level, looking down onto the green.
+      //
+      // From shoulder height the view grazes the surface and a regulation cup
+      // foreshortens to a three-pixel dash — which is why it used to be drawn
+      // enlarged, and why a ball could cross the drawn hole and stay out. Raising
+      // the camera turns the cup back into a circle you can see, without the
+      // drawing having to lie about how big it is.
+      const camDist = isPortrait ? 4.6 : 4.4;
+      const camHeight = isPortrait ? 3.10 : 2.60;
       const perpAngle = aimAngleRad + Math.PI / 2;
       // Opposite side of the line from the golfer, as in the full-shot view: on
       // her side she stood over the ball and hid it. Further back than it was,
@@ -120,7 +124,7 @@ export class CameraController {
       this.camera.position.set(camX, camY, camZ);
 
       // Pitch look-at downward into the green surface between ball and cup
-      const lookAheadDist = isPortrait ? 6.5 : 8.0;
+      const lookAheadDist = isPortrait ? 5.0 : 6.0;
       const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
       const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
       const lookY = ballPos.y + 0.15; // Balanced pitch
@@ -135,8 +139,14 @@ export class CameraController {
     // Offset across the line from where she stands, so she frames the shot from
     // one side rather than standing in the middle of it. Close enough to read
     // the swing now that the artwork is drawn from behind.
-    const camDist = isPortrait ? 6.4 : 5.5;
-    const camHeight = isPortrait ? 1.90 : 1.70;
+    // On a phone the camera stands back and higher, looking down the hole rather
+    // than along it. A portrait window is tall and narrow: from shoulder height
+    // the corridor arrives as a thin band with dead sky above it, and the part
+    // of the hole the player is actually aiming at is a few pixels deep. From
+    // further back and higher the fairway spreads across the frame, and the
+    // golfer is still near enough to read the swing.
+    const camDist = isPortrait ? 8.5 : 5.5;
+    const camHeight = isPortrait ? 3.60 : 1.70;
     const perpAngle = aimAngleRad + Math.PI / 2;
     const lateralOffset = isPortrait ? 0.80 : 1.00;
 
@@ -148,10 +158,13 @@ export class CameraController {
 
     this.camera.position.set(camX, camY, camZ);
 
-    const lookAheadDist = 55;
+    // Aiming point for the view. In portrait it is nearer and at ground level,
+    // which pitches the camera down and lifts the horizon up the screen; on a
+    // wide screen the near-level look down the hole is right as it is.
+    const lookAheadDist = isPortrait ? 34 : 55;
     const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
     const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
-    const lookY = ballPos.y + 1.15;
+    const lookY = ballPos.y + (isPortrait ? 0.10 : 1.15);
 
     this.target.set(lookX, lookY, lookZ);
     this.camera.lookAt(this.target);
@@ -252,8 +265,7 @@ export class CameraController {
 
   private setupEvents(): void {
     window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
+      applyViewportAspect(this.camera, window.innerWidth / window.innerHeight);
     });
 
     this.domElement.addEventListener('pointerdown', (e) => {
