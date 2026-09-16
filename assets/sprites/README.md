@@ -15,7 +15,18 @@ node tools/sprites/slice-swing-sheet.mjs assets/sprites/driver-swing-sheet.png \
 
 node tools/sprites/slice-swing-sheet.mjs assets/sprites/iron-swing-sheet.png \
   public/assets/sprites/iron --map=1,2,3,4,5 --max-height=760
+
+node tools/sprites/slice-swing-sheet.mjs assets/sprites/putter-swing-sheet.png \
+  public/assets/sprites/putter --map=1,2,3,4,5 --max-height=760
 ```
+
+After re-slicing a sheet, check its output size against the `aspect` recorded
+for that set in `SophieGolfer.ts`. The sets are drawn on differently shaped
+canvases and the plane is scaled to match, so a new sheet with different
+proportions needs that number updated or the golfer comes out stretched.
+
+The artwork must not include a ball. The game draws its own, and a painted one
+sits on the tee through the follow-through while the real ball is in the air.
 
 `--map` lists which grid cell feeds each frame, in the order the game wants
 them: address 1, address 2, backswing top, downswing impact, follow through.
