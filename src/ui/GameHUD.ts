@@ -56,6 +56,10 @@ export class GameHUD {
   private celebrationActionBtn!: HTMLButtonElement;
   private celebrationProgressElem!: HTMLElement;
   private penaltyBanner!: HTMLElement;
+  private flightElem!: HTMLElement;
+  private flightValueElem!: HTMLElement;
+  private flightDetailElem!: HTMLElement;
+  private flightHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   private meterPowerBar!: HTMLElement;
   private meterAccMarker!: HTMLElement;
@@ -428,6 +432,55 @@ export class GameHUD {
     this.celebrationActionBtn.textContent = label;
   }
 
+  /**
+   * How far the shot has gone, updated as it goes.
+   *
+   * `carryMetres` is null until the ball pitches, because until then the distance
+   * on screen IS the carry. Once it lands the big number keeps counting with the
+   * roll and the carry is held beside it, so both are there at the end.
+   */
+  public updateFlightDistance(travelledMetres: number, carryMetres: number | null): void {
+    if (!this.flightElem) return;
+
+    if (this.flightHideTimer !== null) {
+      clearTimeout(this.flightHideTimer);
+      this.flightHideTimer = null;
+    }
+
+    this.flightElem.classList.add('is-visible');
+    this.flightValueElem.textContent = String(Math.round(travelledMetres));
+    this.flightDetailElem.textContent = carryMetres === null
+      ? 'CARRY'
+      : `CARRY ${Math.round(carryMetres)} m`;
+  }
+
+  /**
+   * Leave the finished number up for a moment before clearing it.
+   *
+   * The distance the shot went is the thing the player wants to read once it has
+   * stopped, and clearing it the instant the ball settles is the one moment it
+   * is no longer moving enough to read.
+   */
+  public settleFlightDistance(holdSeconds = 3.5): void {
+    if (!this.flightElem || !this.flightElem.classList.contains('is-visible')) return;
+
+    if (this.flightHideTimer !== null) clearTimeout(this.flightHideTimer);
+    this.flightHideTimer = setTimeout(() => {
+      this.flightElem.classList.remove('is-visible');
+      this.flightHideTimer = null;
+    }, holdSeconds * 1000);
+  }
+
+  public hideFlightDistance(): void {
+    if (!this.flightElem) return;
+
+    if (this.flightHideTimer !== null) {
+      clearTimeout(this.flightHideTimer);
+      this.flightHideTimer = null;
+    }
+    this.flightElem.classList.remove('is-visible');
+  }
+
   public showPenalty(headline: string, detail: string): void {
     this.showBanner(headline, detail, 'PENALTY');
   }
@@ -448,7 +501,7 @@ export class GameHUD {
 
     this.penaltyBanner.innerHTML = `<strong>${headline}</strong><div>${detail}</div>`;
     this.penaltyBanner.style.display = 'block';
-    window.setTimeout(() => { this.penaltyBanner.style.display = 'none'; }, 4000);
+    setTimeout(() => { this.penaltyBanner.style.display = 'none'; }, 4000);
   }
 
   public hideCelebration(): void {
@@ -464,21 +517,17 @@ export class GameHUD {
     this.container.style.pointerEvents = 'none';
     this.container.style.zIndex = '30';
 
-    this.swingMeterContainer.style.position = 'absolute';
-    this.swingMeterContainer.style.bottom = '68px';
-    this.swingMeterContainer.style.left = '50%';
-    this.swingMeterContainer.style.transform = 'translateX(-50%)';
-    this.swingMeterContainer.style.zIndex = '40';
-    this.swingMeterContainer.style.pointerEvents = 'auto';
-    this.swingMeterContainer.style.display = 'none';
-
-    this.puttMeterContainer.style.position = 'absolute';
-    this.puttMeterContainer.style.bottom = '68px';
-    this.puttMeterContainer.style.left = '50%';
-    this.puttMeterContainer.style.transform = 'translateX(-50%)';
-    this.puttMeterContainer.style.zIndex = '40';
-    this.puttMeterContainer.style.pointerEvents = 'auto';
-    this.puttMeterContainer.style.display = 'none';
+    // Everything but how far up the screen they sit, which is a stylesheet rule
+    // so it can move with the bottom bar on a narrow screen. Set inline it would
+    // outrank the media query and the meter would sit behind the controls.
+    for (const meter of [this.swingMeterContainer, this.puttMeterContainer]) {
+      meter.style.position = 'absolute';
+      meter.style.left = '50%';
+      meter.style.transform = 'translateX(-50%)';
+      meter.style.zIndex = '40';
+      meter.style.pointerEvents = 'auto';
+      meter.style.display = 'none';
+    }
 
     this.celebrationModal.style.display = 'none';
     this.celebrationModal.style.position = 'absolute';
@@ -492,7 +541,10 @@ export class GameHUD {
     this.celebrationModal.style.zIndex = '100';
 
     Object.assign(this.penaltyBanner.style, {
-      display: 'none', position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)',
+      // Below the top bar and the flight readout, both of which are taller on a
+      // phone than they are on a desktop.
+      display: 'none', position: 'absolute', top: '128px', left: '50%', transform: 'translateX(-50%)',
+      maxWidth: 'calc(100% - 24px)',
       background: 'rgba(48, 20, 6, 0.94)', border: '2px solid #ffaa33', color: '#ffe8bb',
       padding: '8px 18px', textAlign: 'center', fontFamily: "'Courier New', monospace", zIndex: '70',
       borderRadius: '8px'
@@ -538,6 +590,12 @@ export class GameHUD {
           <button id="btn-hud-cam" class="hud-btn">VIEW</button>
           <button id="btn-hud-replay" class="hud-btn" style="color: #fbd38d;">MENU</button>
         </div>
+      </div>
+
+      <!-- Live distance while the ball is in the air -->
+      <div class="hud-capsule hud-flight" id="hud-flight">
+        <span id="hud-flight-value">0</span><span class="hud-flight-unit">m</span>
+        <span id="hud-flight-detail">CARRY</span>
       </div>
 
       <!-- Bottom Responsive Bar -->
@@ -759,6 +817,52 @@ export class GameHUD {
         .hud-swing-btn:hover { background: linear-gradient(180deg, #68d391, #38a169); }
         .hud-swing-btn:active { transform: scale(0.97); }
 
+        /*
+         * The shot, as it happens.
+         *
+         * Watching a ball fly with no number on it, you cannot tell 190 from 240
+         * until it lands and the readout jumps to whatever is left to the pin.
+         * This counts up with the ball, freezes on the carry when it pitches,
+         * then settles on the total once it stops rolling.
+         */
+        /* Clear of the bottom bar, which is one row on a desktop and two on a
+           phone. */
+        #sophie-swing-meter, #sophie-putt-meter { bottom: 68px; }
+
+        .hud-flight {
+          position: absolute;
+          top: 78px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: none;
+          align-items: baseline;
+          gap: 4px;
+          padding: 5px 14px;
+          font-variant-numeric: tabular-nums;
+          z-index: 36;
+        }
+        .hud-flight.is-visible { display: flex; }
+        #hud-flight-value {
+          font-size: 26px;
+          font-weight: 900;
+          color: #f6e05e;
+          letter-spacing: 1px;
+          line-height: 1;
+        }
+        .hud-flight-unit {
+          font-size: 13px;
+          font-weight: 700;
+          color: #f6e05e;
+          opacity: 0.8;
+        }
+        #hud-flight-detail {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 1.5px;
+          color: #a0d8b3;
+          margin-left: 6px;
+        }
+
         @media (max-width: 768px) {
           .hud-shot-info { font-size: 10px; gap: 6px; }
           #hud-subtitle { display: none; }
@@ -789,6 +893,12 @@ export class GameHUD {
          * fair enough when it did nothing and is not now.
          */
         @media (max-width: 560px) {
+          #sophie-swing-meter, #sophie-putt-meter { bottom: 108px; }
+
+          /* Clear of the two-line top bar. */
+          .hud-flight { top: 96px; }
+          #hud-flight-value { font-size: 22px; }
+
           .hud-topbar { flex-wrap: wrap; gap: 4px; }
           .hud-main-info { order: 1; flex: 1 1 auto; min-width: 0; }
           .hud-nav-actions { order: 2; flex: 0 0 auto; }
@@ -851,6 +961,9 @@ export class GameHUD {
     this.headerSubtitleElem = this.container.querySelector('#hud-subtitle')!;
     this.swingButtonElem = this.container.querySelector('#btn-trigger-swing')!;
     this.bottomBarElem = this.container.querySelector('#hud-bottombar-container')!;
+    this.flightElem = this.container.querySelector('#hud-flight')!;
+    this.flightValueElem = this.container.querySelector('#hud-flight-value')!;
+    this.flightDetailElem = this.container.querySelector('#hud-flight-detail')!;
 
     this.container.querySelector('#btn-hud-cam')?.addEventListener('click', () => {
       if (this.isPuttingMode) {

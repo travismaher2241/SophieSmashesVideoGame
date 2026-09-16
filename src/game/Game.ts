@@ -18,7 +18,7 @@ import { adjacentShape, applyShotShape, ShotShape } from '../golf/ShotShape';
 import { CALM, describeWind, randomWind, Wind } from '../golf/Wind';
 import { PuttMeter, PuttResult } from '../golf/PuttMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
-import { BallPhysics } from '../physics/BallPhysics';
+import { BallPhysics, BallState } from '../physics/BallPhysics';
 import { PuttingPhysics } from '../physics/PuttingPhysics';
 import { AimingGuideRenderer } from '../rendering/AimingGuideRenderer';
 import { AlignmentGridOverlay } from '../rendering/AlignmentGridOverlay';
@@ -160,6 +160,12 @@ export class Game {
   private swingExecuted: boolean = false;
   /** Where the stroke currently in flight was played from, for stroke-and-distance relief. */
   private shotOrigin: { x: number; z: number } = { x: 0, z: 0 };
+  /**
+   * How far the shot in the air carried before it first pitched, or null while
+   * it is still up. The live readout counts the whole way; the carry is the part
+   * worth keeping, and it is only known at the moment the ball lands.
+   */
+  private shotCarryMetres: number | null = null;
   private aimAngleRadians: number = 0; // 0 = facing +X
   private cupPosition: Vector3 = new Vector3();
   private lastFrameTime: number = performance.now();
@@ -477,6 +483,8 @@ export class Game {
     this.swingExecuted = false;
     this.setShotShape('STRAIGHT');
     this.setWind(randomWind());
+    this.shotCarryMetres = null;
+    this.gameHUD?.hideFlightDistance();
     this.swingMeter.reset();
     this.sophieGolfer?.resetPose();
     this.ballRenderer?.clearTracer();
@@ -1047,6 +1055,8 @@ export class Game {
       this.clubManager.getCurrentClub().carryMetres
     );
 
+    this.shotCarryMetres = null;
+
     this.sophieGolfer.playSwing(() => {
       const club = this.clubManager.getCurrentClub();
 
@@ -1112,6 +1122,7 @@ export class Game {
         }
       } else {
         const ballState = this.ballPhysics!.update(dt, this.cupPosition);
+        this.updateFlightReadout(ballState);
 
         if (ballState === 'ROLLING') {
           this.stateManager.setState('BALL_ROLLING');
@@ -1220,6 +1231,35 @@ export class Game {
       this.cameraController.camera
     );
   };
+
+  /**
+   * Count the shot's distance up as it flies.
+   *
+   * Measured along the ground from where it was struck, which is what a golfer
+   * means by how far it went. Watching a ball in the air with no number on it
+   * you cannot tell 190 from 240 until it lands, and the only readout on screen
+   * is the distance still left to the pin — which is a different question.
+   */
+  private updateFlightReadout(ballState: BallState): void {
+    if (!this.ballPhysics || this.shotMode === 'PUTTING') return;
+
+    const travelled = Math.hypot(
+      this.ballPhysics.position.x - this.shotOrigin.x,
+      this.ballPhysics.position.z - this.shotOrigin.z
+    );
+
+    // The carry is fixed at the first pitch mark, and the number carries on
+    // counting through the bounce and the roll.
+    if (this.shotCarryMetres === null && ballState !== 'AIRBORNE') {
+      this.shotCarryMetres = travelled;
+    }
+
+    this.gameHUD?.updateFlightDistance(travelled, this.shotCarryMetres);
+
+    if (ballState === 'REST' || ballState === 'HOLED') {
+      this.gameHUD?.settleFlightDistance();
+    }
+  }
 
   private onBallStoppedAtRest(): void {
     if (!this.ballPhysics) return;
