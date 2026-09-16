@@ -283,6 +283,7 @@ export class Game {
     }
     this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
     this.sceneManager.scene.add(this.terrainMeshBuilder.getMesh());
+    this.fitShadowsToLoadedCourse();
 
     if (this.courseEnvironment) {
       this.sceneManager.scene.remove(this.courseEnvironment.getGroup());
@@ -727,6 +728,20 @@ export class Game {
   }
 
   /** Draw the hole's wind and hand it to the flight model. */
+  /**
+   * Point the shadow map at the course that just loaded.
+   *
+   * A shadow map has a fixed number of texels however much ground it covers, so
+   * covering ground with no course on it is paid for in precision over the ground
+   * that has one — as blotches of false shade on the greens.
+   */
+  private fitShadowsToLoadedCourse(): void {
+    const extent = this.terrainQuery?.getWorldExtent();
+    if (!extent) return;
+
+    this.sceneManager.fitShadowsToCourse(extent.x, extent.z);
+  }
+
   private setWind(wind: Wind): void {
     this.wind = wind;
     this.ballPhysics?.setWind(wind);
@@ -818,6 +833,7 @@ export class Game {
     }
     this.terrainMeshBuilder = new TerrainMeshBuilder(this.terrainData);
     this.sceneManager.scene.add(this.terrainMeshBuilder.getMesh());
+    this.fitShadowsToLoadedCourse();
 
     if (this.courseEnvironment) {
       this.sceneManager.scene.remove(this.courseEnvironment.getGroup());
