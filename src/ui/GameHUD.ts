@@ -224,7 +224,7 @@ export class GameHUD {
     club: ClubConfig,
     lie: LieInfo,
     cameraMode: string,
-    windStr: string = '4 m/s ↗'
+    windStr: string = 'CALM'
   ): void {
     if (this.strokeElem) {
       this.strokeElem.textContent = penaltyStrokes > 0
@@ -513,7 +513,7 @@ export class GameHUD {
         <div class="hud-capsule hud-shot-info">
           <span id="hud-stroke" class="hud-highlight">STROKE 1</span>
           <span id="hud-dist" class="hud-accent">234.0 m TO PIN</span>
-          <span id="hud-wind" class="hud-hide-mobile">WIND 4 m/s ↗</span>
+          <span id="hud-wind" class="hud-hide-mobile">WIND CALM</span>
           <span id="hud-lie">LIE <strong style="color: #68d391;">TEE (100%)</strong></span>
         </div>
 

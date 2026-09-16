@@ -15,6 +15,7 @@ import { ClubManager, swingStyleForClub } from '../golf/Club';
 import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
 import { adjacentShape, applyShotShape, ShotShape } from '../golf/ShotShape';
+import { CALM, describeWind, randomWind, Wind } from '../golf/Wind';
 import { PuttMeter, PuttResult } from '../golf/PuttMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
 import { BallPhysics } from '../physics/BallPhysics';
@@ -146,6 +147,15 @@ export class Game {
   private shotMode: ShotMode = 'FULL_SWING';
   /** The shape the player has chosen to hit. Reset to straight on each new shot. */
   private shotShape: ShotShape = 'STRAIGHT';
+  /**
+   * The wind on this hole.
+   *
+   * Drawn once when the hole starts and held for the hole, the way weather
+   * behaves. Re-rolling it between shots would make it noise rather than a
+   * condition you play in: there would be no point reading it, because the shot
+   * you played it for would be the one it changed on.
+   */
+  private wind: Wind = CALM;
   /** Guards against the same completed swing being played more than once. */
   private swingExecuted: boolean = false;
   /** Where the stroke currently in flight was played from, for stroke-and-distance relief. */
@@ -462,6 +472,7 @@ export class Game {
     this.penaltyStrokes = 0;
     this.swingExecuted = false;
     this.setShotShape('STRAIGHT');
+    this.setWind(randomWind());
     this.swingMeter.reset();
     this.sophieGolfer?.resetPose();
     this.ballRenderer?.clearTracer();
@@ -701,6 +712,12 @@ export class Game {
     this.gameHUD?.setShotMode(mode);
 
     if (mode === 'PUTTING') this.setShotShape('STRAIGHT');
+  }
+
+  /** Draw the hole's wind and hand it to the flight model. */
+  private setWind(wind: Wind): void {
+    this.wind = wind;
+    this.ballPhysics?.setWind(wind);
   }
 
   private setShotShape(shape: ShotShape): void {
@@ -1172,7 +1189,10 @@ export class Game {
         distToCup,
         this.clubManager.getCurrentClub(),
         currentLie,
-        this.cameraController.getMode()
+        this.cameraController.getMode(),
+        // Read against the aim, so it updates as the player turns: what matters
+        // is whether the wind is in this shot's face, not where north is.
+        describeWind(this.wind, this.aimAngleRadians)
       );
     }
 

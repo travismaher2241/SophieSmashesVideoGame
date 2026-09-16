@@ -3,6 +3,7 @@ import { SurfaceQuery, LieInfo, SURFACE_PROPERTIES } from '../course/SurfaceQuer
 import { TerrainQuery } from '../course/TerrainQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingResult } from '../golf/SwingMeter';
+import { CALM, Wind, windVector } from '../golf/Wind';
 
 export type BallState = 'REST' | 'AIRBORNE' | 'BOUNCING' | 'ROLLING' | 'HOLED';
 
@@ -28,6 +29,19 @@ export class BallPhysics {
   private terrainQuery: TerrainQuery;
   private surfaceQuery?: SurfaceQuery;
   private currentLie: LieInfo = SURFACE_PROPERTIES.TEE;
+
+  /**
+   * The air the ball is flying through.
+   *
+   * Wind is modelled the way it actually works: the ball feels drag against the
+   * air, not against the ground, so what matters is its speed relative to the
+   * moving air. That one change gives every wind effect at once — a head wind
+   * raises the relative speed and eats the carry, a tail wind lowers it and the
+   * ball runs on, and a crossing wind drags the flight sideways as it goes. None
+   * of it needs a separate fudge term.
+   */
+  private windX: number = 0;
+  private windZ: number = 0;
 
   private clubSpin: number = 0;   // Spin / green-holding check factor (0.1 to 1.0)
   private curveSpin: number = 0;  // Lateral side spin factor (-1.0 to +1.0)
@@ -55,6 +69,19 @@ export class BallPhysics {
 
   public setSurfaceQuery(surfaceQuery: SurfaceQuery): void {
     this.surfaceQuery = surfaceQuery;
+  }
+
+  /**
+   * Set the wind the ball flies through.
+   *
+   * Only the flight uses it. A ball on the ground is held there by friction that
+   * dwarfs the push of the air, and a putt that drifted with the breeze would be
+   * wrong as well as maddening.
+   */
+  public setWind(wind: Wind = CALM): void {
+    const vector = windVector(wind);
+    this.windX = vector.x;
+    this.windZ = vector.z;
   }
 
   public getCurrentLie(): LieInfo {
@@ -195,14 +222,19 @@ export class BallPhysics {
   }
 
   private stepAirborne(dt: number): void {
-    const vMag = this.velocity.length();
+    // Through the air, not over the ground: drag opposes the ball's motion
+    // relative to the air it is in, which is what makes the wind matter.
+    const relX = this.velocity.x - this.windX;
+    const relY = this.velocity.y;
+    const relZ = this.velocity.z - this.windZ;
+    const vMag = Math.hypot(relX, relY, relZ);
 
     if (vMag > 0.01) {
       const dragMag = 0.5 * this.airDensity * this.dragCoeff * this.ballArea * vMag * vMag;
       const dragAcc = dragMag / this.ballMass;
-      const dragVx = -(this.velocity.x / vMag) * dragAcc;
-      const dragVy = -(this.velocity.y / vMag) * dragAcc;
-      const dragVz = -(this.velocity.z / vMag) * dragAcc;
+      const dragVx = -(relX / vMag) * dragAcc;
+      const dragVy = -(relY / vMag) * dragAcc;
+      const dragVz = -(relZ / vMag) * dragAcc;
 
       this.velocity.x += dragVx * dt;
       this.velocity.y += (dragVy - this.gravity) * dt;
