@@ -37,10 +37,11 @@ interface FrameSetSpec {
 }
 
 const FRAME_SETS: Record<SwingStyle, FrameSetSpec> = {
-  // Rear-view artwork, 556x760 and 511x760, the golfer filling ~95% of the height.
+  // Rear-view artwork, the golfer filling most of each canvas. The sets are
+  // different shapes, which is why the plane is scaled per set rather than fixed.
   DRIVER: { directory: '/assets/sprites/driver', aspect: 556 / 760, figureHeightFraction: 0.95 },
   IRON: { directory: '/assets/sprites/iron', aspect: 511 / 760, figureHeightFraction: 0.96 },
-  PUTT: { directory: '/assets/sprites/putter', aspect: 520 / 760, figureHeightFraction: 0.99 }
+  PUTT: { directory: '/assets/sprites/putter', aspect: 351 / 582, figureHeightFraction: 0.99 }
 };
 
 const FRAME_FILES = [
@@ -87,6 +88,18 @@ export class SophieGolfer {
     DOWNSWING_IMPACT: 3,
     FOLLOW_THROUGH: 4
   } as const;
+
+  /**
+   * How far to the side of the ball she stands, per club, in metres.
+   *
+   * Tuned so the clubhead in the artwork meets the ball rather than reaching
+   * short of it or through it.
+   */
+  private static readonly STANCE_OFFSETS: Record<SwingStyle, number> = {
+    DRIVER: 0.70,
+    IRON: 0.62,
+    PUTT: 0.44
+  };
 
   /** How tall the golfer herself stands, in metres. */
   private static readonly FIGURE_HEIGHT_METRES = 1.85;
@@ -185,10 +198,13 @@ export class SophieGolfer {
    */
   public updateStance(ballPos: Vector3, terrainY: number, aimAngleRad: number): void {
     // Stands beside the ball on the far side of the target line, where a golfer
-    // actually stands, rather than behind it in the camera's eyeline.
+    // actually stands, rather than behind it in the camera's eyeline. How far
+    // beside depends on the club: a driver is played from much further away than
+    // a putter, and a fixed distance left the putter head short of the ball.
     const leftAngle = aimAngleRad - Math.PI / 2;
-    const offsetX = Math.cos(leftAngle) * 0.66 - Math.cos(aimAngleRad) * 0.06;
-    const offsetZ = Math.sin(leftAngle) * 0.66 - Math.sin(aimAngleRad) * 0.06;
+    const stance = SophieGolfer.STANCE_OFFSETS[this.swingStyle];
+    const offsetX = Math.cos(leftAngle) * stance - Math.cos(aimAngleRad) * 0.06;
+    const offsetZ = Math.sin(leftAngle) * stance - Math.sin(aimAngleRad) * 0.06;
 
     this.basePosition.set(ballPos.x + offsetX, terrainY, ballPos.z + offsetZ);
     this.group.position.copy(this.basePosition);
