@@ -44,6 +44,7 @@ export class GameHUD {
   private lieElem!: HTMLElement;
   private windElem!: HTMLElement;
   private clubSelectorCapsule!: HTMLElement;
+  private shapeCapsuleElem!: HTMLElement;
   private clubNameElem!: HTMLElement;
   private clubDetailElem!: HTMLElement;
   private cameraBtnElem!: HTMLElement;
@@ -147,6 +148,12 @@ export class GameHUD {
 
     if (this.clubSelectorCapsule) {
       this.clubSelectorCapsule.style.display = isPutting ? 'none' : 'flex';
+    }
+    // No shaping a putt: the ball never leaves the ground, so there is nothing to
+    // bend. The control goes away on the green rather than sitting there showing
+    // a draw the stroke will not play.
+    if (this.shapeCapsuleElem) {
+      this.shapeCapsuleElem.style.display = isPutting ? 'none' : 'flex';
     }
     if (this.bottomBarElem) {
       if (isPutting) {
@@ -773,6 +780,7 @@ export class GameHUD {
     this.lieElem = this.container.querySelector('#hud-lie')!;
     this.windElem = this.container.querySelector('#hud-wind')!;
     this.clubSelectorCapsule = this.container.querySelector('#hud-club-capsule')!;
+    this.shapeCapsuleElem = this.container.querySelector('#hud-shape-capsule')!;
     this.clubNameElem = this.container.querySelector('#hud-club-name')!;
     this.clubDetailElem = this.container.querySelector('#hud-club-detail')!;
     this.cameraBtnElem = this.container.querySelector('#btn-hud-cam')!;

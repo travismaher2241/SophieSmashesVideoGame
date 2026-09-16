@@ -40,8 +40,8 @@ const FRAME_SETS: Record<SwingStyle, FrameSetSpec> = {
   // Rear-view artwork, the golfer filling most of each canvas. The sets are
   // different shapes, which is why the plane is scaled per set rather than fixed.
   DRIVER: { directory: '/assets/sprites/driver', aspect: 405 / 555, figureHeightFraction: 0.95 },
-  IRON: { directory: '/assets/sprites/iron', aspect: 398 / 586, figureHeightFraction: 0.96 },
-  PUTT: { directory: '/assets/sprites/putter', aspect: 351 / 582, figureHeightFraction: 0.99 }
+  IRON: { directory: '/assets/sprites/iron', aspect: 398 / 588, figureHeightFraction: 0.96 },
+  PUTT: { directory: '/assets/sprites/putter', aspect: 351 / 588, figureHeightFraction: 0.99 }
 };
 
 const FRAME_FILES = [

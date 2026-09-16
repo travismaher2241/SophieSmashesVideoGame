@@ -482,9 +482,7 @@ export class Game {
     this.clubManager.autoSelectClubForDistance(distToCup, isOnGreen);
     this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
-    this.shotMode = (isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING';
-
-    this.gameHUD?.setShotMode(this.shotMode);
+    this.setShotMode((isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING');
     this.flagRenderer?.setPuttingMode(this.shotMode === 'PUTTING');
 
     if (this.shotMode === 'PUTTING') {
@@ -690,6 +688,21 @@ export class Game {
     this.setShotShape(adjacentShape(this.shotShape, direction));
   }
 
+  /**
+   * Switch between playing a full shot and putting.
+   *
+   * Shaping goes with it. You cannot work a putt: the ball is rolling on the
+   * ground from the moment it is struck, so there is no flight to bend. Carrying
+   * a draw chosen for the approach onto the green left the HUD offering a shape
+   * that did nothing and an aim line that curved away from the hole.
+   */
+  private setShotMode(mode: ShotMode): void {
+    this.shotMode = mode;
+    this.gameHUD?.setShotMode(mode);
+
+    if (mode === 'PUTTING') this.setShotShape('STRAIGHT');
+  }
+
   private setShotShape(shape: ShotShape): void {
     this.shotShape = shape;
     this.gameHUD?.setShotShape(shape);
@@ -712,8 +725,7 @@ export class Game {
     if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
     this.clubManager.selectNextClub();
     const club = this.clubManager.getCurrentClub();
-    this.shotMode = club.isPutter ? 'PUTTING' : 'FULL_SWING';
-    this.gameHUD?.setShotMode(this.shotMode);
+    this.setShotMode(club.isPutter ? 'PUTTING' : 'FULL_SWING');
     this.syncSwingStyleToClub();
   }
 
@@ -723,8 +735,7 @@ export class Game {
     this.clubManager.selectPrevClub();
     this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
-    this.shotMode = club.isPutter ? 'PUTTING' : 'FULL_SWING';
-    this.gameHUD?.setShotMode(this.shotMode);
+    this.setShotMode(club.isPutter ? 'PUTTING' : 'FULL_SWING');
   }
 
   private toggleCameraMode(): void {
@@ -1205,9 +1216,7 @@ export class Game {
     this.clubManager.autoSelectClubForDistance(remainingDist, isOnGreen);
     this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
-    this.shotMode = (isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING';
-
-    this.gameHUD?.setShotMode(this.shotMode);
+    this.setShotMode((isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING');
     this.flagRenderer?.setPuttingMode(this.shotMode === 'PUTTING');
 
     if (this.shotMode === 'PUTTING') {
