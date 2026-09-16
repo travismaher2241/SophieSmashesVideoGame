@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3, LineSegments } from 'three';
+import { Vector3, LineSegments, Mesh, Object3D } from 'three';
+
+/** First mesh under `root` matching a predicate, at any depth. */
+function findMesh(root: Object3D, predicate: (mesh: Mesh) => boolean): Mesh | undefined {
+  let found: Mesh | undefined;
+  root.traverse((object) => {
+    if (!found && object instanceof Mesh && predicate(object)) found = object;
+  });
+  return found;
+}
 import { AimingGuideRenderer } from '../src/rendering/AimingGuideRenderer';
 import { FlagRenderer } from '../src/rendering/FlagRenderer';
 import { TerrainQuery } from '../src/course/TerrainQuery';
@@ -105,12 +114,11 @@ describe('Aiming Guide Straight Line & Ball Pivot Tests', () => {
 });
 
 describe('FlagRenderer Visibility & Putting Cup Target', () => {
-  it('correctly calculates camera billboard angle to face camera directly', () => {
+  it('turns the flag cloth to face the camera directly', () => {
     const flag = new FlagRenderer();
     const cupPos = new Vector3(100, 10, 100);
     flag.setPosition(cupPos);
 
-    // Camera at (100, 15, 150) -> looking along -Z from camera to flag
     const camPos = new Vector3(100, 15, 150);
     flag.update(camPos);
 
@@ -118,23 +126,49 @@ describe('FlagRenderer Visibility & Putting Cup Target', () => {
     const dz = camPos.z - cupPos.z; // 50
     const expectedAngle = Math.atan2(dx, dz); // 0
 
-    const group = flag.getGroup();
-    // Flag cloth child
-    const flagCloth = group.children.find((c) => (c as any).geometry.type === 'PlaneGeometry') as any;
-    expect(flagCloth.rotation.y).toBeCloseTo(expectedAngle, 4);
+    // The cloth is a pennant, so it is the shape geometry rather than a plane.
+    const cloth = findMesh(flag.getGroup(), (mesh) => mesh.geometry.type === 'ShapeGeometry');
+    expect(cloth).toBeDefined();
+    expect(cloth!.rotation.y).toBeCloseTo(expectedAngle, 4);
   });
 
-  it('switches between full tournament pin and putting cup highlight on putting mode toggle', () => {
+  it('keeps one flagstick standing whatever the shot', () => {
+    // There used to be two pins: a full one for approach shots and a 0.65m stub
+    // for putting, which read as a toy beside a full-size ball. Now the same
+    // regulation stick stands for every shot.
     const flag = new FlagRenderer();
+    const pole = findMesh(flag.getGroup(), (mesh) => mesh.geometry.type === 'CylinderGeometry');
+    expect(pole).toBeDefined();
+
     flag.setPuttingMode(false);
+    flag.update(new Vector3(100, 12, 130));
+    expect(pole!.visible).toBe(true);
 
-    // In approach mode, pole and main flag are visible
-    const fullPole = flag.getGroup().children[0];
-    expect(fullPole.visible).toBe(true);
-
-    // In putting mode, full pole is hidden and putting cup target/pin is active
     flag.setPuttingMode(true);
-    expect(fullPole.visible).toBe(false);
+    flag.update(new Vector3(100, 12, 103));
+    expect(pole!.visible).toBe(true);
+  });
+
+  it('shows the locator ring only from far enough away to need it', () => {
+    const flag = new FlagRenderer();
+    flag.setPosition(new Vector3(0, 0, 0));
+    const ring = findMesh(
+      flag.getGroup(),
+      (mesh) => mesh.geometry.type === 'RingGeometry' && (mesh.geometry as any).parameters.outerRadius > 0.5
+    );
+    expect(ring).toBeDefined();
+
+    flag.setPuttingMode(false);
+    flag.update(new Vector3(0, 30, 120));
+    expect(ring!.visible).toBe(true);
+
+    // Standing beside the pin it is just a smudge on the green.
+    flag.update(new Vector3(0, 2, 6));
+    expect(ring!.visible).toBe(false);
+
+    flag.setPuttingMode(true);
+    flag.update(new Vector3(0, 30, 120));
+    expect(ring!.visible).toBe(false);
   });
 });
 

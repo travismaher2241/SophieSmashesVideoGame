@@ -17,6 +17,7 @@ import {
 import { TerrainQuery } from '../course/TerrainQuery';
 import { SurfaceType } from '../course/SurfaceQuery';
 import { surfaceRenderOffset } from './SurfaceMeshOverlay';
+import { apparentSizeScale } from './ApparentSize';
 
 /**
  * Creates a crisp 32x32 pixel-art golf ball texture with 16-bit retro shading,
@@ -103,13 +104,11 @@ export class BallRenderer {
   private static readonly BALL_DIAMETRE_METRES = 0.088;
 
   /**
-   * Smallest angular diameter the ball is allowed to occupy, in radians.
+   * Smallest the ball may appear, in pixels of the internal buffer.
    *
-   * About seven pixels tall in the game's 720-line internal buffer at its 52
-   * degree field of view — small enough to stay a ball, big enough to track
-   * against trees and sky.
+   * Small enough to stay a ball, big enough to track against trees and sky.
    */
-  private static readonly MIN_APPARENT_ANGLE = 0.0088;
+  private static readonly MIN_APPARENT_PIXELS = 7;
 
   /** Ceiling on the enlargement, so a distant ball never reads as a beach ball. */
   private static readonly MAX_VISIBILITY_SCALE = 9;
@@ -214,18 +213,14 @@ export class BallRenderer {
    * A golf ball is 43mm across. Drawn at true scale it is sub-pixel at anything
    * past a few metres: during a drive the follow camera trails ~30m behind, which
    * put the ball at barely two pixels — effectively invisible for the whole shot.
-   *
-   * So the ball is drawn at true size up close and grown beyond that to hold a
-   * readable minimum, the way sprite-era golf games did. The cap stops it
-   * ballooning on long views.
    */
   public static visibilityScale(distanceToCamera: number): number {
-    if (!Number.isFinite(distanceToCamera) || distanceToCamera <= 0) return 1;
-
-    const requiredDiameter = distanceToCamera * BallRenderer.MIN_APPARENT_ANGLE;
-    const scale = requiredDiameter / BallRenderer.BALL_DIAMETRE_METRES;
-
-    return Math.min(BallRenderer.MAX_VISIBILITY_SCALE, Math.max(1, scale));
+    return apparentSizeScale(
+      BallRenderer.BALL_DIAMETRE_METRES,
+      distanceToCamera,
+      BallRenderer.MIN_APPARENT_PIXELS,
+      BallRenderer.MAX_VISIBILITY_SCALE
+    );
   }
 
   /**
