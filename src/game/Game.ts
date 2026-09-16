@@ -894,16 +894,13 @@ export class Game {
       this.swingMeter.reset();
       this.swingExecuted = false;
       this.sophieGolfer?.resetPose();
-      this.sophieGolfer?.startBackswing();
+      // She stays at address through the meter. The swing plays once power and
+      // accuracy are both locked in, so it runs as one uninterrupted motion.
       this.swingMeter.trigger(); // Click 1: READY -> POWER_RUNNING
     } else if (state === 'SWINGING') {
-      const prevMeterState = this.swingMeter.getState();
       const newMeterState = this.swingMeter.trigger();
 
-      if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
-        // Click 2: Locked power -> Golfer transitions to downswing
-        this.sophieGolfer?.startDownswing();
-      } else if (newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') {
+      if (newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') {
         // Click 3: Locked accuracy -> Strike impact and launch ball
         this.executeSwing();
       }
@@ -972,8 +969,9 @@ export class Game {
     // stroke-and-distance relief.
     this.shotOrigin = { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z };
 
-    // Trigger Sophie impact strike and ball launch
-    this.sophieGolfer.strikeImpact(() => {
+    // Play the swing. The ball leaves at impact, part-way through the animation,
+    // rather than on the click that locked the accuracy.
+    this.sophieGolfer.playSwing(() => {
       const club = this.clubManager.getCurrentClub();
 
       // Launch ball physics
@@ -1010,14 +1008,9 @@ export class Game {
         this.puttMeter.update(dt);
         this.gameHUD?.updatePuttMeter(this.puttMeter);
       } else {
-        const prevMeterState = this.swingMeter.getState();
         this.swingMeter.update(dt);
         const newMeterState = this.swingMeter.getState();
         this.gameHUD?.updateSwingMeter(this.swingMeter);
-
-        if (prevMeterState === 'POWER_RUNNING' && newMeterState === 'ACCURACY_RUNNING') {
-          this.sophieGolfer?.startDownswing();
-        }
 
         if ((newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') && this.ballPhysics?.state === 'REST') {
           this.executeSwing();

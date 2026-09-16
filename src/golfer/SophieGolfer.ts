@@ -15,6 +15,26 @@ import {
 export type GolferSwingPhase = 'REST' | 'BACKSWING' | 'TOP_HOLD' | 'DOWNSWING' | 'FOLLOW_THROUGH';
 
 export class SophieGolfer {
+  // Swing timings, in seconds. Back slowly, pause at the top, down quickly —
+  // the contrast is what makes five frames read as a golf swing.
+  private static readonly BACKSWING_SECONDS = 0.5;
+  private static readonly TOP_HOLD_SECONDS = 0.12;
+  private static readonly DOWNSWING_SECONDS = 0.14;
+  private static readonly FOLLOW_THROUGH_SECONDS = 0.75;
+
+  /** The sprite frame each phase settles on. */
+  private static readonly PHASE_FRAMES: Record<GolferSwingPhase, number> = {
+    REST: 0,
+    BACKSWING: 0,
+    TOP_HOLD: 2,
+    DOWNSWING: 3,
+    FOLLOW_THROUGH: 4
+  };
+
+  /** Total time from the third click to the ball leaving the clubface. */
+  public static readonly TIME_TO_IMPACT_SECONDS =
+    SophieGolfer.BACKSWING_SECONDS + SophieGolfer.TOP_HOLD_SECONDS + SophieGolfer.DOWNSWING_SECONDS;
+
   private group: Group;
   private spriteMesh: Mesh;
   private shadowMesh: Mesh;
@@ -22,7 +42,8 @@ export class SophieGolfer {
 
   private frameTextures: Texture[] = [];
   private currentPhase: GolferSwingPhase = 'REST';
-  private swingProgress: number = 0; // 0 to 1
+  /** Seconds elapsed in the current swing phase. */
+  private phaseSeconds: number = 0;
   private idleTimer: number = 0;
   private onImpactCallback?: () => void;
 
@@ -41,7 +62,10 @@ export class SophieGolfer {
     // Fixed GolferRoot anchor: shift geometry origin so feet contact ground exactly at y = 0
     geometry.translate(0, height / 2, 0);
 
-    const loader = new TextureLoader();
+    // Sprite frames need a DOM to decode into. Guarded the way the other
+    // renderers are, so the golfer can be constructed headlessly — the swing
+    // timing is worth testing without a browser.
+    const loader = typeof document === 'undefined' ? null : new TextureLoader();
     const framePaths = [
       '/assets/sprites/frames/frame-00-address-1.png',
       '/assets/sprites/frames/frame-01-address-2-wiggle.png',
@@ -50,25 +74,27 @@ export class SophieGolfer {
       '/assets/sprites/frames/frame-04-follow-through.png'
     ];
 
-    for (const p of framePaths) {
-      const tex = loader.load(p, undefined, undefined, () => {
-        // Fallback to rest sprite if frame not found
-        const fallback = loader.load('/assets/sophie/sophie_rest.png');
-        fallback.colorSpace = SRGBColorSpace;
-        fallback.minFilter = NearestFilter;
-        fallback.magFilter = NearestFilter;
-        return fallback;
-      });
-      tex.colorSpace = SRGBColorSpace;
-      tex.minFilter = NearestFilter;
-      tex.magFilter = NearestFilter;
-      this.frameTextures.push(tex);
+    if (loader) {
+      for (const p of framePaths) {
+        const tex = loader.load(p, undefined, undefined, () => {
+          // Fallback to rest sprite if frame not found
+          const fallback = loader.load('/assets/sophie/sophie_rest.png');
+          fallback.colorSpace = SRGBColorSpace;
+          fallback.minFilter = NearestFilter;
+          fallback.magFilter = NearestFilter;
+          return fallback;
+        });
+        tex.colorSpace = SRGBColorSpace;
+        tex.minFilter = NearestFilter;
+        tex.magFilter = NearestFilter;
+        this.frameTextures.push(tex);
+      }
     }
 
     // Default rest material
-    const baseTexture = this.frameTextures[0] || loader.load('/assets/sophie/sophie_rest.png');
+    const baseTexture = this.frameTextures[0] ?? loader?.load('/assets/sophie/sophie_rest.png');
     this.material = new MeshBasicMaterial({
-      map: baseTexture,
+      map: baseTexture ?? null,
       transparent: true,
       alphaTest: 0.1,
       depthWrite: true
@@ -114,30 +140,38 @@ export class SophieGolfer {
   }
 
   /**
-   * Click 1: Start backswing motion.
+   * Play the swing.
+   *
+   * The three clicks choose power and accuracy; they do not pose the golfer.
+   * Previously each click snapped her to a frame and the third launched the ball
+   * on the same tick, so there was no swing to watch — the ball simply left. Now
+   * the input finishes first and the whole stroke plays out from address through
+   * impact to follow-through, with `onImpact` fired at the moment the club
+   * reaches the ball rather than at the moment of the click.
    */
-  public startBackswing(): void {
+  public playSwing(onImpact: () => void): void {
     this.currentPhase = 'BACKSWING';
-    this.swingProgress = 0;
-    this.setFrame(2); // Backswing top frame
+    this.phaseSeconds = 0;
+    this.onImpactCallback = onImpact;
+    this.setFrame(0);
+  }
+
+  /** True while a stroke is playing, so callers can wait for it to finish. */
+  public isSwinging(): boolean {
+    return this.currentPhase !== 'REST';
   }
 
   /**
-   * Click 2: Top of backswing / transition into downswing.
-   */
-  public startDownswing(): void {
-    this.currentPhase = 'DOWNSWING';
-    this.swingProgress = 0;
-    this.setFrame(3); // Downswing frame
-  }
-
-  /**
-   * Click 3: Impact strike! Ball launch is triggered immediately, followed by follow-through.
+   * Strike immediately, without the wind-up.
+   *
+   * Used by putting, which has its own two-click pace meter and no backswing
+   * worth animating from the full-swing frames.
    */
   public strikeImpact(onImpact: () => void): void {
-    this.setFrame(3); // Impact frame
+    this.setFrame(3);
     this.currentPhase = 'FOLLOW_THROUGH';
-    this.swingProgress = 0;
+    this.phaseSeconds = 0;
+    this.onImpactCallback = undefined;
     onImpact();
   }
 
@@ -146,17 +180,9 @@ export class SophieGolfer {
    */
   public resetPose(): void {
     this.currentPhase = 'REST';
-    this.swingProgress = 0;
+    this.phaseSeconds = 0;
     this.onImpactCallback = undefined;
     this.setFrame(0);
-  }
-
-  /**
-   * Legacy wrapper for complete procedural swing.
-   */
-  public startProceduralSwing(onImpact: () => void): void {
-    this.startBackswing();
-    this.onImpactCallback = onImpact;
   }
 
   private setFrame(index: number): void {
@@ -184,38 +210,64 @@ export class SophieGolfer {
       return;
     }
 
-    if (this.currentPhase === 'BACKSWING') {
-      this.swingProgress += dt * 2.5; // ~0.40s backswing
-      this.setFrame(2); // Frame 2: Backswing-top
+    this.phaseSeconds += dt;
 
-      if (this.swingProgress >= 1.0) {
-        // Hold at top of backswing until click 2 or auto-transition
-        this.currentPhase = 'TOP_HOLD';
-      }
-    } else if (this.currentPhase === 'TOP_HOLD') {
-      this.setFrame(2);
-    } else if (this.currentPhase === 'DOWNSWING') {
-      // In downswing phase, golfer holds frame 3 awaiting click 3 impact
-      this.setFrame(3);
-      if (this.onImpactCallback) {
-        this.swingProgress += dt * 6.0;
-        if (this.swingProgress >= 0.85) {
-          const cb = this.onImpactCallback;
-          this.onImpactCallback = undefined;
-          cb();
-          this.currentPhase = 'FOLLOW_THROUGH';
-          this.swingProgress = 0;
+    switch (this.currentPhase) {
+      case 'BACKSWING': {
+        // Address, waggle, then the top of the backswing. Held in that order so
+        // the club reads as travelling back rather than teleporting there.
+        const progress = this.phaseSeconds / SophieGolfer.BACKSWING_SECONDS;
+        this.setFrame(progress < 0.3 ? 0 : progress < 0.6 ? 1 : 2);
+
+        if (this.phaseSeconds >= SophieGolfer.BACKSWING_SECONDS) {
+          this.advanceTo('TOP_HOLD');
         }
+        break;
       }
-    } else if (this.currentPhase === 'FOLLOW_THROUGH') {
-      this.swingProgress += dt * 2.2; // ~0.45s follow-through hold
-      this.setFrame(4); // Frame 4: Follow-through
 
-      if (this.swingProgress >= 1.0) {
-        this.currentPhase = 'REST';
-        this.swingProgress = 0;
-        this.setFrame(0); // Return to address
+      case 'TOP_HOLD': {
+        // A beat at the top, which is what makes the downswing feel quick.
+        this.setFrame(2);
+        if (this.phaseSeconds >= SophieGolfer.TOP_HOLD_SECONDS) {
+          this.advanceTo('DOWNSWING');
+        }
+        break;
+      }
+
+      case 'DOWNSWING': {
+        this.setFrame(3);
+        if (this.phaseSeconds >= SophieGolfer.DOWNSWING_SECONDS) {
+          // Impact: the ball leaves here, at the bottom of the swing.
+          const onImpact = this.onImpactCallback;
+          this.onImpactCallback = undefined;
+          this.advanceTo('FOLLOW_THROUGH');
+          onImpact?.();
+        }
+        break;
+      }
+
+      case 'FOLLOW_THROUGH': {
+        this.setFrame(4);
+        if (this.phaseSeconds >= SophieGolfer.FOLLOW_THROUGH_SECONDS) {
+          this.currentPhase = 'REST';
+          this.phaseSeconds = 0;
+          this.setFrame(0);
+        }
+        break;
       }
     }
+  }
+
+  /**
+   * Move to the next phase and show its pose on the same tick.
+   *
+   * Setting the frame here rather than waiting for the next update keeps the
+   * sprite and the phase in step; otherwise each transition spends a frame
+   * showing the previous pose.
+   */
+  private advanceTo(phase: GolferSwingPhase): void {
+    this.currentPhase = phase;
+    this.phaseSeconds = 0;
+    this.setFrame(SophieGolfer.PHASE_FRAMES[phase]);
   }
 }
