@@ -32,7 +32,7 @@ export class RetroMaterials {
     this.materials.set('FAIRWAY', this.createMat(0x6ec44e, fairwayTex, 0.82, 0.05));
 
     const roughTex = this.createRoughTexture();
-    const roughMat = this.createMat(0x244c20, roughTex, 0.95, 0.02);
+    const roughMat = this.createMat(0x3a7632, roughTex, 0.95, 0.02);
     this.materials.set('ROUGH', roughMat);
     this.materials.set('DEEP_ROUGH', roughMat);
     this.materials.set('GENERAL_AREA', roughMat);
@@ -114,12 +114,17 @@ export class RetroMaterials {
     if (!canvas) return null;
     const ctx = canvas.getContext('2d')!;
 
-    // Rich dark rough green
-    ctx.fillStyle = '#2f5729';
+    // Rough green.
+    //
+    // Lighter than it reads here, because the map is multiplied by the material
+    // colour: a dark texture under a dark colour compounds, and the rough came
+    // out at a fifth of the fairway's brightness — a black band across the hole
+    // rather than longer grass beside it. The two are lifted together.
+    ctx.fillStyle = '#498740';
     ctx.fillRect(0, 0, size, size);
 
     // Chunky pixel grass blades & noise
-    const colors = ['#23431f', '#3c6d34', '#498240', '#1c3619'];
+    const colors = ['#3f7538', '#5da951', '#6cbf5d', '#37672f'];
     for (let y = 0; y < size; y += 2) {
       for (let x = 0; x < size; x += 2) {
         const rand = (Math.sin(x * 12.3) * Math.cos(y * 7.7) + Math.sin((x + y) * 5.1)) * 0.5;

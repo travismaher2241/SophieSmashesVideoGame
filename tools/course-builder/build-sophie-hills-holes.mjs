@@ -32,6 +32,7 @@ import {
   offsetFromLine,
   pathLength,
   pointAtDistance,
+  polygonGap,
   ribbon,
   round2,
   sampleCentreline,
@@ -236,6 +237,45 @@ function fitToLength(waypoints, targetLength) {
   );
 }
 
+/**
+ * How much daylight a hazard has to leave around a surface you can finish on.
+ * Matches the rule assertPlayable enforces.
+ */
+const WATER_TARGET_CLEARANCE = 2;
+
+/**
+ * Draw a hazard where the spec asks for it, then back it off until it is clear
+ * of the surfaces a good shot finishes on.
+ *
+ * A creek "in front of the green" is a distance the author means loosely, and
+ * getting it wrong is not a near miss: it drew water across the front fifth of
+ * hole 2's green, so a shot that pitched on the putting surface was fished out
+ * and penalised. Rather than hand-fitting a number that breaks again the moment
+ * the hole length or the green size changes, the hazard walks back down the line
+ * until it clears — the carry stays where the design wants it, as close to the
+ * green as it can honestly sit.
+ */
+function waterClearOfTargets(water, centreline, length, targets) {
+  const MAX_RETREAT = 40;
+
+  for (let retreat = 0; retreat <= MAX_RETREAT; retreat += 0.5) {
+    const along = clamp(length * water.at - retreat, 0, length);
+    const point = pointAtDistance(centreline, along);
+    const centre = offsetFromLine(point, water.side);
+    const points = ellipse(centre.x, centre.z, water.halfWidth, water.halfLength, 18, point.heading);
+
+    const clear = targets.every(
+      (target) => polygonGap(points, target.points) >= WATER_TARGET_CLEARANCE
+    );
+    if (clear) return points;
+  }
+
+  throw new Error(
+    `water at ${water.at} of the hole cannot be placed clear of the green: ` +
+    `it is ${water.halfLength * 2}m long and there is not ${MAX_RETREAT}m of room to back it into`
+  );
+}
+
 function buildHole(spec) {
   const holeId = `hole-${String(spec.number).padStart(2, '0')}`;
   const waypoints = fitToLength(buildPlayingLine(spec), spec.length);
@@ -323,13 +363,11 @@ function buildHole(spec) {
   const hazards = [];
 
   for (const [index, water] of (spec.water ?? []).entries()) {
-    const point = pointAtDistance(centreline, length * water.at);
-    const centre = offsetFromLine(point, water.side);
     hazards.push({
       id: `${holeId}-water-${index + 1}`,
       type: 'WATER',
       name: index === 0 ? `${spec.name} Water` : `${spec.name} Water ${index + 1}`,
-      points: ellipse(centre.x, centre.z, water.halfWidth, water.halfLength, 18, point.heading)
+      points: waterClearOfTargets(water, centreline, length, [greenSurface, fringe, teeSurface])
     });
   }
 

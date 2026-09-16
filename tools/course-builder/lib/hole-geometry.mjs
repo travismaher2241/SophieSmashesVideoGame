@@ -108,6 +108,55 @@ export function distanceToPolygonEdge(polygon, point) {
  * Returns points carrying the distance travelled so far, so callers can place
  * anything by "metres from the tee" rather than by working out coordinates.
  */
+/** Do these two segments cross? */
+function segmentsCross(a1, a2, b1, b2) {
+  const d = (p, q, r) => (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
+  const d1 = d(b1, b2, a1);
+  const d2 = d(b1, b2, a2);
+  const d3 = d(a1, a2, b1);
+  const d4 = d(a1, a2, b2);
+
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+}
+
+/**
+ * Do these two polygons share any ground?
+ *
+ * Vertices inside the other shape, either way round, plus crossing edges. That
+ * covers every way two closed shapes can meet, including one swallowing the
+ * other whole, which vertex tests alone would miss in one direction.
+ */
+export function polygonsOverlap(a, b) {
+  if (a.some((point) => pointInPolygon(b, point))) return true;
+  if (b.some((point) => pointInPolygon(a, point))) return true;
+
+  for (let i = 0; i < a.length; i++) {
+    const a1 = a[i];
+    const a2 = a[(i + 1) % a.length];
+    for (let j = 0; j < b.length; j++) {
+      if (segmentsCross(a1, a2, b[j], b[(j + 1) % b.length])) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * The gap between two polygons, or 0 where they touch or overlap.
+ *
+ * Measured from vertices to the other outline both ways round, which is close
+ * enough for the smooth shapes a hole is drawn from.
+ */
+export function polygonGap(a, b) {
+  if (polygonsOverlap(a, b)) return 0;
+
+  let gap = Infinity;
+  for (const point of a) gap = Math.min(gap, distanceToPolygonEdge(b, point));
+  for (const point of b) gap = Math.min(gap, distanceToPolygonEdge(a, point));
+
+  return gap;
+}
+
 export function sampleCentreline(waypoints, step = 5) {
   const samples = [];
   let travelled = 0;
@@ -288,6 +337,17 @@ export function writeHole(outDir, hole) {
  * the fairway, trees walling off the green, and mown surfaces poking outside the
  * rough onto unclassified ground. Generators call this before writing.
  */
+/**
+ * Surfaces a well-struck shot is meant to finish on.
+ *
+ * A fairway is missing from this deliberately: a pond crossing the fairway is a
+ * carry, which is a hazard doing its job. A pond over the green is a bug.
+ */
+const TARGET_SURFACES = new Set(['GREEN', 'FRINGE', 'TEE']);
+
+/** How much daylight a hazard must leave around those surfaces. */
+const WATER_TARGET_CLEARANCE = 2;
+
 export function assertPlayable({
   holeId,
   trees,
@@ -353,6 +413,24 @@ export function assertPlayable({
       if (!pointInPolygon(corridor, point)) {
         problems.push(`${surface.id} point (${point.x}, ${point.z}) escapes the rough corridor`);
         break;
+      }
+    }
+  }
+
+  // Water over a target is not a hazard, it is a lie. Whichever surface wins the
+  // lookup, one of them is wrong: a ball pitching on the putting surface was
+  // being fished out of a creek and penalised for it, because the creek was
+  // drawn across the front fifth of the green.
+  for (const hazard of water) {
+    for (const surface of mownSurfaces) {
+      if (!TARGET_SURFACES.has(surface.type)) continue;
+
+      const gap = polygonGap(hazard.points, surface.points);
+      if (gap < WATER_TARGET_CLEARANCE) {
+        problems.push(
+          `water "${hazard.id}" is ${gap === 0 ? 'on top of' : `only ${gap.toFixed(1)}m clear of`} ` +
+          `${surface.id}, which a ball can legitimately finish on`
+        );
       }
     }
   }
