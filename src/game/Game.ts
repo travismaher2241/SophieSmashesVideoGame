@@ -11,7 +11,7 @@ import { TerrainLoader } from '../course/TerrainLoader';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { MouseRaycaster } from '../debug/MouseRaycaster';
 import { PlaytestSurfaceGenerator } from '../debug/PlaytestSurfaceGenerator';
-import { ClubManager } from '../golf/Club';
+import { ClubManager, swingStyleForClub } from '../golf/Club';
 import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
 import { adjacentShape, applyShotShape, ShotShape } from '../golf/ShotShape';
@@ -480,6 +480,7 @@ export class Game {
     const distToCup = Math.hypot(layout.hole.x - layout.tee.x, layout.hole.z - layout.tee.z);
     const isOnGreen = this.ballPhysics?.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(distToCup, isOnGreen);
+    this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
     this.shotMode = (isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING';
 
@@ -700,6 +701,12 @@ export class Game {
     this.aimAngleRadians += deltaRad;
   }
 
+  /** Show the swing that belongs to the club in hand: woods, irons or the putter. */
+  private syncSwingStyleToClub(): void {
+    const club = this.clubManager.getCurrentClub();
+    this.sophieGolfer?.setSwingStyle(swingStyleForClub(club));
+  }
+
   private selectNextClub(): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
@@ -707,12 +714,14 @@ export class Game {
     const club = this.clubManager.getCurrentClub();
     this.shotMode = club.isPutter ? 'PUTTING' : 'FULL_SWING';
     this.gameHUD?.setShotMode(this.shotMode);
+    this.syncSwingStyleToClub();
   }
 
   private selectPrevClub(): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
     this.clubManager.selectPrevClub();
+    this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
     this.shotMode = club.isPutter ? 'PUTTING' : 'FULL_SWING';
     this.gameHUD?.setShotMode(this.shotMode);
@@ -1192,6 +1201,7 @@ export class Game {
     const remainingDist = Math.hypot(dx, dz);
     const isOnGreen = this.ballPhysics.getCurrentLie().type === 'GREEN';
     this.clubManager.autoSelectClubForDistance(remainingDist, isOnGreen);
+    this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
     this.shotMode = (isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING';
 

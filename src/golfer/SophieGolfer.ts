@@ -11,8 +11,39 @@ import {
   TextureLoader,
   Vector3
 } from 'three';
+import { SwingStyle } from '../golf/Club';
 
 export type GolferSwingPhase = 'REST' | 'BACKSWING' | 'TOP_HOLD' | 'DOWNSWING' | 'FOLLOW_THROUGH';
+
+/**
+ * A set of swing frames, and the shape of the canvas they were drawn on.
+ *
+ * Every frame within a set shares one size and one origin, so the frames can be
+ * swapped on a single plane without the golfer changing size or shifting about.
+ * `aspect` is that canvas's width over its height; `figureHeightFraction` is how
+ * much of it the golfer actually fills, which is what sizes her in the world.
+ */
+interface FrameSetSpec {
+  directory: string;
+  aspect: number;
+  figureHeightFraction: number;
+}
+
+const FRAME_SETS: Record<SwingStyle, FrameSetSpec> = {
+  // Rear-view artwork, 556x760 and 511x760, the golfer filling ~95% of the height.
+  DRIVER: { directory: '/assets/sprites/driver', aspect: 556 / 760, figureHeightFraction: 0.95 },
+  IRON: { directory: '/assets/sprites/iron', aspect: 511 / 760, figureHeightFraction: 0.96 },
+  // The original front-on frames, still used for putting until it has its own art.
+  PUTT: { directory: '/assets/sprites/frames', aspect: 553 / 989, figureHeightFraction: 1 }
+};
+
+const FRAME_FILES = [
+  'frame-00-address-1.png',
+  'frame-01-address-2-wiggle.png',
+  'frame-02-backswing-top.png',
+  'frame-03-downswing-impact.png',
+  'frame-04-follow-through.png'
+];
 
 export class SophieGolfer {
   // Swing timings, in seconds. Back slowly, pause at the top, down quickly —
@@ -36,6 +67,9 @@ export class SophieGolfer {
     DOWNSWING_IMPACT: 3,
     FOLLOW_THROUGH: 4
   } as const;
+
+  /** How tall the golfer herself stands, in metres. */
+  private static readonly FIGURE_HEIGHT_METRES = 1.85;
 
   /** How long each address pose is held while waiting, in seconds. */
   private static readonly IDLE_POSE_SECONDS = 0.85;
@@ -62,6 +96,8 @@ export class SophieGolfer {
   private material: MeshBasicMaterial;
 
   private frameTextures: Texture[] = [];
+  private frameSets: Map<SwingStyle, Texture[]> = new Map();
+  private swingStyle: SwingStyle = 'DRIVER';
   private currentPhase: GolferSwingPhase = 'REST';
   /** Seconds elapsed in the current swing phase. */
   private phaseSeconds: number = 0;
@@ -75,49 +111,14 @@ export class SophieGolfer {
   constructor() {
     this.group = new Group();
 
-    // Near life size. She was drawn at 2.45m, half again taller than a person,
-    // which put her across the middle of the shot at address.
-    const height = 1.85;
-    const aspect = 0.559; // 553 / 989 native sprite aspect
-    const width = height * aspect;
-    const geometry = new PlaneGeometry(width, height);
+    // A unit plane, scaled to whichever frame set is loaded. The sets are drawn
+    // on differently shaped canvases, so a fixed-size plane would stretch one of
+    // them. Origin at the bottom edge, which is where her feet are.
+    const geometry = new PlaneGeometry(1, 1);
+    geometry.translate(0, 0.5, 0);
 
-    // Fixed GolferRoot anchor: shift geometry origin so feet contact ground exactly at y = 0
-    geometry.translate(0, height / 2, 0);
-
-    // Sprite frames need a DOM to decode into. Guarded the way the other
-    // renderers are, so the golfer can be constructed headlessly — the swing
-    // timing is worth testing without a browser.
-    const loader = typeof document === 'undefined' ? null : new TextureLoader();
-    const framePaths = [
-      '/assets/sprites/frames/frame-00-address-1.png',
-      '/assets/sprites/frames/frame-01-address-2-wiggle.png',
-      '/assets/sprites/frames/frame-02-backswing-top.png',
-      '/assets/sprites/frames/frame-03-downswing-impact.png',
-      '/assets/sprites/frames/frame-04-follow-through.png'
-    ];
-
-    if (loader) {
-      for (const p of framePaths) {
-        const tex = loader.load(p, undefined, undefined, () => {
-          // Fallback to rest sprite if frame not found
-          const fallback = loader.load('/assets/sophie/sophie_rest.png');
-          fallback.colorSpace = SRGBColorSpace;
-          fallback.minFilter = NearestFilter;
-          fallback.magFilter = NearestFilter;
-          return fallback;
-        });
-        tex.colorSpace = SRGBColorSpace;
-        tex.minFilter = NearestFilter;
-        tex.magFilter = NearestFilter;
-        this.frameTextures.push(tex);
-      }
-    }
-
-    // Default rest material
-    const baseTexture = this.frameTextures[0] ?? loader?.load('/assets/sophie/sophie_rest.png');
     this.material = new MeshBasicMaterial({
-      map: baseTexture ?? null,
+      map: null,
       transparent: true,
       alphaTest: 0.1,
       depthWrite: true
@@ -137,6 +138,8 @@ export class SophieGolfer {
     this.shadowMesh = new Mesh(shadowGeo, shadowMat);
     this.shadowMesh.position.set(0, 0.015, 0);
     this.group.add(this.shadowMesh);
+
+    this.setSwingStyle('DRIVER');
   }
 
   public getGroup(): Group {
@@ -223,6 +226,60 @@ export class SophieGolfer {
   /** The pose currently showing, as an index into the frame set. */
   public getFrameIndex(): number {
     return this.frameIndex;
+  }
+
+  /** Which swing artwork is loaded. */
+  public getSwingStyle(): SwingStyle {
+    return this.swingStyle;
+  }
+
+  /**
+   * Switch to the artwork for a swing style.
+   *
+   * Sets are loaded the first time they are asked for, so a round never pays to
+   * decode the iron frames before an iron is taken out of the bag. The plane is
+   * reshaped to the set's canvas, because they are not all drawn the same shape
+   * and stretching one to fit the other's plane is immediately visible.
+   */
+  public setSwingStyle(style: SwingStyle): void {
+    if (style === this.swingStyle && this.frameTextures.length > 0) return;
+
+    this.swingStyle = style;
+    this.frameTextures = this.loadFrameSet(style);
+
+    const spec = FRAME_SETS[style];
+    // Height is the golfer, not the canvas: the canvas has a little headroom
+    // above her, and the sets differ in how much.
+    const canvasHeight = SophieGolfer.FIGURE_HEIGHT_METRES / spec.figureHeightFraction;
+    this.spriteMesh.scale.set(canvasHeight * spec.aspect, canvasHeight, 1);
+
+    this.setFrame(this.frameIndex);
+  }
+
+  private loadFrameSet(style: SwingStyle): Texture[] {
+    const cached = this.frameSets.get(style);
+    if (cached) return cached;
+
+    // Frames need a DOM to decode into. Guarded the way the other renderers are,
+    // so the golfer can be constructed headlessly — the swing timing is worth
+    // testing without a browser.
+    if (typeof document === 'undefined') {
+      this.frameSets.set(style, []);
+      return [];
+    }
+
+    const loader = new TextureLoader();
+    const spec = FRAME_SETS[style];
+    const textures = FRAME_FILES.map((file) => {
+      const texture = loader.load(`${spec.directory}/${file}`);
+      texture.colorSpace = SRGBColorSpace;
+      texture.minFilter = NearestFilter;
+      texture.magFilter = NearestFilter;
+      return texture;
+    });
+
+    this.frameSets.set(style, textures);
+    return textures;
   }
 
   public updateAnimation(dt: number, camera: Camera): void {

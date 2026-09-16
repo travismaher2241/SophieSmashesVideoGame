@@ -12,6 +12,19 @@ export interface ClubConfig {
   isPutter: boolean;
 }
 
+/**
+ * Which swing animation a club is played with.
+ *
+ * The artwork is drawn per swing type, not per club: a driver and a 3 wood are
+ * swung the same way, and so are a 6 iron and a sand wedge.
+ */
+export type SwingStyle = 'DRIVER' | 'IRON' | 'PUTT';
+
+export function swingStyleForClub(club: ClubConfig): SwingStyle {
+  if (club.isPutter) return 'PUTT';
+  return club.id.includes('wood') || club.id === 'driver' ? 'DRIVER' : 'IRON';
+}
+
 export const GOLF_CLUBS: ClubConfig[] = [
   {
     id: 'driver',

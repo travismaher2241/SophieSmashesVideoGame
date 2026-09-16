@@ -2,15 +2,18 @@
  * Slice a swing sprite sheet into the individual frames the game loads.
  *
  * The sheets are drawn as a grid of poses on one canvas. The game wants one
- * transparent PNG per pose, trimmed to the figure, so a frame's own bounding box
- * decides where it sits rather than the cell it happened to be drawn in.
+ * transparent PNG per pose, all the same size and all sharing one origin: the
+ * frames are swapped on a single fixed plane, so trimming each pose to its own
+ * bounding box would both distort it and make the golfer jump around between
+ * frames. Every frame is therefore cropped to the same box — the union of all
+ * the poses — which drops the wasted margin while keeping them in register.
  *
  * There is no ImageMagick or sharp in this environment, so the work is done in
  * the headless Chromium that is already here for screenshots.
  *
  * Usage:
  *   node tools/sprites/slice-swing-sheet.mjs <sheet.png> <out-dir> [--cols=3] [--rows=2]
- *        [--map=1,0,2,3,4] [--white-key] [--no-trim]
+ *        [--map=1,0,2,3,4] [--white-key] [--no-trim] [--max-height=700]
  *
  * --map lists which grid cell feeds each output frame, in reading order
  * (left to right, top to bottom), as: address1,address2,backswingTop,
@@ -19,6 +22,10 @@
  * --white-key removes a white background. Only use it on a sheet that has no
  * alpha channel of its own: keying leaves a pale fringe on anti-aliased edges,
  * so an export with real transparency is always better.
+ *
+ * --max-height caps the output height. Source art is usually drawn far larger
+ * than it is ever displayed: the golfer stands about 400px tall on screen, so
+ * shipping 1300px frames costs megabytes of download for detail no one sees.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -57,7 +64,8 @@ function parseArgs(argv) {
     // bottom row, with address 1 in the middle cell.
     map: String(flags.map ?? '4,3,5,2,1').split(',').map(Number),
     whiteKey: Boolean(flags['white-key']),
-    trim: flags.trim !== 'false' && !flags['no-trim']
+    trim: flags.trim !== 'false' && !flags['no-trim'],
+    maxHeight: flags['max-height'] ? Number(flags['max-height']) : 0
   };
 }
 
@@ -78,7 +86,8 @@ async function main() {
       rows: options.rows,
       map: options.map,
       whiteKey: options.whiteKey,
-      trim: options.trim
+      trim: options.trim,
+      maxHeight: options.maxHeight
     });
 
     mkdirSync(options.outDir, { recursive: true });
@@ -91,6 +100,7 @@ async function main() {
       writeFileSync(outPath, Buffer.from(frame.png.split(',')[1], 'base64'));
       console.log(
         `${FRAME_NAMES[i].padEnd(28)} cell ${options.map[i]}  ${frame.width}x${frame.height}` +
+        (frame.figure ? `  figure ${(frame.figure.heightFraction * 100).toFixed(0)}% tall, feet at ${(frame.figure.feetFraction * 100).toFixed(0)}%` : '') +
         (frame.empty ? '  *** EMPTY — check the cell map ***' : '')
       );
     }
@@ -106,7 +116,7 @@ async function main() {
  * Runs inside the page: cut each cell out of the sheet, optionally key out white,
  * then trim to the figure's own bounding box.
  */
-function sliceInPage({ dataUrl, cols, rows, map, whiteKey, trim }) {
+function sliceInPage({ dataUrl, cols, rows, map, whiteKey, trim, maxHeight }) {
   return new Promise((done, fail) => {
     const image = new Image();
     image.onerror = () => fail(new Error('Could not decode the sheet image'));
@@ -114,7 +124,8 @@ function sliceInPage({ dataUrl, cols, rows, map, whiteKey, trim }) {
       const cellWidth = Math.floor(image.width / cols);
       const cellHeight = Math.floor(image.height / rows);
 
-      const results = map.map((cellNumber) => {
+      // First pass: cut out each cell and find where the ink is.
+      const cells = map.map((cellNumber) => {
         const index = cellNumber - 1;
         const sx = (index % cols) * cellWidth;
         const sy = Math.floor(index / cols) * cellHeight;
@@ -139,7 +150,6 @@ function sliceInPage({ dataUrl, cols, rows, map, whiteKey, trim }) {
           ctx.putImageData(pixels, 0, 0);
         }
 
-        // Bounding box of everything still visible.
         let minX = cellWidth;
         let minY = cellHeight;
         let maxX = -1;
@@ -155,23 +165,45 @@ function sliceInPage({ dataUrl, cols, rows, map, whiteKey, trim }) {
           }
         }
 
-        const empty = maxX < 0;
-        if (empty || !trim) {
-          return { png: canvas.toDataURL('image/png'), width: cellWidth, height: cellHeight, empty };
-        }
+        return { canvas, minX, minY, maxX, maxY, empty: maxX < 0 };
+      });
 
-        const pad = 2;
-        const cropX = Math.max(0, minX - pad);
-        const cropY = Math.max(0, minY - pad);
-        const cropW = Math.min(cellWidth - cropX, maxX - minX + 1 + pad * 2);
-        const cropH = Math.min(cellHeight - cropY, maxY - minY + 1 + pad * 2);
+      // One box for every frame, so the poses stay in register on the plane.
+      const pad = 4;
+      const drawn = cells.filter((cell) => !cell.empty);
+      const box = trim && drawn.length > 0
+        ? {
+            x: Math.max(0, Math.min(...drawn.map((c) => c.minX)) - pad),
+            y: Math.max(0, Math.min(...drawn.map((c) => c.minY)) - pad),
+            right: Math.min(cellWidth, Math.max(...drawn.map((c) => c.maxX)) + 1 + pad),
+            bottom: Math.min(cellHeight, Math.max(...drawn.map((c) => c.maxY)) + 1 + pad)
+          }
+        : { x: 0, y: 0, right: cellWidth, bottom: cellHeight };
 
+      const cropW = box.right - box.x;
+      const cropH = box.bottom - box.y;
+      const scale = maxHeight > 0 ? Math.min(1, maxHeight / cropH) : 1;
+      const outW = Math.max(1, Math.round(cropW * scale));
+      const outH = Math.max(1, Math.round(cropH * scale));
+
+      const results = cells.map((cell) => {
         const out = document.createElement('canvas');
-        out.width = cropW;
-        out.height = cropH;
-        out.getContext('2d').drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        out.width = outW;
+        out.height = outH;
+        const outCtx = out.getContext('2d');
+        outCtx.imageSmoothingQuality = 'high';
+        outCtx.drawImage(cell.canvas, box.x, box.y, cropW, cropH, 0, 0, outW, outH);
 
-        return { png: out.toDataURL('image/png'), width: cropW, height: cropH, empty: false };
+        // Where this pose sits inside the shared box, as fractions — useful for
+        // sizing the plane so the figure ends up the right height in the world.
+        const figure = cell.empty
+          ? null
+          : {
+              heightFraction: +((cell.maxY - cell.minY + 1) / cropH).toFixed(3),
+              feetFraction: +((cell.maxY - box.y) / cropH).toFixed(3)
+            };
+
+        return { png: out.toDataURL('image/png'), width: outW, height: outH, empty: cell.empty, figure };
       });
 
       done(results);
