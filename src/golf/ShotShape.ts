@@ -36,11 +36,11 @@ export interface ShapeProfile {
  * that a shaped drive visibly bends by roughly 9m at its widest and still
  * finishes on the aim line.
  */
-/** The driver's carry, which the shaping curve is scaled against. */
-const REFERENCE_CARRY_METRES = 230;
-
 const CURVE_SPIN = 2.4;
 const START_OFFSET_DEGREES = 7.9;
+
+/** The driver's carry, which the shaping curve is scaled against. */
+const REFERENCE_CARRY_METRES = 230;
 
 const PROFILES: Record<ShotShape, ShapeProfile> = {
   DRAW: { label: 'DRAW', startOffsetDegrees: START_OFFSET_DEGREES, curveSpin: -CURVE_SPIN },
