@@ -429,6 +429,23 @@ export class GameHUD {
   }
 
   public showPenalty(headline: string, detail: string): void {
+    this.showBanner(headline, detail, 'PENALTY');
+  }
+
+  /**
+   * A banner for something that happened to the shot.
+   *
+   * Two tones: a penalty, and something that merely went wrong. Finding a tree
+   * costs no stroke, so it is not dressed as a ruling — but the player does need
+   * telling, or a drive that stops at 74 metres looks like the game breaking
+   * rather than a ball in the branches.
+   */
+  public showBanner(headline: string, detail: string, tone: 'PENALTY' | 'EVENT' = 'EVENT'): void {
+    const penalty = tone === 'PENALTY';
+    this.penaltyBanner.style.background = penalty ? 'rgba(48, 20, 6, 0.94)' : 'rgba(14, 34, 16, 0.94)';
+    this.penaltyBanner.style.borderColor = penalty ? '#ffaa33' : '#7ec473';
+    this.penaltyBanner.style.color = penalty ? '#ffe8bb' : '#d8f2d0';
+
     this.penaltyBanner.innerHTML = `<strong>${headline}</strong><div>${detail}</div>`;
     this.penaltyBanner.style.display = 'block';
     window.setTimeout(() => { this.penaltyBanner.style.display = 'none'; }, 4000);

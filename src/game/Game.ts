@@ -461,6 +461,10 @@ export class Game {
       surfaces.filter((surface) => surface.type === 'FAIRWAY').map((surface) => surface.points)
     );
 
+    // The trees are part of the hole, not scenery painted on it: a drive into
+    // the tree line has to come down in the tree line.
+    this.ballPhysics?.setTrees(this.treeRenderer?.getObstacles() ?? []);
+
     // Cup position. Clamping is correct here: the layout is already bounds-checked,
     // and this is a render/placement lookup rather than a ball-in-play query.
     const cupY = this.terrainQuery!.getTerrainHeight(layout.hole.x, layout.hole.z, true);
@@ -1219,6 +1223,19 @@ export class Game {
 
   private onBallStoppedAtRest(): void {
     if (!this.ballPhysics) return;
+
+    // Say so when the ball found a tree, and consume it so the next shot does
+    // not inherit the news.
+    const treeHit = this.ballPhysics.lastTreeHit;
+    this.ballPhysics.lastTreeHit = null;
+    if (treeHit) {
+      this.gameHUD?.showBanner(
+        'IN THE TREES',
+        treeHit.part === 'TRUNK'
+          ? 'Straight off the trunk.'
+          : 'Caught the branches on the way through.'
+      );
+    }
 
     this.applyPenaltyRelief();
 

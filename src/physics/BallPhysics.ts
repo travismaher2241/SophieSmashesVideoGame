@@ -4,6 +4,8 @@ import { TerrainQuery } from '../course/TerrainQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingResult } from '../golf/SwingMeter';
 import { CALM, Wind, windVector } from '../golf/Wind';
+import { TreeObstacle } from '../course/TreeShapes';
+import { findTreeHit, TreeHit } from './TreeCollision';
 
 export type BallState = 'REST' | 'AIRBORNE' | 'BOUNCING' | 'ROLLING' | 'HOLED';
 
@@ -14,6 +16,19 @@ export class BallPhysics {
    * force, while slower clubs now curve proportionally less.
    */
   private static readonly CURVE_FORCE_PER_SPEED = 0.045;
+
+  /**
+   * What a tree takes out of a shot.
+   *
+   * A ball into branches does not deflect so much as stop: the leaves and limbs
+   * take nearly all of it and the ball falls more or less under the tree. A
+   * trunk is the opposite — almost nothing is absorbed by the wood, so it kicks
+   * back hard and can end up behind where it was struck from.
+   */
+  private static readonly CANOPY_SPEED_KEPT = 0.17;
+  private static readonly TRUNK_SPEED_KEPT = 0.22;
+  /** How much of a canopy strike's remaining speed is thrown out sideways. */
+  private static readonly CANOPY_SCATTER = 0.45;
 
   public position: Vector3 = new Vector3();
   public velocity: Vector3 = new Vector3();
@@ -42,6 +57,11 @@ export class BallPhysics {
    */
   private windX: number = 0;
   private windZ: number = 0;
+
+  /** The trees on this hole, as shapes the ball can hit. */
+  private trees: readonly TreeObstacle[] = [];
+  /** Set for one shot when the ball has been through a tree, for the readout. */
+  public lastTreeHit: TreeHit | null = null;
 
   private clubSpin: number = 0;   // Spin / green-holding check factor (0.1 to 1.0)
   private curveSpin: number = 0;  // Lateral side spin factor (-1.0 to +1.0)
@@ -78,6 +98,17 @@ export class BallPhysics {
    * dwarfs the push of the air, and a putt that drifted with the breeze would be
    * wrong as well as maddening.
    */
+  /**
+   * The trees the ball can hit on this hole.
+   *
+   * They were decoration until now: a drive went through a gum tree without
+   * noticing it was there, which made a tree-lined hole no narrower than an open
+   * one and the corridor purely a matter of looks.
+   */
+  public setTrees(trees: readonly TreeObstacle[]): void {
+    this.trees = trees;
+  }
+
   public setWind(wind: Wind = CALM): void {
     const vector = windVector(wind);
     this.windX = vector.x;
@@ -140,6 +171,7 @@ export class BallPhysics {
     this.curveSpin = swing.curveSpinFactor || 0;
     this.leftTerrain = false;
     this.rollDuration = 0;
+    this.lastTreeHit = null;
 
     if (club.isPutter) {
       // Putting launch: ground roll directly
@@ -261,11 +293,24 @@ export class BallPhysics {
     }
 
     const prevX = this.position.x;
+    const prevY = this.position.y;
     const prevZ = this.position.z;
 
     this.position.x += this.velocity.x * dt;
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;
+
+    if (this.trees.length > 0) {
+      const hit = findTreeHit(
+        prevX, prevY, prevZ,
+        this.position.x, this.position.y, this.position.z,
+        this.trees
+      );
+      if (hit) {
+        this.hitTree(hit);
+        return;
+      }
+    }
 
     const query = this.terrainQuery.queryTerrainHeight(this.position.x, this.position.z);
     if (query.isOutOfBounds) {
@@ -280,6 +325,50 @@ export class BallPhysics {
       this.updateCurrentLie();
       this.handleGroundContact();
     }
+  }
+
+  /**
+   * The ball meets a tree.
+   *
+   * Branches take nearly all of it and drop the ball; a trunk gives most of it
+   * back the other way. Both kill the spin, because whatever the ball was doing
+   * in the air it is not doing it after that.
+   */
+  private hitTree(hit: TreeHit): void {
+    this.lastTreeHit = hit;
+
+    // Stand the ball just off the tree so the next step starts outside it.
+    const clearance = 0.02;
+    this.position.set(
+      hit.x + hit.normalX * clearance,
+      hit.y,
+      hit.z + hit.normalZ * clearance
+    );
+
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+
+    if (hit.part === 'TRUNK') {
+      // Reflect off the trunk: the wood gives, the ball comes back.
+      const into = this.velocity.x * hit.normalX + this.velocity.z * hit.normalZ;
+      this.velocity.x = (this.velocity.x - 2 * into * hit.normalX) * BallPhysics.TRUNK_SPEED_KEPT;
+      this.velocity.z = (this.velocity.z - 2 * into * hit.normalZ) * BallPhysics.TRUNK_SPEED_KEPT;
+      this.velocity.y = Math.min(this.velocity.y, 0) * 0.3;
+    } else {
+      // Through the branches: most of the pace gone, and what is left is thrown
+      // out the way the ball entered rather than carried on down the line.
+      const kept = speed * BallPhysics.CANOPY_SPEED_KEPT;
+      const scatter = kept * BallPhysics.CANOPY_SCATTER;
+      const alongX = speed > 1e-6 ? this.velocity.x / speed : 0;
+      const alongZ = speed > 1e-6 ? this.velocity.z / speed : 0;
+
+      this.velocity.x = alongX * kept + hit.normalX * scatter;
+      this.velocity.z = alongZ * kept + hit.normalZ * scatter;
+      this.velocity.y = Math.min(this.velocity.y, 0) * 0.25;
+    }
+
+    this.clubSpin *= 0.2;
+    this.curveSpin = 0;
+    this.state = 'BOUNCING';
   }
 
   /**
@@ -388,6 +477,24 @@ export class BallPhysics {
 
     this.position.x += this.velocity.x * dt;
     this.position.z += this.velocity.z * dt;
+
+    if (this.trees.length > 0) {
+      const hit = findTreeHit(
+        prevX, this.position.y, prevZ,
+        this.position.x, this.position.y, this.position.z,
+        this.trees
+      );
+      if (hit) {
+        // A ball rolling into a trunk comes off it and has very little left.
+        this.position.set(hit.x + hit.normalX * 0.05, this.position.y, hit.z + hit.normalZ * 0.05);
+        const into = this.velocity.x * hit.normalX + this.velocity.z * hit.normalZ;
+        this.velocity.x = (this.velocity.x - 2 * into * hit.normalX) * 0.2;
+        this.velocity.z = (this.velocity.z - 2 * into * hit.normalZ) * 0.2;
+        this.velocity.y = 0;
+        this.lastTreeHit = hit;
+        return;
+      }
+    }
 
     if (this.terrainQuery.queryTerrainHeight(this.position.x, this.position.z).isOutOfBounds) {
       this.stopAtTerrainEdge(prevX, prevZ);

@@ -9,20 +9,18 @@ import {
   Vector3
 } from 'three';
 import { TerrainQuery } from '../course/TerrainQuery';
+import { TreeInstance, TreeObstacle, treeObstacle, TreeType, TREE_DIMENSIONS } from '../course/TreeShapes';
 
-export type TreeType = 'GUM_LARGE' | 'GUM_MEDIUM' | 'PINE' | 'CLUSTER' | 'BUSH';
-
-export interface TreeInstance {
-  x: number;
-  z: number;
-  type: TreeType;
-  scale?: number;
-}
+// The tree types and their sizes live in TreeShapes, because the ball has to
+// agree with the picture about how big a tree is. Re-exported so the existing
+// importers of these names keep working.
+export type { TreeInstance, TreeType };
 
 export class TreeRenderer {
   private group: Group;
   private terrainQuery: TerrainQuery;
   private treeMeshes: Mesh[] = [];
+  private placedObstacles: TreeObstacle[] = [];
   private textures: Map<TreeType, CanvasTexture> = new Map();
   private materials: Map<TreeType, MeshBasicMaterial> = new Map();
   private geometries: Map<TreeType, PlaneGeometry> = new Map();
@@ -48,11 +46,10 @@ export class TreeRenderer {
   private createTextures(): void {
     const types: TreeType[] = ['GUM_LARGE', 'GUM_MEDIUM', 'PINE', 'CLUSTER', 'BUSH'];
 
-    this.geometries.set('GUM_LARGE', this.createOriginBottomPlane(9.0, 11.5));
-    this.geometries.set('GUM_MEDIUM', this.createOriginBottomPlane(6.5, 8.5));
-    this.geometries.set('PINE', this.createOriginBottomPlane(5.2, 9.2));
-    this.geometries.set('CLUSTER', this.createOriginBottomPlane(11.0, 7.5));
-    this.geometries.set('BUSH', this.createOriginBottomPlane(3.6, 2.6));
+    for (const type of types) {
+      const size = TREE_DIMENSIONS[type];
+      this.geometries.set(type, this.createOriginBottomPlane(size.widthMetres, size.heightMetres));
+    }
 
     if (typeof document !== 'undefined') {
       this.textures.set('GUM_LARGE', this.generateGumTreeCanvas(64, 96, true));
@@ -130,7 +127,16 @@ export class TreeRenderer {
 
       this.group.add(mesh);
       this.treeMeshes.push(mesh);
+      // Built from the tree that was actually drawn, at the height it was drawn
+      // at. A tree skipped for being off the edge of the terrain is not standing
+      // there to be hit.
+      this.placedObstacles.push(treeObstacle(inst, y));
     }
+  }
+
+  /** The trees as the ball meets them, for the physics to collide against. */
+  public getObstacles(): readonly TreeObstacle[] {
+    return this.placedObstacles;
   }
 
   public update(cameraPosition: Vector3): void {
@@ -149,6 +155,7 @@ export class TreeRenderer {
       this.group.remove(child);
     }
     this.treeMeshes = [];
+    this.placedObstacles = [];
   }
 
   // --- Pixel Art Canvas Generators ---
@@ -474,7 +481,15 @@ export function isClearOfPlay(
 }
 
 /** Setback kept between the fairway edge and the nearest generated tree, in metres. */
-const FAIRWAY_SETBACK = 8;
+/**
+ * How far a generated tree is kept off the mown grass.
+ *
+ * Exported because the collision shapes have to fit inside it: a canopy wider
+ * than the setback would overhang the fairway a tree was deliberately kept off,
+ * and a ball sitting in the middle of the short grass would be under branches
+ * that are not drawn there.
+ */
+export const FAIRWAY_SETBACK = 8;
 
 /**
  * True when a tree is off every fairway on the hole, by at least the setback.
