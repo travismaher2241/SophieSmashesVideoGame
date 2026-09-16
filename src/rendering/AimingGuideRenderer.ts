@@ -12,8 +12,10 @@ import {
 } from 'three';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { ClubConfig } from '../golf/Club';
+import { ShotShape, shapeProfile } from '../golf/ShotShape';
 
 export class AimingGuideRenderer {
+  private shotShape: ShotShape = 'STRAIGHT';
   private group: Group;
   private lineMesh: LineSegments | null = null;
   private targetRing: Mesh | null = null;
@@ -34,6 +36,16 @@ export class AimingGuideRenderer {
 
   public setVisible(visible: boolean): void {
     this.group.visible = visible;
+  }
+
+  /**
+   * Shape the guide curves to match.
+   *
+   * The player picks a shape before swinging, so the guide has to show it —
+   * otherwise the choice is invisible until the ball is already in the air.
+   */
+  public setShotShape(shape: ShotShape): void {
+    this.shotShape = shape;
   }
 
   public update(ballPos: Vector3, aimAngleRad: number, club: ClubConfig): void {
@@ -65,17 +77,34 @@ export class AimingGuideRenderer {
     const targetZ = ballPos.z + dirZ * dist;
     const targetY = this.terrainQuery.getTerrainHeight(targetX, targetZ, true) + 0.15;
 
-    // A single, geometrically straight 3D line from ball pivot to target direction.
-    // Pure linear interpolation ensures zero bending, zero splining, and zero terrain kinks.
+    // Sideways swing of the guide, in metres at its widest.
+    //
+    // A shaped shot leaves on one side of the aim line and works back to it, so
+    // the curve peaks mid-flight and closes to nothing at the target. Straight
+    // shots get a straight line, exactly as before.
+    const profile = shapeProfile(this.shotShape);
+    // A quarter of the start-line offset: where the outbound line and the curve
+    // back cancel, which is where the real flight peaks.
+    const bulge = profile.startOffsetDegrees === 0
+      ? 0
+      : Math.tan((profile.startOffsetDegrees * Math.PI) / 180) * dist * 0.25;
+
+    // Perpendicular to the aim line, pointing right of the target.
+    const sideX = Math.cos(aimAngleRad + Math.PI / 2);
+    const sideZ = Math.sin(aimAngleRad + Math.PI / 2);
+
     let prevX = startX;
     let prevY = startY;
     let prevZ = startZ;
 
     for (let i = 1; i <= stepCount; i++) {
       const t = i / stepCount;
-      const currX = startX + t * (targetX - startX);
+      // t*(1-t) peaks at half distance and is zero at both ends, which is the
+      // shape of a worked shot: out to one side, then back onto the line.
+      const swing = bulge * 4 * t * (1 - t);
+      const currX = startX + t * (targetX - startX) + sideX * swing;
       const currY = startY + t * (targetY - startY);
-      const currZ = startZ + t * (targetZ - startZ);
+      const currZ = startZ + t * (targetZ - startZ) + sideZ * swing;
 
       // Clean dashed pattern
       if (i % 2 === 1) {

@@ -7,6 +7,13 @@ import { SwingResult } from '../golf/SwingMeter';
 export type BallState = 'REST' | 'AIRBORNE' | 'BOUNCING' | 'ROLLING' | 'HOLED';
 
 export class BallPhysics {
+  /**
+   * Sideways acceleration per unit of side spin, per metre/second of forward
+   * speed. Set so a driver curves about as far as it did under the old capped
+   * force, while slower clubs now curve proportionally less.
+   */
+  private static readonly CURVE_FORCE_PER_SPEED = 0.045;
+
   public position: Vector3 = new Vector3();
   public velocity: Vector3 = new Vector3();
   public state: BallState = 'REST';
@@ -201,12 +208,19 @@ export class BallPhysics {
       this.velocity.y += (dragVy - this.gravity) * dt;
       this.velocity.z += dragVz * dt;
 
-      // Lateral aerodynamic curve from side spin
+      // Lateral aerodynamic curve from side spin.
+      //
+      // The sideways force is proportional to how fast the ball is travelling,
+      // as the Magnus force actually is. That matters for more than realism: the
+      // acceleration used to be capped, which made the curve depend on hang time
+      // rather than on ground covered. A lofted club has plenty of hang time and
+      // covers little ground, so a shaped 9 iron bent twice as far off line as a
+      // driver. Tying the force to speed makes the curve scale with the shot.
       const horizSpeed = Math.hypot(this.velocity.x, this.velocity.z);
       if (horizSpeed > 1.0 && Math.abs(this.curveSpin) > 0.01) {
         const perpX = -this.velocity.z / horizSpeed;
         const perpZ = this.velocity.x / horizSpeed;
-        const curveAcc = this.curveSpin * 1.8 * Math.min(1.5, horizSpeed / 30);
+        const curveAcc = this.curveSpin * BallPhysics.CURVE_FORCE_PER_SPEED * horizSpeed;
         this.velocity.x += perpX * curveAcc * dt;
         this.velocity.z += perpZ * curveAcc * dt;
       }

@@ -79,6 +79,11 @@ must never be presented as that real course's data.
   * Real 1m:1unit scale trajectory calculations.
   * Aerodynamic drag ($F_d = \frac{1}{2} \rho C_d A v^2$).
   * Terrain bouncing and slope friction roll using continuous `getTerrainHeight(x, z)` and `getTerrainNormal(x, z)` queries.
+* **Shot Shaping**: choose a **draw** or a **fade** before the swing. A draw starts
+  right of the aim line and turns back onto it; a fade mirrors it. The aiming
+  guide curves to match, so the choice is visible before you swing, and the ball
+  flight follows it. The shape adds to your timing rather than replacing it — a
+  draw hit early is a hook.
 * **Club Selection**:
   * `1W` (Driver — 230m max)
   * `5I` (5 Iron — 170m max)
@@ -101,6 +106,7 @@ must never be presented as that real course's data.
 | **`Space`** or **Swing Button** | 3-Click Swing Meter (Start / Lock Power / Lock Accuracy) |
 | **`A` / `D`** or **`Left` / `Right` Arrows** | Aim Left / Aim Right |
 | **`W` / `S`** or **`Up` / `Down` Arrows** | Select Prev / Next Club |
+| **`Q`** / **`E`** or **Shape Buttons** | Work the ball: Draw / Straight / Fade |
 | **`M`** or **View Button** | Toggle Behind-Player / Overhead Map View |
 | **`F2`** | Toggle Developer Alignment Mode |
 

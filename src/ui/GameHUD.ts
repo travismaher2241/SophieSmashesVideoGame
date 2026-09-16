@@ -1,3 +1,4 @@
+import { describeShotResult, ShotShape } from '../golf/ShotShape';
 import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
@@ -16,6 +17,7 @@ export interface GameHUDHoleConfig {
 }
 
 export class GameHUD {
+  private shotShape: ShotShape = 'STRAIGHT';
   private container: HTMLElement;
   private swingMeterContainer: HTMLElement;
   private puttMeterContainer: HTMLElement;
@@ -23,6 +25,8 @@ export class GameHUD {
 
   // Callbacks
   private onAimLeft?: () => void;
+  private onShapeLeft?: () => void;
+  private onShapeRight?: () => void;
   private onAimRight?: () => void;
   private onClubNext?: () => void;
   private onClubPrev?: () => void;
@@ -71,6 +75,8 @@ export class GameHUD {
 
   constructor(callbacks: {
     onAimLeft?: () => void;
+    onShapeLeft?: () => void;
+    onShapeRight?: () => void;
     onAimRight?: () => void;
     onClubNext?: () => void;
     onClubPrev?: () => void;
@@ -84,6 +90,8 @@ export class GameHUD {
     onReturnToTitle?: () => void;
   }) {
     this.onAimLeft = callbacks.onAimLeft;
+    this.onShapeLeft = callbacks.onShapeLeft;
+    this.onShapeRight = callbacks.onShapeRight;
     this.onAimRight = callbacks.onAimRight;
     this.onClubNext = callbacks.onClubNext;
     this.onClubPrev = callbacks.onClubPrev;
@@ -123,6 +131,13 @@ export class GameHUD {
       this.swingMeterContainer.style.display = 'none';
       this.puttMeterContainer.style.display = 'none';
     }
+  }
+
+  /** Show the shape the player has chosen. */
+  public setShotShape(shape: ShotShape): void {
+    this.shotShape = shape;
+    const name = this.container.querySelector('#hud-shape-name');
+    if (name) name.textContent = shape;
   }
 
   public setShotMode(mode: ShotMode): void {
@@ -283,9 +298,15 @@ export class GameHUD {
           else if (result.strikeQuality === 'NOTICEABLE') badgeColor = '#ecc94b';
           else badgeColor = '#fc8181';
 
-          this.meterStatusElem.innerHTML = `<span style="color: ${badgeColor}; font-weight: 900; font-size: 13px; letter-spacing: 1px;">${result.feedbackText}</span>`;
+          // Say what the ball is actually doing, not just how it was struck: a
+          // pure strike on an intended draw is still a draw, and a mistimed one
+          // may be something else entirely.
+          const flight = describeShotResult(result, this.shotShape);
+          const label = flight === 'STRAIGHT' ? result.feedbackText : `${result.feedbackText} · ${flight}`;
+
+          this.meterStatusElem.innerHTML = `<span style="color: ${badgeColor}; font-weight: 900; font-size: 13px; letter-spacing: 1px;">${label}</span>`;
           if (this.swingButtonElem) {
-            this.swingButtonElem.textContent = result.feedbackText;
+            this.swingButtonElem.textContent = label;
           }
         }
       }
@@ -514,6 +535,16 @@ export class GameHUD {
           <button id="btn-aim-right" class="hud-ctrl-btn" aria-label="Aim right">▶</button>
         </div>
 
+        <!-- Shot shape: work the ball left or right -->
+        <div class="hud-capsule hud-shape-controls" id="hud-shape-capsule">
+          <button id="btn-shape-left" class="hud-ctrl-btn" aria-label="Shape draw">◀</button>
+          <div class="hud-shape-readout">
+            <div id="hud-shape-name">STRAIGHT</div>
+            <div id="hud-shape-hint">SHAPE · Q / E</div>
+          </div>
+          <button id="btn-shape-right" class="hud-ctrl-btn" aria-label="Shape fade">▶</button>
+        </div>
+
         <!-- Right Block: Swing / Putt Button -->
         <button id="btn-trigger-swing" class="hud-swing-btn" type="button">SWING</button>
       </div>
@@ -582,9 +613,9 @@ export class GameHUD {
           left: max(8px, env(safe-area-inset-left));
           right: max(8px, env(safe-area-inset-right));
           margin: 0 auto;
-          max-width: 620px;
+          max-width: 760px;
           display: grid;
-          grid-template-columns: 1.25fr 0.85fr 1fr;
+          grid-template-columns: 1.15fr 0.7fr 0.95fr 0.95fr;
           align-items: center;
           gap: 6px;
           pointer-events: auto;
@@ -648,6 +679,31 @@ export class GameHUD {
           padding: 3px 4px;
           min-width: 0;
         }
+        .hud-shape-controls {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 3px 4px;
+          min-width: 0;
+          gap: 2px;
+        }
+        .hud-shape-readout {
+          text-align: center;
+          padding: 0 4px;
+          min-width: 74px;
+        }
+        #hud-shape-name {
+          font-size: 11px;
+          font-weight: 800;
+          color: #f6e05e;
+          white-space: nowrap;
+        }
+        #hud-shape-hint {
+          font-size: 8px;
+          font-weight: 700;
+          color: #8a97a8;
+          white-space: nowrap;
+        }
         .hud-aim-label {
           font-size: 9.5px;
           font-weight: 800;
@@ -685,7 +741,7 @@ export class GameHUD {
           #hud-subtitle { display: none; }
           .hud-hide-mobile { display: none; }
           .hud-bottombar {
-            grid-template-columns: 1.25fr 0.85fr 1fr;
+            grid-template-columns: 1.1fr 0.65fr 0.9fr 0.9fr;
             gap: 4px;
           }
           .hud-bottombar.putting-layout {
@@ -698,7 +754,8 @@ export class GameHUD {
 
         @media (max-width: 380px) {
           .hud-bottombar {
-            grid-template-columns: 1.2fr 0.8fr 1fr;
+            /* Narrow screens: club and aim on top, shape and swing beneath. */
+            grid-template-columns: 1.2fr 0.8fr;
             gap: 3px;
           }
           .hud-bottombar.putting-layout {
@@ -736,6 +793,8 @@ export class GameHUD {
     this.container.querySelector('#btn-club-prev')?.addEventListener('click', () => this.onClubPrev?.());
     this.container.querySelector('#btn-club-next')?.addEventListener('click', () => this.onClubNext?.());
     this.container.querySelector('#btn-aim-left')?.addEventListener('click', () => this.onAimLeft?.());
+    this.container.querySelector('#btn-shape-left')?.addEventListener('click', () => this.onShapeLeft?.());
+    this.container.querySelector('#btn-shape-right')?.addEventListener('click', () => this.onShapeRight?.());
     this.container.querySelector('#btn-aim-right')?.addEventListener('click', () => this.onAimRight?.());
 
     this.swingButtonElem.addEventListener('pointerdown', (e) => this.handleTriggerAction(e));

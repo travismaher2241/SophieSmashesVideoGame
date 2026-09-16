@@ -14,6 +14,7 @@ import { PlaytestSurfaceGenerator } from '../debug/PlaytestSurfaceGenerator';
 import { ClubManager } from '../golf/Club';
 import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
+import { adjacentShape, applyShotShape, ShotShape } from '../golf/ShotShape';
 import { PuttMeter, PuttResult } from '../golf/PuttMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
 import { BallPhysics } from '../physics/BallPhysics';
@@ -143,6 +144,8 @@ export class Game {
   private strokeCount: number = 0;
   private penaltyStrokes: number = 0;
   private shotMode: ShotMode = 'FULL_SWING';
+  /** The shape the player has chosen to hit. Reset to straight on each new shot. */
+  private shotShape: ShotShape = 'STRAIGHT';
   /** Guards against the same completed swing being played more than once. */
   private swingExecuted: boolean = false;
   /** Where the stroke currently in flight was played from, for stroke-and-distance relief. */
@@ -458,6 +461,7 @@ export class Game {
     this.strokeCount = 0;
     this.penaltyStrokes = 0;
     this.swingExecuted = false;
+    this.setShotShape('STRAIGHT');
     this.swingMeter.reset();
     this.sophieGolfer?.resetPose();
     this.ballRenderer?.clearTracer();
@@ -542,6 +546,8 @@ export class Game {
     this.gameHUD = new GameHUD({
       onAimLeft: () => this.adjustAim(-0.06),
       onAimRight: () => this.adjustAim(0.06),
+      onShapeLeft: () => this.adjustShotShape(-1),
+      onShapeRight: () => this.adjustShotShape(1),
       onClubPrev: () => this.selectPrevClub(),
       onClubNext: () => this.selectNextClub(),
       onSwingTrigger: () => this.triggerSwingMeter(),
@@ -649,6 +655,10 @@ export class Game {
         this.selectPrevClub();
       } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
         this.selectNextClub();
+      } else if (e.key === 'q' || e.key === 'Q') {
+        this.adjustShotShape(-1);
+      } else if (e.key === 'e' || e.key === 'E') {
+        this.adjustShotShape(1);
       } else if (e.key === 'm' || e.key === 'M') {
         this.toggleCameraMode();
       }
@@ -668,6 +678,21 @@ export class Game {
         this.annotationTool?.handleTerrainClick(hit.gridX, hit.gridZ, elev);
       }
     });
+  }
+
+  /** Work the ball left or right: draw, straight, fade. */
+  private adjustShotShape(direction: -1 | 1): void {
+    if (this.stateManager.getState() !== 'ADDRESS') return;
+    // Nothing to shape with a putter.
+    if (this.shotMode === 'PUTTING') return;
+
+    this.setShotShape(adjacentShape(this.shotShape, direction));
+  }
+
+  private setShotShape(shape: ShotShape): void {
+    this.shotShape = shape;
+    this.gameHUD?.setShotShape(shape);
+    this.aimingGuideRenderer?.setShotShape(shape);
   }
 
   private adjustAim(deltaRad: number): void {
@@ -971,11 +996,19 @@ export class Game {
 
     // Play the swing. The ball leaves at impact, part-way through the animation,
     // rather than on the click that locked the accuracy.
+    // The chosen shape is folded into the swing the player made, so a draw hit
+    // early still hooks. Shaping picks the shot; it does not strike it for you.
+    const shapedResult = applyShotShape(
+      swingResult,
+      this.shotShape,
+      this.clubManager.getCurrentClub().carryMetres
+    );
+
     this.sophieGolfer.playSwing(() => {
       const club = this.clubManager.getCurrentClub();
 
       // Launch ball physics
-      this.ballPhysics!.launch(club, swingResult, this.aimAngleRadians);
+      this.ballPhysics!.launch(club, shapedResult, this.aimAngleRadians);
       this.swingMeter.complete();
       this.stateManager.setState('BALL_FLIGHT');
     });
