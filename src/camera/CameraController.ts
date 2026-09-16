@@ -139,16 +139,21 @@ export class CameraController {
     // Offset across the line from where she stands, so she frames the shot from
     // one side rather than standing in the middle of it. Close enough to read
     // the swing now that the artwork is drawn from behind.
-    // On a phone the camera stands back and higher, looking down the hole rather
-    // than along it. A portrait window is tall and narrow: from shoulder height
-    // the corridor arrives as a thin band with dead sky above it, and the part
-    // of the hole the player is actually aiming at is a few pixels deep. From
-    // further back and higher the fairway spreads across the frame, and the
-    // golfer is still near enough to read the swing.
-    const camDist = isPortrait ? 8.5 : 5.5;
-    const camHeight = isPortrait ? 3.60 : 1.70;
+    // On a phone the camera sits a little higher than on a desktop and almost on
+    // the target line, rather than off to one side of it.
+    //
+    // The portrait view uses a much wider lens to get the width of the corridor
+    // on screen, and a wider lens shrinks everything in it. Standing the camera
+    // back as well — which an earlier pass did, to spread the fairway out —
+    // compounded that: the golfer came out at 14% of the screen against 35% on a
+    // desktop, a doll at the bottom of the frame. She is close to the desktop
+    // size again here. The sideways offset comes off for the same reason: she
+    // stands to the left of the ball anyway, and on a narrow screen a camera
+    // offset the other way pushed her out of the frame.
+    const camDist = isPortrait ? 5.0 : 5.5;
+    const camHeight = isPortrait ? 2.10 : 1.70;
     const perpAngle = aimAngleRad + Math.PI / 2;
-    const lateralOffset = isPortrait ? 0.80 : 1.00;
+    const lateralOffset = isPortrait ? 0.18 : 1.00;
 
     const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
     const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
@@ -161,10 +166,10 @@ export class CameraController {
     // Aiming point for the view. In portrait it is nearer and at ground level,
     // which pitches the camera down and lifts the horizon up the screen; on a
     // wide screen the near-level look down the hole is right as it is.
-    const lookAheadDist = isPortrait ? 34 : 55;
+    const lookAheadDist = isPortrait ? 40 : 55;
     const lookX = ballPos.x + Math.cos(aimAngleRad) * lookAheadDist;
     const lookZ = ballPos.z + Math.sin(aimAngleRad) * lookAheadDist;
-    const lookY = ballPos.y + (isPortrait ? 0.10 : 1.15);
+    const lookY = ballPos.y + (isPortrait ? 0.60 : 1.15);
 
     this.target.set(lookX, lookY, lookZ);
     this.camera.lookAt(this.target);
