@@ -4,9 +4,40 @@ import {
   Group,
   Mesh
 } from 'three';
-import { SurfacePolygon } from '../course/SurfaceQuery';
+import { SurfacePolygon, SurfaceType } from '../course/SurfaceQuery';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { RetroMaterials } from './RetroMaterials';
+
+/**
+ * How far above the bare terrain a surface's mesh is drawn, in metres.
+ *
+ * The offsets keep the layered surfaces from z-fighting each other and the
+ * terrain. Anything else that sits ON a surface has to account for them too: a
+ * golf ball is only 43mm across, so a ball placed at true terrain height ends up
+ * rendered underneath the grass it is supposed to be resting on.
+ */
+export function surfaceRenderOffset(type: SurfaceType): number {
+  switch (type) {
+    case 'ROUGH':
+    case 'GENERAL_AREA':
+    case 'DEEP_ROUGH':
+      return 0.02;
+    case 'WATER':
+      return 0.05;
+    case 'FAIRWAY':
+      return 0.08;
+    case 'PATH':
+      return 0.09;
+    case 'BUNKER':
+      return 0.10;
+    case 'GREEN':
+    case 'FRINGE':
+    case 'TEE':
+      return 0.12;
+    default:
+      return 0.04;
+  }
+}
 
 export class SurfaceMeshOverlay {
   private group: Group;
@@ -66,23 +97,7 @@ export class SurfaceMeshOverlay {
     const pts = poly.points;
     if (pts.length < 3) return null;
 
-    // Determine vertical offset above base terrain to layer surfaces cleanly without z-fighting
-    let yOffset = 0.04;
-    if (poly.type === 'ROUGH' || poly.type === 'GENERAL_AREA' || poly.type === 'DEEP_ROUGH') {
-      yOffset = 0.02;
-    } else if (poly.type === 'FAIRWAY') {
-      yOffset = 0.08;
-    } else if (poly.type === 'WATER') {
-      yOffset = 0.05;
-    } else if (poly.type === 'PATH') {
-      yOffset = 0.09;
-    } else if (poly.type === 'BUNKER') {
-      yOffset = 0.10;
-    } else if (poly.type === 'GREEN' || poly.type === 'FRINGE') {
-      yOffset = 0.12;
-    } else if (poly.type === 'TEE') {
-      yOffset = 0.12;
-    }
+    const yOffset = surfaceRenderOffset(poly.type);
 
     // Calculate bounding box of polygon
     let minX = Infinity, maxX = -Infinity;

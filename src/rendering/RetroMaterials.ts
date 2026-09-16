@@ -35,9 +35,13 @@ export class RetroMaterials {
     const roughMat = this.createMat(0x244c20, roughTex, 0.95, 0.02);
     this.materials.set('ROUGH', roughMat);
     this.materials.set('DEEP_ROUGH', roughMat);
-    this.materials.set('FIRST_CUT', roughMat);
     this.materials.set('GENERAL_AREA', roughMat);
     this.materials.set('BASE_TERRAIN', roughMat);
+
+    // The first cut sits between fairway and rough in the rules, and now looks it.
+    // Sharing the rough material meant authored semi-rough was invisible, so a
+    // fairway ran straight into near-black rough with no band between them.
+    this.materials.set('FIRST_CUT', this.createMat(0x478c33, roughTex, 0.9, 0.03));
 
     const greenTex = this.createGreenTexture();
     this.materials.set('GREEN', this.createMat(0x8bf264, greenTex, 0.65, 0.08));

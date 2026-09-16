@@ -15,6 +15,8 @@ import {
   Vector3
 } from 'three';
 import { TerrainQuery } from '../course/TerrainQuery';
+import { SurfaceType } from '../course/SurfaceQuery';
+import { surfaceRenderOffset } from './SurfaceMeshOverlay';
 
 /**
  * Creates a crisp 32x32 pixel-art golf ball texture with 16-bit retro shading,
@@ -97,6 +99,20 @@ function createGolfBallTexture(): CanvasTexture {
 }
 
 export class BallRenderer {
+  /** Regulation golf ball diameter, and the size the mesh is built at. */
+  private static readonly BALL_DIAMETRE_METRES = 0.088;
+
+  /**
+   * Smallest angular diameter the ball is allowed to occupy, in radians.
+   *
+   * About seven pixels tall in the game's 720-line internal buffer at its 52
+   * degree field of view — small enough to stay a ball, big enough to track
+   * against trees and sky.
+   */
+  private static readonly MIN_APPARENT_ANGLE = 0.0088;
+
+  /** Ceiling on the enlargement, so a distant ball never reads as a beach ball. */
+  private static readonly MAX_VISIBILITY_SCALE = 9;
   private group: Group;
   private ballMesh: Mesh;
   private shadowMesh: Mesh;
@@ -112,7 +128,7 @@ export class BallRenderer {
 
     // 1. Pixel-Art Golf Ball Sprite (Diameter 0.088m / Radius 0.044m for believable golf scale)
     const ballTexture = createGolfBallTexture();
-    const ballGeo = new PlaneGeometry(0.088, 0.088);
+    const ballGeo = new PlaneGeometry(BallRenderer.BALL_DIAMETRE_METRES, BallRenderer.BALL_DIAMETRE_METRES);
     const ballMat = new MeshBasicMaterial({
       map: ballTexture,
       transparent: true,
@@ -192,18 +208,56 @@ export class BallRenderer {
     this.group.add(this.tracerMesh);
   }
 
-  public update(ballPos: Vector3, camera?: Camera, isTee: boolean = false): void {
-    this.ballMesh.position.copy(ballPos);
+  /**
+   * How much to enlarge the ball so it stays visible at a given camera distance.
+   *
+   * A golf ball is 43mm across. Drawn at true scale it is sub-pixel at anything
+   * past a few metres: during a drive the follow camera trails ~30m behind, which
+   * put the ball at barely two pixels — effectively invisible for the whole shot.
+   *
+   * So the ball is drawn at true size up close and grown beyond that to hold a
+   * readable minimum, the way sprite-era golf games did. The cap stops it
+   * ballooning on long views.
+   */
+  public static visibilityScale(distanceToCamera: number): number {
+    if (!Number.isFinite(distanceToCamera) || distanceToCamera <= 0) return 1;
+
+    const requiredDiameter = distanceToCamera * BallRenderer.MIN_APPARENT_ANGLE;
+    const scale = requiredDiameter / BallRenderer.BALL_DIAMETRE_METRES;
+
+    return Math.min(BallRenderer.MAX_VISIBILITY_SCALE, Math.max(1, scale));
+  }
+
+  /**
+   * Height to draw the ball at, given its physical height and the surface it lies on.
+   *
+   * Surface meshes are drawn 2-12cm above the bare terrain to stop them
+   * z-fighting. A ball is 43mm across and rests at terrain height plus its
+   * radius, which is BELOW the fairway, tee and green meshes — so a ball at rest
+   * was being rendered underneath the grass, invisible at address and wherever it
+   * came down. Lifting it by the same offset puts it back on top of the surface
+   * the player can see.
+   */
+  public static renderHeight(ballY: number, lie: SurfaceType): number {
+    return ballY + surfaceRenderOffset(lie);
+  }
+
+  public update(ballPos: Vector3, camera?: Camera, lie: SurfaceType = 'GENERAL_AREA'): void {
+    const surfaceLift = surfaceRenderOffset(lie);
+    this.ballMesh.position.set(ballPos.x, BallRenderer.renderHeight(ballPos.y, lie), ballPos.z);
 
     if (camera) {
       const dx = camera.position.x - ballPos.x;
       const dz = camera.position.z - ballPos.z;
       this.ballMesh.rotation.y = Math.atan2(dx, dz);
+
+      const dy = camera.position.y - this.ballMesh.position.y;
+      this.ballMesh.scale.setScalar(BallRenderer.visibilityScale(Math.hypot(dx, dy, dz)));
     }
 
-    // Ground shadow placement on terrain
+    // Ground shadow placement, on the drawn surface rather than the bare terrain.
     const terrainY = this.terrainQuery.getTerrainHeight(ballPos.x, ballPos.z, true);
-    this.shadowMesh.position.set(ballPos.x, terrainY + 0.004, ballPos.z);
+    this.shadowMesh.position.set(ballPos.x, terrainY + surfaceLift + 0.004, ballPos.z);
 
     // Scale and fade shadow based on height above ground
     const heightAboveGround = Math.max(0, ballPos.y - terrainY);
@@ -213,9 +267,9 @@ export class BallRenderer {
     (this.shadowMesh.material as MeshBasicMaterial).opacity = shadowOpacity;
 
     // Tee peg visibility
-    this.teeMesh.visible = isTee && heightAboveGround < 0.08;
+    this.teeMesh.visible = lie === 'TEE' && heightAboveGround < 0.08;
     if (this.teeMesh.visible) {
-      this.teeMesh.position.set(ballPos.x, terrainY + 0.020, ballPos.z);
+      this.teeMesh.position.set(ballPos.x, terrainY + surfaceLift + 0.020, ballPos.z);
     }
   }
 }

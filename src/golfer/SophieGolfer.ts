@@ -31,8 +31,9 @@ export class SophieGolfer {
   constructor() {
     this.group = new Group();
 
-    // 16-bit golf game scale (Height: 2.45m for 25-35% screen height in address view)
-    const height = 2.45;
+    // Near life size. She was drawn at 2.45m, half again taller than a person,
+    // which put her across the middle of the shot at address.
+    const height = 1.85;
     const aspect = 0.559; // 553 / 989 native sprite aspect
     const width = height * aspect;
     const geometry = new PlaneGeometry(width, height);
@@ -102,9 +103,11 @@ export class SophieGolfer {
    * Placed to the left of the ball and slightly back so ball and aim line are unobstructed.
    */
   public updateStance(ballPos: Vector3, terrainY: number, aimAngleRad: number): void {
+    // Stands beside the ball on the far side of the target line, where a golfer
+    // actually stands, rather than behind it in the camera's eyeline.
     const leftAngle = aimAngleRad - Math.PI / 2;
-    const offsetX = Math.cos(leftAngle) * 0.52 - Math.cos(aimAngleRad) * 0.06;
-    const offsetZ = Math.sin(leftAngle) * 0.52 - Math.sin(aimAngleRad) * 0.06;
+    const offsetX = Math.cos(leftAngle) * 0.66 - Math.cos(aimAngleRad) * 0.06;
+    const offsetZ = Math.sin(leftAngle) * 0.66 - Math.sin(aimAngleRad) * 0.06;
 
     this.basePosition.set(ballPos.x + offsetX, terrainY, ballPos.z + offsetZ);
     this.group.position.copy(this.basePosition);

@@ -106,7 +106,9 @@ export class CameraController {
       const camDist = isPortrait ? 3.8 : 3.2;
       const camHeight = isPortrait ? 1.65 : 1.40;
       const perpAngle = aimAngleRad + Math.PI / 2;
-      const lateralOffset = isPortrait ? -0.22 : -0.25;
+      // Opposite side of the line from the golfer, as in the full-shot view: on
+      // her side she stood over the ball and hid it.
+      const lateralOffset = isPortrait ? 0.55 : 0.60;
 
       const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
       const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
@@ -126,11 +128,15 @@ export class CameraController {
       return;
     }
 
-    // Full-shot address view
-    const camDist = isPortrait ? 6.8 : 5.8;
-    const camHeight = isPortrait ? 1.80 : 1.65;
+    // Full-shot address view.
+    //
+    // Offset to the opposite side of the target line from the golfer, so she
+    // frames the shot from one side instead of standing in the middle of it. A
+    // negative offset put the camera on her side, directly behind her.
+    const camDist = isPortrait ? 7.2 : 6.4;
+    const camHeight = isPortrait ? 2.00 : 1.85;
     const perpAngle = aimAngleRad + Math.PI / 2;
-    const lateralOffset = isPortrait ? -0.32 : -0.32;
+    const lateralOffset = isPortrait ? 0.85 : 1.10;
 
     const camX = ballPos.x - Math.cos(aimAngleRad) * camDist + Math.cos(perpAngle) * lateralOffset;
     const camZ = ballPos.z - Math.sin(aimAngleRad) * camDist + Math.sin(perpAngle) * lateralOffset;
