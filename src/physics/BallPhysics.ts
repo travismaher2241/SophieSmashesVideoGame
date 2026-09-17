@@ -6,7 +6,7 @@ import { SwingResult } from '../golf/SwingMeter';
 import { CALM, Wind, windVector } from '../golf/Wind';
 import { TreeObstacle } from '../course/TreeShapes';
 import { CUP_CAPTURE_RADIUS_METRES } from './PuttingPhysics';
-import { findTreeHit, TreeHit } from './TreeCollision';
+import { deflectOffTree, findTreeHit, TreeHit, TreeOutcome } from './TreeCollision';
 
 export type BallState = 'REST' | 'AIRBORNE' | 'BOUNCING' | 'ROLLING' | 'HOLED';
 
@@ -18,18 +18,7 @@ export class BallPhysics {
    */
   private static readonly CURVE_FORCE_PER_SPEED = 0.045;
 
-  /**
-   * What a tree takes out of a shot.
-   *
-   * A ball into branches does not deflect so much as stop: the leaves and limbs
-   * take nearly all of it and the ball falls more or less under the tree. A
-   * trunk is the opposite — almost nothing is absorbed by the wood, so it kicks
-   * back hard and can end up behind where it was struck from.
-   */
-  private static readonly CANOPY_SPEED_KEPT = 0.17;
-  private static readonly TRUNK_SPEED_KEPT = 0.22;
-  /** How much of a canopy strike's remaining speed is thrown out sideways. */
-  private static readonly CANOPY_SCATTER = 0.45;
+
 
   public position: Vector3 = new Vector3();
   public velocity: Vector3 = new Vector3();
@@ -63,6 +52,32 @@ export class BallPhysics {
   private trees: readonly TreeObstacle[] = [];
   /** Set for one shot when the ball has been through a tree, for the readout. */
   public lastTreeHit: TreeHit | null = null;
+  /** What the tree did with it, for the readout. */
+  public lastTreeOutcome: TreeOutcome | null = null;
+
+  /**
+   * Where the tree deflections draw their luck from.
+   *
+   * Injected so a test can pin a shot down and play can leave it to chance. What
+   * a tree does with a ball is not knowable from the outside — it depends on
+   * whether it found a leaf or a limb — so the model draws it rather than
+   * pretending to compute it.
+   */
+  private random: () => number = Math.random;
+
+  /**
+   * The tree the ball has just come out of, and how long it is ignored for.
+   *
+   * One pass through a tree is one event. Without this the ball pinballs inside
+   * the same canopy — two and a half contacts on average, up to six — and each
+   * one draws again, so a ball that rattled through can be sent straight back by
+   * the same thicket it has already left. It also washes out the odds: how
+   * squarely you went at the tree stops deciding anything once the outcome is a
+   * mixture of five draws.
+   */
+  private treeJustStruck: TreeObstacle | null = null;
+  private treeIgnoreSeconds = 0;
+  private static readonly TREE_REHIT_DELAY = 0.4;
 
   private clubSpin: number = 0;   // Spin / green-holding check factor (0.1 to 1.0)
   private curveSpin: number = 0;  // Lateral side spin factor (-1.0 to +1.0)
@@ -108,6 +123,11 @@ export class BallPhysics {
    */
   public setTrees(trees: readonly TreeObstacle[]): void {
     this.trees = trees;
+  }
+
+  /** Pin the luck down, for a test that needs the same shot twice. */
+  public setRandomSource(random: () => number): void {
+    this.random = random;
   }
 
   public setWind(wind: Wind = CALM): void {
@@ -173,6 +193,9 @@ export class BallPhysics {
     this.leftTerrain = false;
     this.rollDuration = 0;
     this.lastTreeHit = null;
+    this.lastTreeOutcome = null;
+    this.treeJustStruck = null;
+    this.treeIgnoreSeconds = 0;
 
     if (club.isPutter) {
       // Putting launch: ground roll directly
@@ -309,11 +332,17 @@ export class BallPhysics {
     this.position.y += this.velocity.y * dt;
     this.position.z += this.velocity.z * dt;
 
+    if (this.treeIgnoreSeconds > 0) {
+      this.treeIgnoreSeconds -= dt;
+      if (this.treeIgnoreSeconds <= 0) this.treeJustStruck = null;
+    }
+
     if (this.trees.length > 0) {
       const hit = findTreeHit(
         prevX, prevY, prevZ,
         this.position.x, this.position.y, this.position.z,
-        this.trees
+        this.trees,
+        this.treeJustStruck
       );
       if (hit) {
         this.hitTree(hit);
@@ -343,6 +372,13 @@ export class BallPhysics {
    * back the other way. Both kill the spin, because whatever the ball was doing
    * in the air it is not doing it after that.
    */
+  /**
+   * The ball meets a tree.
+   *
+   * What comes out is drawn rather than computed: whether the ball found a leaf,
+   * a twig or a limb is not something the model can know, and a tree that always
+   * did the same thing was the one part of the hole you could plan around.
+   */
   private hitTree(hit: TreeHit): void {
     this.lastTreeHit = hit;
 
@@ -355,26 +391,15 @@ export class BallPhysics {
     );
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    const deflection = deflectOffTree(hit, this.velocity.x, this.velocity.z, this.random);
 
-    if (hit.part === 'TRUNK') {
-      // Reflect off the trunk: the wood gives, the ball comes back.
-      const into = this.velocity.x * hit.normalX + this.velocity.z * hit.normalZ;
-      this.velocity.x = (this.velocity.x - 2 * into * hit.normalX) * BallPhysics.TRUNK_SPEED_KEPT;
-      this.velocity.z = (this.velocity.z - 2 * into * hit.normalZ) * BallPhysics.TRUNK_SPEED_KEPT;
-      this.velocity.y = Math.min(this.velocity.y, 0) * 0.3;
-    } else {
-      // Through the branches: most of the pace gone, and what is left is thrown
-      // out the way the ball entered rather than carried on down the line.
-      const kept = speed * BallPhysics.CANOPY_SPEED_KEPT;
-      const scatter = kept * BallPhysics.CANOPY_SCATTER;
-      const alongX = speed > 1e-6 ? this.velocity.x / speed : 0;
-      const alongZ = speed > 1e-6 ? this.velocity.z / speed : 0;
+    this.velocity.x = deflection.directionX * speed * deflection.speedKept;
+    this.velocity.z = deflection.directionZ * speed * deflection.speedKept;
+    this.velocity.y = Math.min(this.velocity.y, 0) * deflection.fallKept;
 
-      this.velocity.x = alongX * kept + hit.normalX * scatter;
-      this.velocity.z = alongZ * kept + hit.normalZ * scatter;
-      this.velocity.y = Math.min(this.velocity.y, 0) * 0.25;
-    }
-
+    this.lastTreeOutcome = deflection.outcome;
+    this.treeJustStruck = hit.tree;
+    this.treeIgnoreSeconds = BallPhysics.TREE_REHIT_DELAY;
     this.clubSpin *= 0.2;
     this.curveSpin = 0;
     this.state = 'BOUNCING';
@@ -491,7 +516,8 @@ export class BallPhysics {
       const hit = findTreeHit(
         prevX, this.position.y, prevZ,
         this.position.x, this.position.y, this.position.z,
-        this.trees
+        this.trees,
+        this.treeJustStruck
       );
       if (hit) {
         // A ball rolling into a trunk comes off it and has very little left.

@@ -19,6 +19,7 @@ import { CALM, describeWind, randomWind, Wind } from '../golf/Wind';
 import { PuttMeter, PuttResult } from '../golf/PuttMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
 import { BallPhysics, BallState } from '../physics/BallPhysics';
+import { TreeHitPart, TreeOutcome } from '../physics/TreeCollision';
 import { PuttingPhysics } from '../physics/PuttingPhysics';
 import { AimingGuideRenderer } from '../rendering/AimingGuideRenderer';
 import { AlignmentGridOverlay } from '../rendering/AlignmentGridOverlay';
@@ -103,6 +104,24 @@ export const WARRAGUL_RESEARCH_CONFIG: GameSource = {
   ],
   isResearchMode: true
 };
+
+/**
+ * What to tell the player a tree just did.
+ *
+ * Trees do four different things now, and a player who sees the same line every
+ * time will read a lucky kick back into the fairway as the game being vague
+ * rather than as the tree being kind.
+ */
+export function describeTreeHit(part: TreeHitPart, outcome: TreeOutcome | null): string {
+  if (outcome === 'THROUGH') return 'Rattled through and kept going.';
+  if (outcome === 'KICK') return 'Kicked off a branch and away sideways.';
+  if (outcome === 'BACK') {
+    return part === 'TRUNK' ? 'Straight back off the trunk.' : 'Came back off a limb.';
+  }
+  if (outcome === 'DROP') return 'Dropped straight down out of the branches.';
+
+  return part === 'TRUNK' ? 'Straight off the trunk.' : 'Caught the branches on the way through.';
+}
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -1312,14 +1331,11 @@ export class Game {
     // Say so when the ball found a tree, and consume it so the next shot does
     // not inherit the news.
     const treeHit = this.ballPhysics.lastTreeHit;
+    const treeOutcome = this.ballPhysics.lastTreeOutcome;
     this.ballPhysics.lastTreeHit = null;
+    this.ballPhysics.lastTreeOutcome = null;
     if (treeHit) {
-      this.gameHUD?.showBanner(
-        'IN THE TREES',
-        treeHit.part === 'TRUNK'
-          ? 'Straight off the trunk.'
-          : 'Caught the branches on the way through.'
-      );
+      this.gameHUD?.showBanner('IN THE TREES', describeTreeHit(treeHit.part, treeOutcome));
     }
 
     this.applyPenaltyRelief();
