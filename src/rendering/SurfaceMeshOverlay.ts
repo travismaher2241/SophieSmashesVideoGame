@@ -4,40 +4,20 @@ import {
   Group,
   Mesh
 } from 'three';
-import { SurfacePolygon, SurfaceType } from '../course/SurfaceQuery';
+import { SurfacePolygon } from '../course/SurfaceQuery';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { RetroMaterials } from './RetroMaterials';
+import { surfaceRenderOffset } from './SurfaceStacking';
 
 /**
  * How far above the bare terrain a surface's mesh is drawn, in metres.
  *
- * The offsets keep the layered surfaces from z-fighting each other and the
- * terrain. Anything else that sits ON a surface has to account for them too: a
- * golf ball is only 43mm across, so a ball placed at true terrain height ends up
- * rendered underneath the grass it is supposed to be resting on.
+ * Re-exported from where the stacking is decided, because everything that sits
+ * ON a surface has to account for it too: a golf ball is 43mm across, so a ball
+ * placed at true terrain height is rendered underneath the grass it is supposed
+ * to be resting on.
  */
-export function surfaceRenderOffset(type: SurfaceType): number {
-  switch (type) {
-    case 'ROUGH':
-    case 'GENERAL_AREA':
-    case 'DEEP_ROUGH':
-      return 0.02;
-    case 'WATER':
-      return 0.05;
-    case 'FAIRWAY':
-      return 0.08;
-    case 'PATH':
-      return 0.09;
-    case 'BUNKER':
-      return 0.10;
-    case 'GREEN':
-    case 'FRINGE':
-    case 'TEE':
-      return 0.12;
-    default:
-      return 0.04;
-  }
-}
+export { surfaceRenderOffset } from './SurfaceStacking';
 
 export class SurfaceMeshOverlay {
   private group: Group;

@@ -27,6 +27,20 @@ export class CameraController {
   private terrainData: TerrainData;
   private terrainQuery: TerrainQuery;
   private renderVerticalScale: number = 1;
+  /** Smoothed follow state, so a bouncing ball does not shake the camera. */
+  private followTarget = new Vector3();
+  private followDirX = 1;
+  private followDirZ = 0;
+  private followInitialised = false;
+
+  /** Per-second smoothing rates for the follow camera. */
+  private static readonly FOLLOW_RATE = 7.5;
+  private static readonly TARGET_RATE = 9;
+  private static readonly PUTT_TARGET_RATE = 12;
+  /** Below this ground speed the heading is left alone, in m/s. */
+  private static readonly HEADING_SPEED_FLOOR = 2;
+  private static readonly HEADING_RATE = 4;
+
   private overheadTee = new Vector3();
   private overheadGreen = new Vector3();
   private hasOverheadHole = false;
@@ -178,10 +192,56 @@ export class CameraController {
   /**
    * Smoothly follow ball during flight and rolling.
    */
-  public updateBallFollowView(ballPos: Vector3, velocity: Vector3, aimAngleRad: number, isPutting: boolean = false): void {
+  /**
+   * Start following a shot.
+   *
+   * The smoothed heading and look-at point are planted where the ball is now,
+   * so the first frame of the follow does not spend itself catching up from
+   * wherever the camera was standing at address.
+   */
+  public beginBallFollow(ballPos: Vector3, aimAngleRad: number): void {
+    this.followDirX = Math.cos(aimAngleRad);
+    this.followDirZ = Math.sin(aimAngleRad);
+    this.followTarget.copy(ballPos);
+    this.followInitialised = true;
+  }
+
+  /**
+   * Follow the ball.
+   *
+   * Three things here are about the camera not lurching, and all three were
+   * wrong in the same way: they treated a frame as a unit of time.
+   *
+   * The smoothing is exponential in SECONDS rather than a fixed fraction per
+   * frame. A fraction per frame means the camera behaves differently on a 120Hz
+   * phone and a 60Hz laptop, and — worse — that any hitch in the frame rate is a
+   * lurch, because a long frame moves the camera exactly as far as a short one.
+   *
+   * The point it looks at is smoothed too. It used to look straight at the ball,
+   * so every bounce snapped the camera's pitch down and up again; the ball moves
+   * in a parabola and the view should not.
+   *
+   * And the heading it follows from is smoothed, and only updated while the ball
+   * is travelling. It used to swap to the aim line the moment the ball slowed
+   * below walking pace, which spun the camera round a ball that was quietly
+   * rolling out.
+   */
+  public updateBallFollowView(
+    ballPos: Vector3,
+    velocity: Vector3,
+    aimAngleRad: number,
+    isPutting: boolean = false,
+    deltaSeconds: number = 1 / 60
+  ): void {
+    if (!this.followInitialised) this.beginBallFollow(ballPos, aimAngleRad);
+
+    // A tab that was in the background hands back a huge delta; anything past a
+    // few frames' worth is treated as a few frames' worth.
+    const dt = Math.max(0, Math.min(0.1, deltaSeconds));
+
     if (isPutting) {
-      // For putting, keep camera mostly stable while smoothly tracking ball position
-      this.target.copy(ballPos);
+      // On the green the camera holds still and only the look-at moves, gently.
+      this.approachTarget(ballPos, CameraController.PUTT_TARGET_RATE, dt);
       this.camera.lookAt(this.target);
       return;
     }
@@ -189,27 +249,48 @@ export class CameraController {
     const camDist = 11.5;
     const camHeight = 4.2;
 
-    let dirX = Math.cos(aimAngleRad);
-    let dirZ = Math.sin(aimAngleRad);
-
     const hSpeed = Math.hypot(velocity.x, velocity.z);
-    if (hSpeed > 1.5) {
-      dirX = velocity.x / hSpeed;
-      dirZ = velocity.z / hSpeed;
+    if (hSpeed > CameraController.HEADING_SPEED_FLOOR) {
+      const blend = CameraController.smoothing(CameraController.HEADING_RATE, dt);
+      this.followDirX += (velocity.x / hSpeed - this.followDirX) * blend;
+      this.followDirZ += (velocity.z / hSpeed - this.followDirZ) * blend;
+      const length = Math.hypot(this.followDirX, this.followDirZ) || 1;
+      this.followDirX /= length;
+      this.followDirZ /= length;
     }
 
-    const targetCamX = ballPos.x - dirX * camDist;
-    const targetCamZ = ballPos.z - dirZ * camDist;
+    const wantedX = ballPos.x - this.followDirX * camDist;
+    const wantedZ = ballPos.z - this.followDirZ * camDist;
 
-    const terrainY = this.getDisplayHeight(targetCamX, targetCamZ);
-    const targetCamY = Math.max(terrainY + 1.4, ballPos.y + camHeight);
+    const terrainY = this.getDisplayHeight(wantedX, wantedZ);
+    const wantedY = Math.max(terrainY + 1.4, ballPos.y + camHeight);
 
-    this.camera.position.x += (targetCamX - this.camera.position.x) * 0.18;
-    this.camera.position.y += (targetCamY - this.camera.position.y) * 0.18;
-    this.camera.position.z += (targetCamZ - this.camera.position.z) * 0.18;
+    const blend = CameraController.smoothing(CameraController.FOLLOW_RATE, dt);
+    this.camera.position.x += (wantedX - this.camera.position.x) * blend;
+    this.camera.position.y += (wantedY - this.camera.position.y) * blend;
+    this.camera.position.z += (wantedZ - this.camera.position.z) * blend;
 
-    this.target.copy(ballPos);
+    this.approachTarget(ballPos, CameraController.TARGET_RATE, dt);
     this.camera.lookAt(this.target);
+  }
+
+  /** Ease the look-at point towards the ball rather than snapping onto it. */
+  private approachTarget(ballPos: Vector3, rate: number, dt: number): void {
+    const blend = CameraController.smoothing(rate, dt);
+    this.followTarget.x += (ballPos.x - this.followTarget.x) * blend;
+    this.followTarget.y += (ballPos.y - this.followTarget.y) * blend;
+    this.followTarget.z += (ballPos.z - this.followTarget.z) * blend;
+    this.target.copy(this.followTarget);
+  }
+
+  /**
+   * How far to move towards a target this frame, for a given rate per second.
+   *
+   * The same fraction every frame is only the same speed if every frame is the
+   * same length. This is, which is the whole point.
+   */
+  public static smoothing(ratePerSecond: number, deltaSeconds: number): number {
+    return 1 - Math.exp(-ratePerSecond * Math.max(0, deltaSeconds));
   }
 
   public update(): void {

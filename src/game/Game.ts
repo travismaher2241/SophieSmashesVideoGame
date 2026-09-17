@@ -1479,6 +1479,7 @@ export class Game {
       );
       this.ballPhysics!.position.copy(this.puttingPhysics!.position);
       this.ballPhysics!.velocity.copy(this.puttingPhysics!.velocity);
+      this.cameraController?.beginBallFollow(this.ballPhysics!.position, this.aimAngleRadians);
       this.stateManager.setState('BALL_ROLLING');
     });
   }
@@ -1541,6 +1542,7 @@ export class Game {
       // this needed its own flight model.
       this.ballPhysics!.launch(playedClub, shapedResult, this.aimAngleRadians);
       this.swingMeter.complete();
+      this.cameraController?.beginBallFollow(this.ballPhysics!.position, this.aimAngleRadians);
       this.stateManager.setState('BALL_FLIGHT');
     });
   }
@@ -1638,7 +1640,8 @@ export class Game {
         this.ballPhysics!.position,
         this.ballPhysics!.velocity,
         this.aimAngleRadians,
-        isOnGreen
+        isOnGreen,
+        dt
       );
     } else {
       this.cameraController.update();

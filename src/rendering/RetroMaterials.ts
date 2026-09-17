@@ -7,6 +7,7 @@ import {
   SRGBColorSpace
 } from 'three';
 import { SurfaceType } from '../course/SurfaceQuery';
+import { surfaceDepthBias } from './SurfaceStacking';
 
 export class RetroMaterials {
   private static instance: RetroMaterials;
@@ -29,10 +30,10 @@ export class RetroMaterials {
 
   private buildMaterials(): void {
     const fairwayTex = this.createFairwayTexture();
-    this.materials.set('FAIRWAY', this.createMat(0x6ec44e, fairwayTex, 0.82, 0.05));
+    this.materials.set('FAIRWAY', this.createMat(0x6ec44e, fairwayTex, 0.82, 0.05, 'FAIRWAY'));
 
     const roughTex = this.createRoughTexture();
-    const roughMat = this.createMat(0x3a7632, roughTex, 0.95, 0.02);
+    const roughMat = this.createMat(0x3a7632, roughTex, 0.95, 0.02, 'ROUGH');
     this.materials.set('ROUGH', roughMat);
     this.materials.set('GENERAL_AREA', roughMat);
     this.materials.set('BASE_TERRAIN', roughMat);
@@ -42,35 +43,56 @@ export class RetroMaterials {
     // from grass that costs a little of each. Darker and duller, on the same
     // texture: the ladder from fairway down reads as one surface getting worse,
     // rather than as four unrelated greens.
-    this.materials.set('DEEP_ROUGH', this.createMat(0x2f6425, roughTex, 0.98, 0.01));
+    this.materials.set('DEEP_ROUGH', this.createMat(0x2f6425, roughTex, 0.98, 0.01, 'DEEP_ROUGH'));
 
     // The first cut sits between fairway and rough in the rules, and now looks it.
     // Sharing the rough material meant authored semi-rough was invisible, so a
     // fairway ran straight into near-black rough with no band between them.
-    this.materials.set('FIRST_CUT', this.createMat(0x478c33, roughTex, 0.9, 0.03));
+    this.materials.set('FIRST_CUT', this.createMat(0x478c33, roughTex, 0.9, 0.03, 'FIRST_CUT'));
 
     const greenTex = this.createGreenTexture();
-    this.materials.set('GREEN', this.createMat(0x8bf264, greenTex, 0.65, 0.08));
-    this.materials.set('FRINGE', this.createMat(0x78dc56, greenTex, 0.75, 0.05));
+    this.materials.set('GREEN', this.createMat(0x8bf264, greenTex, 0.65, 0.08, 'GREEN'));
+    this.materials.set('FRINGE', this.createMat(0x78dc56, greenTex, 0.75, 0.05, 'FRINGE'));
 
     const bunkerTex = this.createBunkerTexture();
-    this.materials.set('BUNKER', this.createMat(0xf3dc9a, bunkerTex, 0.98, 0.0));
+    this.materials.set('BUNKER', this.createMat(0xf3dc9a, bunkerTex, 0.98, 0.0, 'BUNKER'));
 
     const teeTex = this.createTeeTexture();
-    this.materials.set('TEE', this.createMat(0x6ec44e, teeTex, 0.78, 0.05));
+    this.materials.set('TEE', this.createMat(0x6ec44e, teeTex, 0.78, 0.05, 'TEE'));
 
     const waterTex = this.createWaterTexture();
-    this.materials.set('WATER', this.createMat(0x3582ba, waterTex, 0.18, 0.35));
+    this.materials.set('WATER', this.createMat(0x3582ba, waterTex, 0.18, 0.35, 'WATER'));
 
     const pathTex = this.createPathTexture();
-    this.materials.set('PATH', this.createMat(0xa69e8c, pathTex, 0.94, 0.02));
+    this.materials.set('PATH', this.createMat(0xa69e8c, pathTex, 0.94, 0.02, 'PATH'));
 
-    this.materials.set('GROUND_UNDER_REPAIR', this.createMat(0x887755, roughTex, 0.9, 0.0));
-    this.materials.set('OUT_OF_BOUNDS', this.createMat(0xaa4444, roughTex, 0.9, 0.0));
+    this.materials.set('GROUND_UNDER_REPAIR', this.createMat(0x887755, roughTex, 0.9, 0.0, 'GROUND_UNDER_REPAIR'));
+    this.materials.set('OUT_OF_BOUNDS', this.createMat(0xaa4444, roughTex, 0.9, 0.0, 'OUT_OF_BOUNDS'));
   }
 
-  private createMat(color: number, map: CanvasTexture | null, roughness: number, metalness: number): MeshStandardMaterial {
-    const opts: any = { color, roughness, metalness, side: DoubleSide };
+  /**
+   * @param type The surface this material draws, which decides its depth bias.
+   *   Height alone separates the sheets close up and stops being enough down
+   *   the hole: a centimetre is below the depth buffer's notice at two hundred
+   *   metres, and the two sheets start fighting again there.
+   */
+  private createMat(
+    color: number,
+    map: CanvasTexture | null,
+    roughness: number,
+    metalness: number,
+    type: SurfaceType = 'FAIRWAY'
+  ): MeshStandardMaterial {
+    const bias = surfaceDepthBias(type);
+    const opts: any = {
+      color,
+      roughness,
+      metalness,
+      side: DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: bias.factor,
+      polygonOffsetUnits: bias.units
+    };
     if (map) opts.map = map;
     return new MeshStandardMaterial(opts);
   }
