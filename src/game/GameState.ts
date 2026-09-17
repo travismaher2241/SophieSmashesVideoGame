@@ -1,6 +1,8 @@
 export type GameStateType =
   | 'TITLE'
   | 'LAYOUT_SELECTION'
+  /** The hole shown from above with the flyby running, before the tee shot. */
+  | 'HOLE_PREVIEW'
   | 'ADDRESS'
   | 'SWINGING'
   | 'BALL_FLIGHT'

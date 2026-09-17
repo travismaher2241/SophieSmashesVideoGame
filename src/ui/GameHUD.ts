@@ -54,6 +54,7 @@ export class GameHUD {
   private onPlayAgain?: () => void;
   private onReturnToTitle?: () => void;
   private onTrain?: (discipline: Discipline, attribute: Attribute) => void;
+  private onOpenMap?: () => void;
 
   // Dynamic elements
   private strokeElem!: HTMLElement;
@@ -116,6 +117,7 @@ export class GameHUD {
     onDevModeToggle?: () => void;
     onReturnToTitle?: () => void;
     onTrain?: (discipline: Discipline, attribute: Attribute) => void;
+    onOpenMap?: () => void;
   }) {
     this.onAimLeft = callbacks.onAimLeft;
     this.onShapeLeft = callbacks.onShapeLeft;
@@ -131,6 +133,7 @@ export class GameHUD {
     this.onPlayAgain = callbacks.onPlayAgain;
     this.onReturnToTitle = callbacks.onReturnToTitle;
     this.onTrain = callbacks.onTrain;
+    this.onOpenMap = callbacks.onOpenMap;
 
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
@@ -776,6 +779,7 @@ export class GameHUD {
         </div>
 
         <div class="hud-capsule hud-nav-actions">
+          <button id="btn-hud-map" class="hud-btn">MAP</button>
           <button id="btn-hud-cam" class="hud-btn">VIEW</button>
           <button id="btn-hud-replay" class="hud-btn" style="color: #fbd38d;">MENU</button>
         </div>
@@ -1161,6 +1165,7 @@ export class GameHUD {
         this.onCameraToggle?.();
       }
     });
+    this.container.querySelector('#btn-hud-map')?.addEventListener('click', () => this.onOpenMap?.());
     this.container.querySelector('#btn-hud-replay')?.addEventListener('click', () => this.onResetLayout?.());
 
     this.container.querySelector('#btn-club-prev')?.addEventListener('click', () => this.onClubPrev?.());

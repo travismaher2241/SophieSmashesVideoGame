@@ -45,6 +45,8 @@ import { AnnotationTool } from '../ui/AnnotationTool';
 import { DebugOverlay } from '../ui/DebugOverlay';
 import { GameHUD, ShotMode } from '../ui/GameHUD';
 import { PlaytestLayoutHUD } from '../ui/PlaytestLayoutHUD';
+import { HolePreview, HolePreviewInfo } from '../ui/HolePreview';
+import { HoleFlyby } from '../rendering/HoleFlyby';
 import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
@@ -197,6 +199,8 @@ export class Game {
   private debugOverlay?: DebugOverlay;
   private annotationTool?: AnnotationTool;
   private titleScreen?: TitleScreen;
+  private holePreview?: HolePreview;
+  private holeFlyby?: HoleFlyby;
 
   // Gameplay State Variables
   private strokeCount: number = 0;
@@ -602,7 +606,68 @@ export class Game {
       this.greenBreakRenderer?.setVisible(false);
     }
 
-    this.stateManager.setState('ADDRESS');
+    this.presentHole();
+  }
+
+  /**
+   * Show the hole before the tee shot, or get straight on with it.
+   *
+   * Only ever on the tee: a preview between the second shot and the third would
+   * be telling the player something they have just walked past.
+   */
+  private presentHole(): void {
+    const info = this.holePreviewInfo();
+
+    if (!info || !this.progress.showHolePreviews || this.isPracticeMode) {
+      this.stateManager.setState('ADDRESS');
+      return;
+    }
+
+    const heightAt = (x: number, z: number) => this.terrainQuery?.getTerrainHeight(x, z, true) ?? 0;
+    this.holeFlyby ??= new HoleFlyby(heightAt);
+    this.holeFlyby.setHeightAt(heightAt);
+    this.holeFlyby.begin({ tee: info.tee, pin: info.pin, drivingLine: info.drivingLine });
+
+    this.holePreview?.show(info, true);
+    this.stateManager.setState('HOLE_PREVIEW');
+  }
+
+  /** Put the preview away and let the player play. */
+  private dismissHolePreview(): void {
+    this.holePreview?.hide();
+    if (this.stateManager.getState() === 'HOLE_PREVIEW') this.stateManager.setState('ADDRESS');
+  }
+
+  /** The same card, opened from the HUD partway up a hole. */
+  private openHoleMap(): void {
+    const info = this.holePreviewInfo();
+    if (info) this.holePreview?.show(info, false);
+  }
+
+  /** What the preview needs to draw this hole, or null if there is no hole. */
+  private holePreviewInfo(): HolePreviewInfo | null {
+    const layout = this.playtestLayout;
+    if (!layout || !this.holeConfig || this.isPracticeMode) return null;
+
+    const teeBox = selectedTeeBox(this.holeConfig, this.progress.teeChoice);
+    const pin = pinForHole(this.holeConfig, this.roundSeed, this.holeConfig.holeNumber ?? this.holeIndex + 1);
+
+    return {
+      holeNumber: this.holeConfig.holeNumber,
+      holeName: this.getCurrentHoleName(),
+      par: this.holeConfig.par,
+      lengthMetres: teeBox?.lengthMetres ?? this.holeConfig.publishedLengthMetres,
+      teeName: teeBox?.name ?? 'TEE',
+      pinName: pin?.name ?? 'MIDDLE',
+      surfaces: this.surfaceQuery.getPolygons(),
+      trees: this.holeConfig.trees,
+      tee: { x: layout.tee.x, z: layout.tee.z },
+      pin: { x: layout.hole.x, z: layout.hole.z },
+      drivingLine: this.holeConfig.drivingLine
+        ? { x: this.holeConfig.drivingLine.x, z: this.holeConfig.drivingLine.z }
+        : null,
+      climbMetres: layout.hole.elevation - layout.tee.elevation
+    };
   }
 
   /**
@@ -685,6 +750,7 @@ export class Game {
       onAimLeft: () => this.adjustAim(-0.06),
       onAimRight: () => this.adjustAim(0.06),
       onTrain: (discipline, attribute) => this.train(discipline, attribute),
+      onOpenMap: () => this.openHoleMap(),
       onShapeLeft: () => this.adjustShotSelector(-1),
       onShapeRight: () => this.adjustShotSelector(1),
       onClubPrev: () => this.selectPrevClub(),
@@ -700,6 +766,15 @@ export class Game {
     });
 
     this.configureGameHUD();
+
+    this.holePreview = new HolePreview({
+      onPlay: () => this.dismissHolePreview(),
+      onTurnOff: () => {
+        this.progress = { ...this.progress, showHolePreviews: false };
+        saveProgress(this.progress);
+        this.dismissHolePreview();
+      }
+    });
 
     this.titleScreen = new TitleScreen({
       courseName: this.source?.courseName ?? 'Sophie Hills',
@@ -730,6 +805,7 @@ export class Game {
 
   private handleStateChange(newState: GameStateType): void {
     const isGameplay = newState === 'ADDRESS' || newState === 'SWINGING' || newState === 'BALL_FLIGHT' || newState === 'BALL_ROLLING' || newState === 'HOLED';
+    if (newState !== 'HOLE_PREVIEW') this.holePreview?.hide();
     const isLayoutSel = newState === 'LAYOUT_SELECTION';
     const isDev = newState === 'DEV_ALIGNMENT';
     const isTitle = newState === 'TITLE';
@@ -783,6 +859,25 @@ export class Game {
       }
 
       if (state === 'LAYOUT_SELECTION') return;
+
+      // The map can also be open over a hole in progress, where the game is
+      // still in ADDRESS: without this, the space bar meant for the card
+      // started a swing behind it.
+      if (this.holePreview?.isVisible() && state !== 'HOLE_PREVIEW') {
+        this.holePreview.hide();
+        e.preventDefault();
+        return;
+      }
+
+      if (state === 'HOLE_PREVIEW') {
+        // Any of the keys that would have started a swing plays the hole
+        // instead, so nobody has to hunt for the way out of a card.
+        if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter' || e.key === 'Escape') {
+          this.dismissHolePreview();
+          e.preventDefault();
+        }
+        return;
+      }
 
       if (e.key === ' ' || e.code === 'Space') {
         if (e.repeat) return;
@@ -1406,7 +1501,17 @@ export class Game {
     }
 
     // 3. Update Camera View
-    if (state === 'ADDRESS' || state === 'SWINGING') {
+    if (state === 'HOLE_PREVIEW' && this.holeFlyby) {
+      this.holeFlyby.update(dt);
+      const frame = this.holeFlyby.frame();
+      const camera = this.cameraController.camera;
+      // The overhead view leaves the camera's up vector on its side; the flyby
+      // is an ordinary view of the world and wants it back.
+      camera.up.set(0, 1, 0);
+      camera.position.set(frame.position.x, frame.position.y, frame.position.z);
+      camera.lookAt(frame.target.x, frame.target.y, frame.target.z);
+      this.holePreview?.setFlybyProgress(this.holeFlyby.progress());
+    } else if (state === 'ADDRESS' || state === 'SWINGING') {
       if (this.cameraController.getMode() === 'GOLF') {
         this.cameraController.updateGolfAddressView(this.ballPhysics!.position, this.aimAngleRadians, isOnGreen);
       } else {
