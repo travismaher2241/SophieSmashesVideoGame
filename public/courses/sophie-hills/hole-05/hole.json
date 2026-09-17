@@ -16,6 +16,64 @@
     "y": 0,
     "z": 260
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 93,
+      "z": 75,
+      "lengthMetres": 185,
+      "surfaceId": "hole-05-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 93,
+      "z": 89.8,
+      "lengthMetres": 170,
+      "surfaceId": "hole-05-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 93,
+      "z": 102.75,
+      "lengthMetres": 157,
+      "surfaceId": "hole-05-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 93,
+      "z": 260
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 93,
+      "z": 252.3
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 93,
+      "z": 267.7
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 102.35,
+      "z": 255.8
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 83.65,
+      "z": 264.2
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-05-corridor",
@@ -473,7 +531,7 @@
     {
       "id": "hole-05-tee",
       "type": "TEE",
-      "name": "Gumtree Rise Tee",
+      "name": "Gumtree Rise Back Tee",
       "points": [
         {
           "x": 86,
@@ -490,6 +548,52 @@
         {
           "x": 86,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-05-tee-middle",
+      "type": "TEE",
+      "name": "Gumtree Rise Middle Tee",
+      "points": [
+        {
+          "x": 86,
+          "z": 85.3
+        },
+        {
+          "x": 100,
+          "z": 85.3
+        },
+        {
+          "x": 100,
+          "z": 94.3
+        },
+        {
+          "x": 86,
+          "z": 94.3
+        }
+      ]
+    },
+    {
+      "id": "hole-05-tee-forward",
+      "type": "TEE",
+      "name": "Gumtree Rise Forward Tee",
+      "points": [
+        {
+          "x": 86,
+          "z": 98.25
+        },
+        {
+          "x": 100,
+          "z": 98.25
+        },
+        {
+          "x": 100,
+          "z": 107.25
+        },
+        {
+          "x": 86,
+          "z": 107.25
         }
       ]
     },

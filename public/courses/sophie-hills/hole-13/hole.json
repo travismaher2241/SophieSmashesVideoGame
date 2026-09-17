@@ -16,6 +16,64 @@
     "y": 0,
     "z": 445
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 96,
+      "z": 75,
+      "lengthMetres": 370,
+      "surfaceId": "hole-13-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 96,
+      "z": 103,
+      "lengthMetres": 342,
+      "surfaceId": "hole-13-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 96,
+      "z": 127,
+      "lengthMetres": 318,
+      "surfaceId": "hole-13-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 96,
+      "z": 445
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 96,
+      "z": 437.3
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 96,
+      "z": 452.7
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 104.8,
+      "z": 440.8
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 87.2,
+      "z": 449.2
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-13-corridor",
@@ -881,7 +939,7 @@
     {
       "id": "hole-13-tee",
       "type": "TEE",
-      "name": "Shearers Rest Tee",
+      "name": "Shearers Rest Back Tee",
       "points": [
         {
           "x": 89,
@@ -898,6 +956,52 @@
         {
           "x": 89,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-13-tee-middle",
+      "type": "TEE",
+      "name": "Shearers Rest Middle Tee",
+      "points": [
+        {
+          "x": 89,
+          "z": 98.5
+        },
+        {
+          "x": 103,
+          "z": 98.5
+        },
+        {
+          "x": 103,
+          "z": 107.5
+        },
+        {
+          "x": 89,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-13-tee-forward",
+      "type": "TEE",
+      "name": "Shearers Rest Forward Tee",
+      "points": [
+        {
+          "x": 89,
+          "z": 122.5
+        },
+        {
+          "x": 103,
+          "z": 122.5
+        },
+        {
+          "x": 103,
+          "z": 131.5
+        },
+        {
+          "x": 89,
+          "z": 131.5
         }
       ]
     },

@@ -21,6 +21,64 @@
     "y": 0,
     "z": 407.23
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 98,
+      "z": 75,
+      "lengthMetres": 480,
+      "surfaceId": "hole-11-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 98,
+      "z": 103,
+      "lengthMetres": 452,
+      "surfaceId": "hole-11-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 98,
+      "z": 127,
+      "lengthMetres": 428,
+      "surfaceId": "hole-11-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 137.55,
+      "z": 549.61
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 137.55,
+      "z": 541.36
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 137.55,
+      "z": 557.86
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 146.9,
+      "z": 545.11
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 128.2,
+      "z": 554.11
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-11-corridor",
@@ -1150,7 +1208,7 @@
     {
       "id": "hole-11-tee",
       "type": "TEE",
-      "name": "The Long Acre Tee",
+      "name": "The Long Acre Back Tee",
       "points": [
         {
           "x": 91,
@@ -1167,6 +1225,52 @@
         {
           "x": 91,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-11-tee-middle",
+      "type": "TEE",
+      "name": "The Long Acre Middle Tee",
+      "points": [
+        {
+          "x": 91,
+          "z": 98.5
+        },
+        {
+          "x": 105,
+          "z": 98.5
+        },
+        {
+          "x": 105,
+          "z": 107.5
+        },
+        {
+          "x": 91,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-11-tee-forward",
+      "type": "TEE",
+      "name": "The Long Acre Forward Tee",
+      "points": [
+        {
+          "x": 91,
+          "z": 122.5
+        },
+        {
+          "x": 105,
+          "z": 122.5
+        },
+        {
+          "x": 105,
+          "z": 131.5
+        },
+        {
+          "x": 91,
+          "z": 131.5
         }
       ]
     },

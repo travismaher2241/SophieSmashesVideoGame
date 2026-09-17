@@ -21,6 +21,64 @@
     "y": 0,
     "z": 299.1
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 141.66,
+      "z": 75,
+      "lengthMetres": 330,
+      "surfaceId": "hole-08-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 141.66,
+      "z": 101.4,
+      "lengthMetres": 304,
+      "surfaceId": "hole-08-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 141.66,
+      "z": 124.5,
+      "lengthMetres": 281,
+      "surfaceId": "hole-08-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 97.03,
+      "z": 395.14
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 97.03,
+      "z": 387.99
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 97.03,
+      "z": 402.29
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 105.28,
+      "z": 391.24
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 88.78,
+      "z": 399.04
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-08-corridor",
@@ -790,7 +848,7 @@
     {
       "id": "hole-08-tee",
       "type": "TEE",
-      "name": "Sandbelt Turn Tee",
+      "name": "Sandbelt Turn Back Tee",
       "points": [
         {
           "x": 134.66,
@@ -807,6 +865,52 @@
         {
           "x": 134.66,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-08-tee-middle",
+      "type": "TEE",
+      "name": "Sandbelt Turn Middle Tee",
+      "points": [
+        {
+          "x": 134.66,
+          "z": 96.9
+        },
+        {
+          "x": 148.66,
+          "z": 96.9
+        },
+        {
+          "x": 148.66,
+          "z": 105.9
+        },
+        {
+          "x": 134.66,
+          "z": 105.9
+        }
+      ]
+    },
+    {
+      "id": "hole-08-tee-forward",
+      "type": "TEE",
+      "name": "Sandbelt Turn Forward Tee",
+      "points": [
+        {
+          "x": 134.66,
+          "z": 120
+        },
+        {
+          "x": 148.66,
+          "z": 120
+        },
+        {
+          "x": 148.66,
+          "z": 129
+        },
+        {
+          "x": 134.66,
+          "z": 129
         }
       ]
     },

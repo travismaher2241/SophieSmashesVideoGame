@@ -1,3 +1,4 @@
+import { TeeBoxId, TEE_BOX_IDS, DEFAULT_TEE } from './RoundSetup';
 import { Abilities, untrained } from './Abilities';
 
 /**
@@ -13,12 +14,20 @@ export interface Progress {
   roundsPlayed: number;
   /** Best round against par, or null before a round has been finished. */
   bestRelativeToPar: number | null;
+  /** Which tee the player last chose to play from. */
+  teeChoice: TeeBoxId;
 }
 
 const STORAGE_KEY = 'sophie-smashes-progress-v1';
 
 export function newProgress(): Progress {
-  return { abilities: untrained(), sessionsAvailable: 0, roundsPlayed: 0, bestRelativeToPar: null };
+  return {
+    abilities: untrained(),
+    sessionsAvailable: 0,
+    roundsPlayed: 0,
+    bestRelativeToPar: null,
+    teeChoice: DEFAULT_TEE
+  };
 }
 
 /**
@@ -51,7 +60,8 @@ export function loadProgress(storage: Storage | undefined = safeStorage()): Prog
       roundsPlayed: clampCount(parsed.roundsPlayed),
       bestRelativeToPar: typeof parsed.bestRelativeToPar === 'number' && Number.isFinite(parsed.bestRelativeToPar)
         ? parsed.bestRelativeToPar
-        : null
+        : null,
+      teeChoice: TEE_BOX_IDS.includes(parsed.teeChoice as TeeBoxId) ? (parsed.teeChoice as TeeBoxId) : DEFAULT_TEE
     };
   } catch {
     return newProgress();

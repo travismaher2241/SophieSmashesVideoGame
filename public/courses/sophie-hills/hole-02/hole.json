@@ -16,6 +16,64 @@
     "y": 0,
     "z": 240
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 94,
+      "z": 75,
+      "lengthMetres": 165,
+      "surfaceId": "hole-02-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 107,
+      "z": 88.2,
+      "lengthMetres": 152,
+      "surfaceId": "hole-02-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 107,
+      "z": 99.75,
+      "lengthMetres": 140,
+      "surfaceId": "hole-02-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 94,
+      "z": 240
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 94,
+      "z": 232.3
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 94,
+      "z": 247.7
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 102.8,
+      "z": 235.8
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 85.2,
+      "z": 244.2
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-02-corridor",
@@ -425,7 +483,7 @@
     {
       "id": "hole-02-tee",
       "type": "TEE",
-      "name": "Creekside Carry Tee",
+      "name": "Creekside Carry Back Tee",
       "points": [
         {
           "x": 87,
@@ -442,6 +500,52 @@
         {
           "x": 87,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-02-tee-middle",
+      "type": "TEE",
+      "name": "Creekside Carry Middle Tee",
+      "points": [
+        {
+          "x": 100,
+          "z": 83.7
+        },
+        {
+          "x": 114,
+          "z": 83.7
+        },
+        {
+          "x": 114,
+          "z": 92.7
+        },
+        {
+          "x": 100,
+          "z": 92.7
+        }
+      ]
+    },
+    {
+      "id": "hole-02-tee-forward",
+      "type": "TEE",
+      "name": "Creekside Carry Forward Tee",
+      "points": [
+        {
+          "x": 100,
+          "z": 95.25
+        },
+        {
+          "x": 114,
+          "z": 95.25
+        },
+        {
+          "x": 114,
+          "z": 104.25
+        },
+        {
+          "x": 100,
+          "z": 104.25
         }
       ]
     },

@@ -1,3 +1,13 @@
+import { TeeBoxId } from '../game/RoundSetup';
+
+/** One tee the course can be played from, as the title screen offers it. */
+export interface TeeChoice {
+  id: TeeBoxId;
+  name: string;
+  /** Length of the opening hole from this tee, as a sample of what it changes. */
+  lengthMetres: number;
+}
+
 export interface TitleScreenOptions {
   courseName: string;
   courseSubtitle: string;
@@ -5,12 +15,15 @@ export interface TitleScreenOptions {
   totalPar: number;
   onStart: () => void;
   onOpenPractice?: () => void;
+  onTeeChange?: (choice: TeeBoxId) => void;
 }
 
 export class TitleScreen {
   private readonly container: HTMLElement;
+  private readonly onTeeChange?: (choice: TeeBoxId) => void;
 
   constructor(options: TitleScreenOptions) {
+    this.onTeeChange = options.onTeeChange;
     this.container = document.createElement('div');
     this.container.setAttribute('role', 'dialog');
     this.container.setAttribute('aria-label', 'Sophie Smashes title screen');
@@ -25,6 +38,7 @@ export class TitleScreen {
           <span>${options.holeCount} HOLES</span>
           <span>PAR ${options.totalPar}</span>
         </div>
+        <div class="title-tees" id="title-tees"></div>
         <button id="btn-title-start" class="title-primary">START ROUND</button>
         <div class="title-controls">SPACE: SWING &nbsp; A/D: AIM &nbsp; W/S: CLUB &nbsp; M: VIEW</div>
       </div>
@@ -61,6 +75,17 @@ export class TitleScreen {
         .title-hole { margin-top: 3px; color: #d8f3dc; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; }
         .title-stats { display: flex; justify-content: center; gap: 14px; margin: 18px 0 22px; }
         .title-stats span { min-width: 100px; padding: 8px 12px; border: 2px solid #4f9d61; background: #0e2b18; color: #f9e86d; font-size: 13px; font-weight: bold; letter-spacing: 1px; border-radius: 4px; }
+        .title-tees { display: flex; gap: 6px; margin-bottom: 14px; }
+        .title-tees:empty { display: none; }
+        .title-tee {
+          flex: 1; padding: 8px 4px; border: 2px solid #3f7d52; border-radius: 4px;
+          background: #0b2413; color: #bfe6c7; cursor: pointer;
+          font: bold 11px 'Courier New', monospace; letter-spacing: 1px;
+        }
+        .title-tee small { display: block; margin-top: 3px; font-weight: normal; font-size: 10px; color: #8bbf99; }
+        .title-tee:hover { border-color: #6fc084; color: #eafff0; }
+        .title-tee.is-chosen { border-color: #f5d94f; background: #1d3d21; color: #ffef9f; }
+        .title-tee.is-chosen small { color: #d9c86a; }
         .title-primary { width: 100%; font: bold 16px 'Courier New', monospace; cursor: pointer; border-radius: 6px; padding: 14px; border: 3px solid #b4ff9a; background: #269b3c; color: white; box-shadow: 0 4px 0 #0b4c1a; letter-spacing: 2px; }
         .title-primary:hover { background: #38bd50; transform: translateY(-1px); }
         .title-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #0b4c1a; }
@@ -83,6 +108,37 @@ export class TitleScreen {
 
     this.container.querySelector('#btn-title-start')?.addEventListener('click', options.onStart);
     document.body.appendChild(this.container);
+  }
+
+  /**
+   * Offer the tees, with the chosen one marked.
+   *
+   * The length shown is the opening hole's, not the course's: it is there to
+   * say what the choice does, and the first hole is the one the player is about
+   * to stand on. A course offering a single tee shows no buttons at all.
+   */
+  public setTeeChoice(chosen: TeeBoxId, choices: TeeChoice[]): void {
+    const tees = this.container.querySelector('#title-tees');
+    if (!tees) return;
+
+    if (choices.length < 2) {
+      tees.innerHTML = '';
+      return;
+    }
+
+    tees.innerHTML = choices
+      .map((choice) => `
+        <button class="title-tee${choice.id === chosen ? ' is-chosen' : ''}" data-tee="${choice.id}">
+          ${choice.name.replace(' TEE', '')}<small>1st · ${choice.lengthMetres}m</small>
+        </button>
+      `)
+      .join('');
+
+    tees.querySelectorAll('.title-tee').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.onTeeChange?.(button.getAttribute('data-tee') as TeeBoxId);
+      });
+    });
   }
 
   public updateConfig(options: Partial<TitleScreenOptions>): void {

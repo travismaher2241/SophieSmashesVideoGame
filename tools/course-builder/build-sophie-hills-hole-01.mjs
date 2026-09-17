@@ -31,6 +31,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildPinPositions, buildTeeBoxes, sampleCentreline } from './lib/hole-geometry.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(HERE, '../../public/courses/sophie-hills/hole-01');
@@ -556,18 +557,54 @@ function buildHole() {
     points: ellipse(GREEN_CENTRE.x, GREEN_CENTRE.z, 17.5, 15.5)
   };
 
-  const tee = {
-    id: 'hole-01-tee',
-    type: 'TEE',
-    name: 'Clubhouse Climb Back Tee',
-    points: teeBox(TEE.x, TEE.z, 12, 8)
+  const cartPath = {
+    id: 'hole-01-cart-path',
+    type: 'PATH',
+    name: 'Clubhouse Cart Path',
+    points: pathRibbon(CART_PATH_PX, 3)
   };
+
+  const clubhouseOob = {
+    id: 'hole-01-clubhouse-oob',
+    type: 'OUT_OF_BOUNDS',
+    name: 'Clubhouse Grounds',
+    points: [
+      { x: 186, z: 0 },
+      { x: 240, z: 0 },
+      { x: 240, z: 96 },
+      { x: 190, z: 96 }
+    ]
+  };
+
+  // Three tees up the one playing line. The back tee is where it has always
+  // been, so the 337m card still measures the hole. This hole's fairway starts
+  // 18m from the tee and its tree lines close in at about 16m either side, so
+  // the forward two share the near end of the fairway rather than stand in the
+  // trees — see buildTeeBoxes for how that is decided.
+  const teePlan = buildTeeBoxes({
+    holeId: 'hole-01',
+    name: 'Clubhouse Climb',
+    centreline: sampleCentreline([TEE, BEND, GREEN_CENTRE], 5),
+    length: PLAYING_LENGTH,
+    avoid: [cartPath.points, clubhouseOob.points],
+    preferClear: [fairway.points, firstCut.points]
+  });
+  const tees = teePlan.surfaces;
+
+  // Five cuttable pins, so the green asks a different question each round.
+  const pinPositions = buildPinPositions({
+    holeId: 'hole-01',
+    green: GREEN_CENTRE,
+    radiusX: 15,
+    radiusZ: 13,
+    greenPolygon: green.points
+  });
 
   const corridor = {
     id: 'hole-01-corridor',
     type: 'ROUGH',
     name: 'Clubhouse Climb Rough',
-    points: buildCorridor([firstCut, green, fringe, tee])
+    points: buildCorridor([firstCut, green, fringe, ...tees])
   };
 
   // Widest first, so a narrower surface wins the lie lookup where they overlap.
@@ -575,26 +612,11 @@ function buildHole() {
     corridor,
     firstCut,
     fairway,
-    tee,
+    ...tees,
     fringe,
     green,
-    {
-      id: 'hole-01-cart-path',
-      type: 'PATH',
-      name: 'Clubhouse Cart Path',
-      points: pathRibbon(CART_PATH_PX, 3)
-    },
-    {
-      id: 'hole-01-clubhouse-oob',
-      type: 'OUT_OF_BOUNDS',
-      name: 'Clubhouse Grounds',
-      points: [
-        { x: 186, z: 0 },
-        { x: 240, z: 0 },
-        { x: 240, z: 96 },
-        { x: 190, z: 96 }
-      ]
-    }
+    cartPath,
+    clubhouseOob
   ];
 
   const trees = [
@@ -660,6 +682,8 @@ function buildHole() {
     greenCentre: { x: GREEN_CENTRE.x, y: 0, z: GREEN_CENTRE.z },
     // The hole bends left 200m out; that corner is the tee-shot target.
     drivingLine: { x: BEND.x, y: 0, z: BEND.z },
+    teeBoxes: teePlan.boxes,
+    pinPositions,
     surfaces,
     trees,
     features: [],

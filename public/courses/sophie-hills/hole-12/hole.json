@@ -16,6 +16,64 @@
     "y": 0,
     "z": 230
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 93,
+      "z": 75,
+      "lengthMetres": 155,
+      "surfaceId": "hole-12-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 93,
+      "z": 87.4,
+      "lengthMetres": 143,
+      "surfaceId": "hole-12-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 93,
+      "z": 98.25,
+      "lengthMetres": 132,
+      "surfaceId": "hole-12-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 93,
+      "z": 230
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 93,
+      "z": 222.85
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 93,
+      "z": 237.15
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 101.25,
+      "z": 226.1
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 84.75,
+      "z": 233.9
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-12-corridor",
@@ -401,7 +459,7 @@
     {
       "id": "hole-12-tee",
       "type": "TEE",
-      "name": "Stockyard Tee",
+      "name": "Stockyard Back Tee",
       "points": [
         {
           "x": 86,
@@ -418,6 +476,52 @@
         {
           "x": 86,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-12-tee-middle",
+      "type": "TEE",
+      "name": "Stockyard Middle Tee",
+      "points": [
+        {
+          "x": 86,
+          "z": 82.9
+        },
+        {
+          "x": 100,
+          "z": 82.9
+        },
+        {
+          "x": 100,
+          "z": 91.9
+        },
+        {
+          "x": 86,
+          "z": 91.9
+        }
+      ]
+    },
+    {
+      "id": "hole-12-tee-forward",
+      "type": "TEE",
+      "name": "Stockyard Forward Tee",
+      "points": [
+        {
+          "x": 86,
+          "z": 93.75
+        },
+        {
+          "x": 100,
+          "z": 93.75
+        },
+        {
+          "x": 100,
+          "z": 102.75
+        },
+        {
+          "x": 86,
+          "z": 102.75
         }
       ]
     },

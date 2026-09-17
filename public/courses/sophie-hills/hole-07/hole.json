@@ -16,6 +16,64 @@
     "y": 0,
     "z": 475
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 97,
+      "z": 75,
+      "lengthMetres": 400,
+      "surfaceId": "hole-07-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 97,
+      "z": 103,
+      "lengthMetres": 372,
+      "surfaceId": "hole-07-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 97,
+      "z": 127,
+      "lengthMetres": 348,
+      "surfaceId": "hole-07-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 97,
+      "z": 475
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 97,
+      "z": 466.75
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 97,
+      "z": 483.25
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 105.8,
+      "z": 470.5
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 88.2,
+      "z": 479.5
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-07-corridor",
@@ -953,7 +1011,7 @@
     {
       "id": "hole-07-tee",
       "type": "TEE",
-      "name": "Ridge Runner Tee",
+      "name": "Ridge Runner Back Tee",
       "points": [
         {
           "x": 90,
@@ -970,6 +1028,52 @@
         {
           "x": 90,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-07-tee-middle",
+      "type": "TEE",
+      "name": "Ridge Runner Middle Tee",
+      "points": [
+        {
+          "x": 90,
+          "z": 98.5
+        },
+        {
+          "x": 104,
+          "z": 98.5
+        },
+        {
+          "x": 104,
+          "z": 107.5
+        },
+        {
+          "x": 90,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-07-tee-forward",
+      "type": "TEE",
+      "name": "Ridge Runner Forward Tee",
+      "points": [
+        {
+          "x": 90,
+          "z": 122.5
+        },
+        {
+          "x": 104,
+          "z": 122.5
+        },
+        {
+          "x": 104,
+          "z": 131.5
+        },
+        {
+          "x": 90,
+          "z": 131.5
         }
       ]
     },

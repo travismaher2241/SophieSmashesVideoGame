@@ -27,6 +27,8 @@ import { fileURLToPath } from 'node:url';
 import {
   assertPlayable,
   box,
+  buildPinPositions,
+  buildTeeBoxes,
   clamp,
   ellipse,
   offsetFromLine,
@@ -471,10 +473,12 @@ function buildHole(spec) {
     points: ellipse(green.x, green.z, spec.green.radiusX + 2.5, spec.green.radiusZ + 2.5)
   };
 
+  // The back tee, needed here so a hazard can be walked clear of it. The other
+  // two tees are cut once the hazards are down, so they can dodge them.
   const teeSurface = {
     id: `${holeId}-tee`,
     type: 'TEE',
-    name: `${spec.name} Tee`,
+    name: `${spec.name} Back Tee`,
     points: box(tee.x, tee.z, 14, 9)
   };
 
@@ -541,19 +545,46 @@ function buildHole(spec) {
     });
   }
 
+  // --- tees ----------------------------------------------------------------
+  // Three tees up the same line: the back one where the hole has always been
+  // played from, and two cut further up it, clear of the hazards and off the
+  // mown fairway.
+  const teePlan = buildTeeBoxes({
+    holeId,
+    name: spec.name,
+    centreline,
+    length,
+    avoid: hazards.map((hazard) => hazard.points),
+    preferClear: [fairway.points, firstCut.points],
+    padWidth: 14,
+    padDepth: 9
+  });
+  const teeSurfaces = teePlan.surfaces;
+
+  // --- pins ----------------------------------------------------------------
+  // Five cuttable pin positions, so the same green asks a different question
+  // from one round to the next.
+  const pins = buildPinPositions({
+    holeId,
+    green,
+    radiusX: spec.green.radiusX,
+    radiusZ: spec.green.radiusZ,
+    greenPolygon: greenSurface.points
+  });
+
   // --- trees ---------------------------------------------------------------
   const trees = buildTrees(spec, centreline, length, green);
 
-  const mownSurfaces = [firstCut, fairway, teeSurface, fringe, greenSurface];
+  const mownSurfaces = [firstCut, fairway, ...teeSurfaces, fringe, greenSurface];
 
   // Widest first, so a narrower surface wins the lie lookup where they overlap.
-  const surfaces = [corridor, firstCut, fairway, teeSurface, fringe, greenSurface, ...hazards];
+  const surfaces = [corridor, firstCut, fairway, ...teeSurfaces, fringe, greenSurface, ...hazards];
 
   // Size the terrain to what the hole actually occupies and shift the hole onto
   // it. Fixed margins guessed ahead of time were wrong as soon as a backdrop tree
   // sat further behind the green than expected, and geometry off the edge of the
   // heightfield is silently dropped at render time.
-  const placed = recentre({ surfaces, trees, tee, green, drivingLine });
+  const placed = recentre({ surfaces, trees, tee, green, drivingLine, teeBoxes: teePlan.boxes, pins });
 
   assertPlayable({
     holeId,
@@ -589,6 +620,8 @@ function buildHole(spec) {
       ...(placed.drivingLine
         ? { drivingLine: { x: placed.drivingLine.x, y: 0, z: placed.drivingLine.z } }
         : {}),
+      teeBoxes: placed.teeBoxes,
+      pinPositions: placed.pins,
       surfaces: placed.surfaces,
       trees: placed.trees,
       features: [],
@@ -606,7 +639,7 @@ function buildHole(spec) {
  * Shift a hole so its geometry sits inside a terrain sized to fit it, with a
  * margin of playable ground all round.
  */
-function recentre({ surfaces, trees, tee, green, drivingLine }) {
+function recentre({ surfaces, trees, tee, green, drivingLine, teeBoxes = [], pins = [] }) {
   const xs = [];
   const zs = [];
   for (const surface of surfaces) {
@@ -635,6 +668,8 @@ function recentre({ surfaces, trees, tee, green, drivingLine }) {
     tee: move(tee),
     green: move(green),
     drivingLine: drivingLine ? move(drivingLine) : null,
+    teeBoxes: teeBoxes.map(move),
+    pins: pins.map(move),
     widthSamples: Math.ceil(spanX / GRID_SPACING) + 1,
     heightSamples: Math.ceil(spanZ / GRID_SPACING) + 1,
     byId: (id) => movedSurfaces.find((surface) => surface.id === id)

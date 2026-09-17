@@ -439,3 +439,148 @@ export function assertPlayable({
     throw new Error(`${holeId} is not playable:\n  - ${problems.slice(0, 12).join('\n  - ')}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tee boxes and pin positions
+// ---------------------------------------------------------------------------
+
+/**
+ * The tee boxes a hole plays from.
+ *
+ * The hole's existing tee stays put and becomes the back tee, so the card length
+ * every test and every note quotes is still the length off the back. The other
+ * two are cut further UP the hole rather than further back: ground behind the
+ * tee is the one place a hole has none to spare — the rough corridor stops 45m
+ * behind it and the heightfield 30m behind that — and a forward tee is the one
+ * players actually want anyway.
+ *
+ * Two kinds of polygon get in the way. `avoid` is hard — a cart path, out of
+ * bounds, a bunker, water — and a pad never lands on one. `preferClear` is soft:
+ * the fairway and its first cut, which a tee pad ought to start behind but may
+ * share ground with when there is nowhere else. Hole 1 is why: its fairway
+ * begins 18m from the tee, so insisting on clear ground put all three of its
+ * tees within 14m of each other, and insisting on clear ground beside the line
+ * put the forward tees in its right-hand tree line. It plays from a pad at the
+ * near end of its own fairway instead, which is a thing real courses do.
+ */
+export function buildTeeBoxes({
+  holeId,
+  name,
+  centreline,
+  length,
+  avoid = [],
+  preferClear = [],
+  padWidth = 12,
+  padDepth = 8
+}) {
+  const plan = [
+    { id: 'BACK', label: 'BACK', offset: 0 },
+    { id: 'MIDDLE', label: 'MIDDLE', offset: Math.min(28, length * 0.08) },
+    { id: 'FORWARD', label: 'FORWARD', offset: Math.min(52, length * 0.15) }
+  ];
+
+  const boxes = [];
+  const surfaces = [];
+
+  for (const entry of plan) {
+    const placed = entry.offset === 0 ? pad(0, 0) : findRoom(entry.offset);
+    // The back tee keeps the id the hole has always used, so nothing that refers
+    // to it by name has to be rewritten.
+    const surfaceId = entry.id === 'BACK' ? `${holeId}-tee` : `${holeId}-tee-${entry.id.toLowerCase()}`;
+
+    boxes.push({
+      id: entry.id,
+      name: `${entry.label} TEE`,
+      x: round2(placed.x),
+      z: round2(placed.z),
+      lengthMetres: Math.round(length - placed.offset),
+      surfaceId
+    });
+
+    surfaces.push({
+      id: surfaceId,
+      type: 'TEE',
+      name: `${name} ${entry.label[0]}${entry.label.slice(1).toLowerCase()} Tee`,
+      points: placed.points
+    });
+  }
+
+  return { boxes, surfaces };
+
+  function pad(offset, side) {
+    const point = pointAtDistance(centreline, offset);
+    const centre = side === 0 ? point : offsetFromLine(point, side);
+    return { x: centre.x, z: centre.z, offset, points: box(centre.x, centre.z, padWidth, padDepth) };
+  }
+
+  function clearOf(candidate, polygons) {
+    return polygons.every((polygon) => polygonGap(candidate.points, polygon) > 0);
+  }
+
+  function findRoom(wanted) {
+    const both = [...avoid, ...preferClear];
+
+    // Straight up the line at the distance the design asked for.
+    const straight = pad(wanted, 0);
+    if (clearOf(straight, both)) return straight;
+
+    // Beside the line, but only just: further out than this is the tree line.
+    for (const side of [13, -13, 19, -19]) {
+      const candidate = pad(wanted, side);
+      if (clearOf(candidate, both)) return candidate;
+    }
+
+    // Keep the distance and share ground with the fairway rather than give the
+    // forward tees up.
+    if (clearOf(straight, avoid)) return straight;
+
+    for (let offset = wanted - 1; offset >= 8; offset -= 1) {
+      const candidate = pad(offset, 0);
+      if (clearOf(candidate, avoid)) return candidate;
+    }
+
+    throw new Error(
+      `${holeId}: no room for a tee ${Math.round(wanted)}m up the hole — ` +
+      'everything from 8m out is paved, sanded, flooded or out of bounds'
+    );
+  }
+}
+
+/**
+ * Where the cup can be cut on a green.
+ *
+ * Five of them, so the hole is not the same hole every round: the middle, and
+ * one towards each edge. Each is pulled in until it has `clearance` metres of
+ * putting surface all round it, because a pin on the lip of the green turns a
+ * good approach into a ball on the fringe.
+ *
+ * Left and right are named as the player sees them standing on the tee: with the
+ * hole running up +z, the player's left is +x. That matches the game's own aim
+ * convention, where aiming left lowers the aim angle.
+ */
+export function buildPinPositions({ holeId, green, radiusX, radiusZ, greenPolygon, clearance = 4 }) {
+  const plan = [
+    { id: 'MIDDLE', name: 'MIDDLE', across: 0, along: 0 },
+    { id: 'FRONT', name: 'FRONT', across: 0, along: -0.55 },
+    { id: 'BACK', name: 'BACK', across: 0, along: 0.55 },
+    { id: 'LEFT', name: 'FRONT LEFT', across: 0.55, along: -0.3 },
+    { id: 'RIGHT', name: 'BACK RIGHT', across: -0.55, along: 0.3 }
+  ];
+
+  return plan.map((entry) => {
+    for (let shrink = 1; shrink >= 0; shrink -= 0.05) {
+      const point = {
+        x: round2(green.x + entry.across * radiusX * shrink),
+        z: round2(green.z + entry.along * radiusZ * shrink)
+      };
+
+      if (pointInPolygon(greenPolygon, point) && distanceToPolygonEdge(greenPolygon, point) >= clearance) {
+        return { id: entry.id, name: entry.name, x: point.x, z: point.z };
+      }
+    }
+
+    throw new Error(
+      `${holeId}: the green is too small to cut a ${entry.id} pin with ${clearance}m of surface around it`
+    );
+  });
+}

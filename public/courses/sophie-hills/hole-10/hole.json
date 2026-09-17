@@ -21,6 +21,64 @@
     "y": 0,
     "z": 259.97
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 126.1,
+      "z": 75,
+      "lengthMetres": 340,
+      "surfaceId": "hole-10-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 126.1,
+      "z": 102.2,
+      "lengthMetres": 313,
+      "surfaceId": "hole-10-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 126.1,
+      "z": 126,
+      "lengthMetres": 289,
+      "surfaceId": "hole-10-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 92.47,
+      "z": 411.31
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 92.47,
+      "z": 403.61
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 92.47,
+      "z": 419.01
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 100.72,
+      "z": 407.11
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 84.22,
+      "z": 415.51
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-10-corridor",
@@ -814,7 +872,7 @@
     {
       "id": "hole-10-tee",
       "type": "TEE",
-      "name": "Ironbark Turn Tee",
+      "name": "Ironbark Turn Back Tee",
       "points": [
         {
           "x": 119.1,
@@ -831,6 +889,52 @@
         {
           "x": 119.1,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-10-tee-middle",
+      "type": "TEE",
+      "name": "Ironbark Turn Middle Tee",
+      "points": [
+        {
+          "x": 119.1,
+          "z": 97.7
+        },
+        {
+          "x": 133.1,
+          "z": 97.7
+        },
+        {
+          "x": 133.1,
+          "z": 106.7
+        },
+        {
+          "x": 119.1,
+          "z": 106.7
+        }
+      ]
+    },
+    {
+      "id": "hole-10-tee-forward",
+      "type": "TEE",
+      "name": "Ironbark Turn Forward Tee",
+      "points": [
+        {
+          "x": 119.1,
+          "z": 121.5
+        },
+        {
+          "x": 133.1,
+          "z": 121.5
+        },
+        {
+          "x": 133.1,
+          "z": 130.5
+        },
+        {
+          "x": 119.1,
+          "z": 130.5
         }
       ]
     },

@@ -21,6 +21,64 @@
     "y": 0,
     "z": 310.32
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 126.46,
+      "z": 75,
+      "lengthMetres": 395,
+      "surfaceId": "hole-16-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 126.46,
+      "z": 103,
+      "lengthMetres": 367,
+      "surfaceId": "hole-16-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 126.46,
+      "z": 127,
+      "lengthMetres": 343,
+      "surfaceId": "hole-16-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 96.67,
+      "z": 467.2
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 96.67,
+      "z": 459.5
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 96.67,
+      "z": 474.9
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 105.47,
+      "z": 463
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 87.87,
+      "z": 471.4
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-16-corridor",
@@ -934,7 +992,7 @@
     {
       "id": "hole-16-tee",
       "type": "TEE",
-      "name": "Ridgeback Tee",
+      "name": "Ridgeback Back Tee",
       "points": [
         {
           "x": 119.46,
@@ -951,6 +1009,52 @@
         {
           "x": 119.46,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-16-tee-middle",
+      "type": "TEE",
+      "name": "Ridgeback Middle Tee",
+      "points": [
+        {
+          "x": 119.46,
+          "z": 98.5
+        },
+        {
+          "x": 133.46,
+          "z": 98.5
+        },
+        {
+          "x": 133.46,
+          "z": 107.5
+        },
+        {
+          "x": 119.46,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-16-tee-forward",
+      "type": "TEE",
+      "name": "Ridgeback Forward Tee",
+      "points": [
+        {
+          "x": 119.46,
+          "z": 122.5
+        },
+        {
+          "x": 133.46,
+          "z": 122.5
+        },
+        {
+          "x": 133.46,
+          "z": 131.5
+        },
+        {
+          "x": 119.46,
+          "z": 131.5
         }
       ]
     },

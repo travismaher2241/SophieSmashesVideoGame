@@ -21,6 +21,64 @@
     "y": 0,
     "z": 300.89
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 96,
+      "z": 75,
+      "lengthMetres": 355,
+      "surfaceId": "hole-03-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 96,
+      "z": 103,
+      "lengthMetres": 327,
+      "surfaceId": "hole-03-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 96,
+      "z": 127,
+      "lengthMetres": 303,
+      "surfaceId": "hole-03-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 151.92,
+      "z": 417.26
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 151.92,
+      "z": 409.56
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 151.92,
+      "z": 424.96
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 160.17,
+      "z": 413.06
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 143.67,
+      "z": 421.46
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-03-corridor",
@@ -838,7 +896,7 @@
     {
       "id": "hole-03-tee",
       "type": "TEE",
-      "name": "Wattle Bend Tee",
+      "name": "Wattle Bend Back Tee",
       "points": [
         {
           "x": 89,
@@ -855,6 +913,52 @@
         {
           "x": 89,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-03-tee-middle",
+      "type": "TEE",
+      "name": "Wattle Bend Middle Tee",
+      "points": [
+        {
+          "x": 89,
+          "z": 98.5
+        },
+        {
+          "x": 103,
+          "z": 98.5
+        },
+        {
+          "x": 103,
+          "z": 107.5
+        },
+        {
+          "x": 89,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-03-tee-forward",
+      "type": "TEE",
+      "name": "Wattle Bend Forward Tee",
+      "points": [
+        {
+          "x": 89,
+          "z": 122.5
+        },
+        {
+          "x": 103,
+          "z": 122.5
+        },
+        {
+          "x": 103,
+          "z": 131.5
+        },
+        {
+          "x": 89,
+          "z": 131.5
         }
       ]
     },

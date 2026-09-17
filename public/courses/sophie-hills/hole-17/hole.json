@@ -16,6 +16,64 @@
     "y": 0,
     "z": 425
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 96,
+      "z": 75,
+      "lengthMetres": 350,
+      "surfaceId": "hole-17-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 96,
+      "z": 103,
+      "lengthMetres": 322,
+      "surfaceId": "hole-17-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 96,
+      "z": 127,
+      "lengthMetres": 298,
+      "surfaceId": "hole-17-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 96,
+      "z": 425
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 96,
+      "z": 417.3
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 96,
+      "z": 432.7
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 104.25,
+      "z": 420.8
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 87.75,
+      "z": 429.2
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-17-corridor",
@@ -833,7 +891,7 @@
     {
       "id": "hole-17-tee",
       "type": "TEE",
-      "name": "Dam Wall Tee",
+      "name": "Dam Wall Back Tee",
       "points": [
         {
           "x": 89,
@@ -850,6 +908,52 @@
         {
           "x": 89,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-17-tee-middle",
+      "type": "TEE",
+      "name": "Dam Wall Middle Tee",
+      "points": [
+        {
+          "x": 89,
+          "z": 98.5
+        },
+        {
+          "x": 103,
+          "z": 98.5
+        },
+        {
+          "x": 103,
+          "z": 107.5
+        },
+        {
+          "x": 89,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-17-tee-forward",
+      "type": "TEE",
+      "name": "Dam Wall Forward Tee",
+      "points": [
+        {
+          "x": 89,
+          "z": 122.5
+        },
+        {
+          "x": 103,
+          "z": 122.5
+        },
+        {
+          "x": 103,
+          "z": 131.5
+        },
+        {
+          "x": 89,
+          "z": 131.5
         }
       ]
     },

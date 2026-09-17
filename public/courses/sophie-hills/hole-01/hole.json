@@ -21,6 +21,64 @@
     "y": 0,
     "z": 240
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 150,
+      "z": 40,
+      "lengthMetres": 337,
+      "surfaceId": "hole-01-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 149.19,
+      "z": 66.95,
+      "lengthMetres": 310,
+      "surfaceId": "hole-01-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 148.48,
+      "z": 90.53,
+      "lengthMetres": 286,
+      "surfaceId": "hole-01-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 120,
+      "z": 375
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 120,
+      "z": 367.85
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 120,
+      "z": 382.15
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 128.25,
+      "z": 371.1
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 111.75,
+      "z": 378.9
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-01-corridor",
@@ -983,6 +1041,52 @@
         {
           "x": 144,
           "z": 44
+        }
+      ]
+    },
+    {
+      "id": "hole-01-tee-middle",
+      "type": "TEE",
+      "name": "Clubhouse Climb Middle Tee",
+      "points": [
+        {
+          "x": 143.19,
+          "z": 62.95
+        },
+        {
+          "x": 155.19,
+          "z": 62.95
+        },
+        {
+          "x": 155.19,
+          "z": 70.95
+        },
+        {
+          "x": 143.19,
+          "z": 70.95
+        }
+      ]
+    },
+    {
+      "id": "hole-01-tee-forward",
+      "type": "TEE",
+      "name": "Clubhouse Climb Forward Tee",
+      "points": [
+        {
+          "x": 142.48,
+          "z": 86.53
+        },
+        {
+          "x": 154.48,
+          "z": 86.53
+        },
+        {
+          "x": 154.48,
+          "z": 94.53
+        },
+        {
+          "x": 142.48,
+          "z": 94.53
         }
       ]
     },

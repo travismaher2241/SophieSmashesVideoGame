@@ -21,6 +21,64 @@
     "y": 0,
     "z": 404.57
   },
+  "teeBoxes": [
+    {
+      "id": "BACK",
+      "name": "BACK TEE",
+      "x": 97,
+      "z": 75,
+      "lengthMetres": 520,
+      "surfaceId": "hole-18-tee"
+    },
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE TEE",
+      "x": 97,
+      "z": 103,
+      "lengthMetres": 492,
+      "surfaceId": "hole-18-tee-middle"
+    },
+    {
+      "id": "FORWARD",
+      "name": "FORWARD TEE",
+      "x": 97,
+      "z": 127,
+      "lengthMetres": 468,
+      "surfaceId": "hole-18-tee-forward"
+    }
+  ],
+  "pinPositions": [
+    {
+      "id": "MIDDLE",
+      "name": "MIDDLE",
+      "x": 140.57,
+      "z": 589.95
+    },
+    {
+      "id": "FRONT",
+      "name": "FRONT",
+      "x": 140.57,
+      "z": 581.15
+    },
+    {
+      "id": "BACK",
+      "name": "BACK",
+      "x": 140.57,
+      "z": 598.75
+    },
+    {
+      "id": "LEFT",
+      "name": "FRONT LEFT",
+      "x": 150.47,
+      "z": 585.15
+    },
+    {
+      "id": "RIGHT",
+      "name": "BACK RIGHT",
+      "x": 130.67,
+      "z": 594.75
+    }
+  ],
   "surfaces": [
     {
       "id": "hole-18-corridor",
@@ -1246,7 +1304,7 @@
     {
       "id": "hole-18-tee",
       "type": "TEE",
-      "name": "Homeward Again Tee",
+      "name": "Homeward Again Back Tee",
       "points": [
         {
           "x": 90,
@@ -1263,6 +1321,52 @@
         {
           "x": 90,
           "z": 79.5
+        }
+      ]
+    },
+    {
+      "id": "hole-18-tee-middle",
+      "type": "TEE",
+      "name": "Homeward Again Middle Tee",
+      "points": [
+        {
+          "x": 90,
+          "z": 98.5
+        },
+        {
+          "x": 104,
+          "z": 98.5
+        },
+        {
+          "x": 104,
+          "z": 107.5
+        },
+        {
+          "x": 90,
+          "z": 107.5
+        }
+      ]
+    },
+    {
+      "id": "hole-18-tee-forward",
+      "type": "TEE",
+      "name": "Homeward Again Forward Tee",
+      "points": [
+        {
+          "x": 90,
+          "z": 122.5
+        },
+        {
+          "x": 104,
+          "z": 122.5
+        },
+        {
+          "x": 104,
+          "z": 131.5
+        },
+        {
+          "x": 90,
+          "z": 131.5
         }
       ]
     },

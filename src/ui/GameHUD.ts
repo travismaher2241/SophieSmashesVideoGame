@@ -25,6 +25,8 @@ export interface GameHUDHoleConfig {
   holeNumber: number;
   par: number;
   distanceMetres: number;
+  /** Which tee that length is from, when the hole offers a choice. */
+  teeName?: string;
   menuLabel: string;
 }
 
@@ -273,7 +275,9 @@ export class GameHUD {
       this.headerTitleElem.textContent = 'SOPHIE SMASHES';
     }
     if (this.headerSubtitleElem) {
-      this.headerSubtitleElem.textContent = `${config.courseName} · ${config.holeName} · PAR ${config.par} · ${config.distanceMetres}m`;
+      const fromTee = config.teeName ? ` (${config.teeName.replace(' TEE', '')})` : '';
+      this.headerSubtitleElem.textContent =
+        `${config.courseName} · ${config.holeName} · PAR ${config.par} · ${config.distanceMetres}m${fromTee}`;
     }
     const holeNumberElem = this.container.querySelector('#hud-hole-number');
     if (holeNumberElem) holeNumberElem.textContent = String(config.holeNumber);

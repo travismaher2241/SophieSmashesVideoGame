@@ -60,6 +60,7 @@ import {
   trained
 } from './Abilities';
 import { loadProgress, Progress, recordRound, saveProgress } from './Progress';
+import { newRoundSeed, pinForHole, selectedTeeBox, TeeBoxId, teeOptions } from './RoundSetup';
 
 export interface GameHoleSource {
   holePath: string;
@@ -253,6 +254,15 @@ export class Game {
   /** Terrain directory currently loaded, so hole changes only reload it when it differs. */
   private loadedTerrainPath?: string;
   private completedHoleScores: Array<{ strokes: number; penaltyStrokes: number; par: number }> = [];
+
+  /**
+   * The number today's pins are drawn from.
+   *
+   * One per round rather than one per hole, so the cup does not move while the
+   * player is walking up to it, and a fresh one each round so eighteen greens
+   * ask eighteen different questions next time.
+   */
+  private roundSeed: number = newRoundSeed();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -455,6 +465,7 @@ export class Game {
       holeCount: source.holes.length,
       totalPar: source.totalPar
     });
+    this.titleScreen?.setTeeChoice(this.progress.teeChoice, this.teeChoices());
 
     this.configureGameHUD();
   }
@@ -594,9 +605,17 @@ export class Game {
     this.stateManager.setState('ADDRESS');
   }
 
+  /**
+   * The hole as it is set up today: the chosen tee, and the pin the round drew.
+   *
+   * Both fall back to what the hole file has always carried, so a course whose
+   * data predates tee boxes and pin positions still lays out exactly as it did.
+   */
   private getConfiguredLayout(): PlaytestLayoutConfig | null {
-    const tee = this.holeConfig?.tee;
-    const green = this.holeConfig?.greenCentre;
+    const teeBox = selectedTeeBox(this.holeConfig, this.progress.teeChoice);
+    const pin = pinForHole(this.holeConfig, this.roundSeed, this.holeConfig?.holeNumber ?? this.holeIndex + 1);
+    const tee = teeBox ?? this.holeConfig?.tee;
+    const green = pin ?? this.holeConfig?.greenCentre;
     if (!tee || !green || !this.terrainQuery) return null;
 
     const teeElevation = this.terrainQuery.getTerrainHeight(tee.x, tee.z, true);
@@ -608,6 +627,27 @@ export class Game {
       isConfigured: true,
       savedAt: 'course-data'
     };
+  }
+
+  /** Play from a different tee. Takes effect on the next hole laid out. */
+  public setTeeChoice(choice: TeeBoxId): void {
+    if (this.progress.teeChoice === choice) return;
+
+    this.progress = { ...this.progress, teeChoice: choice };
+    saveProgress(this.progress);
+    this.configuredLayout = this.getConfiguredLayout();
+    this.playtestLayout = this.configuredLayout;
+    this.configureGameHUD();
+    this.titleScreen?.setTeeChoice(choice, this.teeChoices());
+  }
+
+  /** The tees the opening hole offers, for the title screen to choose between. */
+  private teeChoices(): Array<{ id: TeeBoxId; name: string; lengthMetres: number }> {
+    return teeOptions(this.holeConfig).map((teeBox) => ({
+      id: teeBox.id,
+      name: teeBox.name,
+      lengthMetres: teeBox.lengthMetres
+    }));
   }
 
   /**
@@ -667,8 +707,10 @@ export class Game {
       holeCount: this.source?.holes.length ?? 9,
       totalPar: this.source?.totalPar ?? 35,
       onStart: () => void this.startConfiguredRound(),
-      onOpenPractice: () => void this.enterResearchMode()
+      onOpenPractice: () => void this.enterResearchMode(),
+      onTeeChange: (choice) => this.setTeeChoice(choice)
     });
+    this.titleScreen.setTeeChoice(this.progress.teeChoice, this.teeChoices());
 
     // 2. Playtest Layout HUD (used for research mode / provisional layout)
     this.layoutHUD = new PlaytestLayoutHUD(
@@ -998,6 +1040,7 @@ export class Game {
   private async startConfiguredRound(): Promise<void> {
     this.isPracticeMode = false;
     this.completedHoleScores = [];
+    this.roundSeed = newRoundSeed();
 
     if (this.holeIndex !== 0) {
       await this.loadCourseHole(0);
@@ -1133,12 +1176,17 @@ export class Game {
       return;
     }
 
+    const teeBox = selectedTeeBox(this.holeConfig, this.progress.teeChoice);
+
     this.gameHUD?.configureHole({
       courseName: this.source?.courseName ?? 'Sophie Hills',
       holeName: this.getCurrentHoleName(),
       holeNumber: this.holeConfig?.holeNumber ?? 1,
       par: this.holeConfig?.par ?? 4,
-      distanceMetres: this.holeConfig?.publishedLengthMetres ?? 0,
+      // The length of the hole as it is being played, which is only the card
+      // length off the back tee.
+      distanceMetres: teeBox?.lengthMetres ?? this.holeConfig?.publishedLengthMetres ?? 0,
+      teeName: teeBox?.name,
       menuLabel: '⌂ MAIN MENU'
     });
   }
