@@ -47,6 +47,7 @@ export class PuttingPhysics {
   private readonly gravity: number = 9.81;
 
   private rollDuration: number = 0;
+  private random: () => number = Math.random;
   private startPosition: Vector3 = new Vector3();
 
   constructor(terrainQuery: TerrainQuery) {
@@ -55,6 +56,24 @@ export class PuttingPhysics {
 
   public setTerrainQuery(terrainQuery: TerrainQuery): void {
     this.terrainQuery = terrainQuery;
+  }
+
+  /** Pin the stroke's wobble down, for a test that needs the same putt twice. */
+  public setRandomSource(random: () => number): void {
+    this.random = random;
+  }
+
+  /**
+   * A signed error inside the given bound, bunched towards the middle.
+   *
+   * Two draws averaged rather than one, so most strokes are close to what was
+   * asked for and the bad ones are rare — which is how a stroke misses, and not
+   * how a flat random number behaves.
+   */
+  private spread(bound: number): number {
+    if (bound <= 0) return 0;
+
+    return ((this.random() + this.random()) - 1) * bound;
   }
 
   public setGreenSpeed(mode: GreenSpeedMode): void {
@@ -80,13 +99,33 @@ export class PuttingPhysics {
    * Launch a putt based on intended roll distance and aim angle.
    * On a flat green: v = sqrt(2 * mu * g * distance)
    */
-  public launchPutt(intendedDistanceMetres: number, aimAngleRadians: number): void {
+  /**
+   * Strike a putt.
+   *
+   * `paceError` and `lineErrorDegrees` are how far the stroke may stray from
+   * what the player set, as a fraction of the pace and an angle off the line.
+   * Both default to nothing, which is what putting used to be: the ball went
+   * precisely as far as the meter said, precisely down the aim line, every
+   * single time. That is a calculator rather than a skill, and it left a session
+   * on the putting green with nothing to improve.
+   */
+  public launchPutt(
+    intendedDistanceMetres: number,
+    aimAngleRadians: number,
+    paceError = 0,
+    lineErrorDegrees = 0
+  ): void {
     const mu = this.greenSpeed.frictionCoeff;
-    const launchSpeed = Math.sqrt(2 * mu * this.gravity * Math.max(0.2, intendedDistanceMetres));
+    const struckDistance = Math.max(
+      0.2,
+      intendedDistanceMetres * (1 + this.spread(paceError))
+    );
+    const launchSpeed = Math.sqrt(2 * mu * this.gravity * struckDistance);
+    const struckAngle = aimAngleRadians + (this.spread(lineErrorDegrees) * Math.PI) / 180;
 
-    this.velocity.x = Math.cos(aimAngleRadians) * launchSpeed;
+    this.velocity.x = Math.cos(struckAngle) * launchSpeed;
     this.velocity.y = 0;
-    this.velocity.z = Math.sin(aimAngleRadians) * launchSpeed;
+    this.velocity.z = Math.sin(struckAngle) * launchSpeed;
 
     this.state = 'ROLLING';
     this.wasLipOut = false;

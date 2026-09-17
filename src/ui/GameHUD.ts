@@ -1,6 +1,16 @@
 import { describeShotResult, ShotShape } from '../golf/ShotShape';
 import { Scorecard } from '../game/Scorecard';
 import { ShotType, shotTypeProfile } from '../golf/ShotType';
+import {
+  ABILITY_LABELS,
+  Attribute,
+  ATTRIBUTES,
+  Discipline,
+  DISCIPLINES,
+  levelOf,
+  MAX_LEVEL
+} from '../game/Abilities';
+import { Progress } from '../game/Progress';
 import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
@@ -41,6 +51,7 @@ export class GameHUD {
   private onResetLayout?: () => void;
   private onPlayAgain?: () => void;
   private onReturnToTitle?: () => void;
+  private onTrain?: (discipline: Discipline, attribute: Attribute) => void;
 
   // Dynamic elements
   private strokeElem!: HTMLElement;
@@ -61,6 +72,9 @@ export class GameHUD {
   private celebrationProgressElem!: HTMLElement;
   private celebrationCardElem!: HTMLElement;
   private celebrationCardBody!: HTMLElement;
+  private trainingElem!: HTMLElement;
+  private trainingTitleElem!: HTMLElement;
+  private trainingGridElem!: HTMLElement;
   private penaltyBanner!: HTMLElement;
   private flightElem!: HTMLElement;
   private flightValueElem!: HTMLElement;
@@ -99,6 +113,7 @@ export class GameHUD {
     onPlayAgain?: () => void;
     onDevModeToggle?: () => void;
     onReturnToTitle?: () => void;
+    onTrain?: (discipline: Discipline, attribute: Attribute) => void;
   }) {
     this.onAimLeft = callbacks.onAimLeft;
     this.onShapeLeft = callbacks.onShapeLeft;
@@ -113,6 +128,7 @@ export class GameHUD {
     this.onResetLayout = callbacks.onResetLayout;
     this.onPlayAgain = callbacks.onPlayAgain;
     this.onReturnToTitle = callbacks.onReturnToTitle;
+    this.onTrain = callbacks.onTrain;
 
     this.container = document.createElement('div');
     this.swingMeterContainer = document.createElement('div');
@@ -513,6 +529,61 @@ export class GameHUD {
 
     this.celebrationCardBody.innerHTML = blocks + total;
     this.celebrationCardElem.style.display = 'block';
+  }
+
+  /**
+   * The training board, after a finished round.
+   *
+   * Four disciplines, two tracks each, and however many sessions the round was
+   * worth. Passing null puts it away — it belongs to the end of a round, not to
+   * every hole.
+   */
+  public showTraining(progress: Progress | null, earnedThisRound = 0): void {
+    if (!this.trainingElem) return;
+
+    if (!progress) {
+      this.trainingElem.style.display = 'none';
+      return;
+    }
+
+    const spare = progress.sessionsAvailable;
+    this.trainingTitleElem.textContent = spare > 0
+      ? `TRAINING · ${spare} SESSION${spare === 1 ? '' : 'S'} TO SPEND` +
+        (earnedThisRound > 0 ? ` · ${earnedThisRound} EARNED` : '')
+      : 'TRAINING · NOTHING LEFT TO SPEND';
+
+    const cell = (discipline: Discipline, attribute: Attribute) => {
+      const level = levelOf(progress.abilities, discipline, attribute);
+      const maxed = level >= MAX_LEVEL;
+      const labels = ABILITY_LABELS[discipline];
+      const what = attribute === 'POWER' ? labels.power : labels.accuracy;
+      const pips = '●'.repeat(level) + '○'.repeat(MAX_LEVEL - level);
+
+      return `<button class="train-btn${maxed ? ' is-maxed' : ''}"
+        data-discipline="${discipline}" data-attribute="${attribute}"
+        ${maxed || spare < 1 ? 'disabled' : ''} title="${what}">
+        ${what}<span class="train-pips">${pips}</span>
+      </button>`;
+    };
+
+    this.trainingGridElem.innerHTML = `
+      <span></span>
+      ${ATTRIBUTES.map((attribute) => `<span class="train-head">${attribute}</span>`).join('')}
+      ${DISCIPLINES.map((discipline) => `
+        <span class="train-discipline">${ABILITY_LABELS[discipline].name}</span>
+        ${ATTRIBUTES.map((attribute) => cell(discipline, attribute)).join('')}
+      `).join('')}
+    `;
+
+    this.trainingGridElem.querySelectorAll('.train-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const discipline = button.getAttribute('data-discipline') as Discipline;
+        const attribute = button.getAttribute('data-attribute') as Attribute;
+        this.onTrain?.(discipline, attribute);
+      });
+    });
+
+    this.trainingElem.style.display = 'block';
   }
 
   public showCelebration(
@@ -1354,6 +1425,10 @@ export class GameHUD {
           <div class="celeb-card-title">SCORECARD</div>
           <table id="celeb-card-table"><tbody></tbody></table>
         </div>
+        <div id="celeb-training" style="display:none;">
+          <div class="celeb-card-title" id="celeb-training-title">TRAINING</div>
+          <div id="celeb-training-grid"></div>
+        </div>
         <p id="celeb-course" style="font-size: 11px; color: #aaffaa; margin: 14px 0 18px;">Warragul Country Club · Hole 6 · Par 4</p>
         <p id="celeb-progress" style="display:none; color:#ffe66d; font-size:11px;"></p>
         
@@ -1410,6 +1485,25 @@ export class GameHUD {
             border: 1px solid #2f6b3a;
           }
 
+          #celeb-training { margin-top: 14px; }
+          #celeb-training-grid {
+            display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; align-items: center;
+          }
+          .train-discipline {
+            color: #dff5e2; font-size: 10px; font-weight: 800; letter-spacing: 1px;
+            text-align: right; padding-right: 6px;
+          }
+          .train-head { color: #8fbe97; font-size: 9px; letter-spacing: 2px; }
+          .train-btn {
+            background: #113019; border: 1px solid #2f6b3a; color: #dff5e2;
+            font-family: inherit; font-size: 10px; font-weight: 700; padding: 5px 4px;
+            border-radius: 4px; cursor: pointer; text-align: center; line-height: 1.35;
+          }
+          .train-btn .train-pips { display: block; letter-spacing: 2px; color: #fff07a; font-size: 11px; }
+          .train-btn:enabled:hover { background: #1c5028; border-color: #55ff55; }
+          .train-btn:disabled { opacity: 0.45; cursor: default; }
+          .train-btn.is-maxed { border-color: #55ff55; color: #8bff8b; }
+
           #celeb-score > div { border: 1px solid #4c9b59; background: #091d0d; padding: 8px; }
           #celeb-score span { display: block; color: #8fbe97; font-size: 9px; }
           #celeb-score strong { display: block; color: #fff07a; font-size: 22px; margin-top: 2px; }
@@ -1423,6 +1517,9 @@ export class GameHUD {
     this.celebrationProgressElem = this.celebrationModal.querySelector('#celeb-progress')!;
     this.celebrationCardElem = this.celebrationModal.querySelector('#celeb-card')!;
     this.celebrationCardBody = this.celebrationModal.querySelector('#celeb-card-table tbody')!;
+    this.trainingElem = this.celebrationModal.querySelector('#celeb-training')!;
+    this.trainingTitleElem = this.celebrationModal.querySelector('#celeb-training-title')!;
+    this.trainingGridElem = this.celebrationModal.querySelector('#celeb-training-grid')!;
     this.celebrationActionBtn = this.celebrationModal.querySelector('#btn-celeb-play-again')!;
 
     this.celebrationModal.querySelector('#btn-celeb-play-again')?.addEventListener('click', () => {

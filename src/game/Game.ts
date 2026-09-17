@@ -49,6 +49,17 @@ import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
 import { buildScorecard } from './Scorecard';
+import {
+  Attribute,
+  carryMultiplier,
+  Discipline,
+  puttLineErrorDegrees,
+  puttPaceError,
+  sessionsEarned,
+  strikeForgiveness,
+  trained
+} from './Abilities';
+import { loadProgress, Progress, recordRound, saveProgress } from './Progress';
 
 export interface GameHoleSource {
   holePath: string;
@@ -203,6 +214,13 @@ export class Game {
   private shotType: ShotType = 'FULL';
   /** Whether the short shots are on offer from where the ball is lying. */
   private shortGameOn = false;
+  /**
+   * The career: what has been trained, and what is left to spend.
+   *
+   * Loaded once at start-up and written back whenever it changes, so a session
+   * earned in one round is still there in the next.
+   */
+  private progress: Progress = loadProgress();
   /**
    * The wind on this hole.
    *
@@ -626,6 +644,7 @@ export class Game {
     this.gameHUD = new GameHUD({
       onAimLeft: () => this.adjustAim(-0.06),
       onAimRight: () => this.adjustAim(0.06),
+      onTrain: (discipline, attribute) => this.train(discipline, attribute),
       onShapeLeft: () => this.adjustShotSelector(-1),
       onShapeRight: () => this.adjustShotSelector(1),
       onClubPrev: () => this.selectPrevClub(),
@@ -808,9 +827,47 @@ export class Game {
     this.gameHUD?.setShotType(this.shortGameOn ? type : null);
   }
 
-  /** The club as the chosen shot plays it — a chip is not a full wedge. */
+  /**
+   * The club as it is actually played: the shot chosen, and the training done.
+   *
+   * A chip is not a full wedge, and a trained driver is not the one that came
+   * out of the shop.
+   */
   private effectiveClub(): ClubConfig {
-    return applyShotType(this.clubManager.getCurrentClub(), this.shotType);
+    const shot = applyShotType(this.clubManager.getCurrentClub(), this.shotType);
+    const multiplier = carryMultiplier(this.progress.abilities, shot);
+    if (multiplier === 1) return shot;
+
+    return {
+      ...shot,
+      carryMetres: shot.carryMetres * multiplier,
+      maxDistanceMetres: shot.maxDistanceMetres * multiplier
+    };
+  }
+
+  /** Hand the meter the margin this club has been trained to. */
+  private syncStrikeForgiveness(): void {
+    this.swingMeter.setStrikeForgiveness(
+      strikeForgiveness(this.progress.abilities, this.clubManager.getCurrentClub())
+    );
+  }
+
+  /** Spend a session. Returns false when there is nothing left to spend. */
+  public train(discipline: Discipline, attribute: Attribute): boolean {
+    if (this.progress.sessionsAvailable < 1) return false;
+
+    const abilities = trained(this.progress.abilities, discipline, attribute);
+    if (abilities === this.progress.abilities) return false;
+
+    this.progress = {
+      ...this.progress,
+      abilities,
+      sessionsAvailable: this.progress.sessionsAvailable - 1
+    };
+    saveProgress(this.progress);
+    this.syncStrikeForgiveness();
+    this.gameHUD?.showTraining(this.progress);
+    return true;
   }
 
   /**
@@ -893,6 +950,7 @@ export class Game {
   private syncSwingStyleToClub(): void {
     const club = this.clubManager.getCurrentClub();
     this.sophieGolfer?.setSwingStyle(swingStyleForClub(club));
+    this.syncStrikeForgiveness();
   }
 
   /**
@@ -1178,7 +1236,12 @@ export class Game {
     // The stroke plays out and the ball leaves when the putter reaches it, the
     // same way a full swing works. Nothing is set moving before then.
     this.sophieGolfer.playPutt(() => {
-      this.puttingPhysics!.launchPutt(puttResult.intendedDistanceMetres, this.aimAngleRadians);
+      this.puttingPhysics!.launchPutt(
+        puttResult.intendedDistanceMetres,
+        this.aimAngleRadians,
+        puttPaceError(this.progress.abilities),
+        puttLineErrorDegrees(this.progress.abilities)
+      );
       this.ballPhysics!.position.copy(this.puttingPhysics!.position);
       this.ballPhysics!.velocity.copy(this.puttingPhysics!.velocity);
       this.stateManager.setState('BALL_ROLLING');
@@ -1474,6 +1537,10 @@ export class Game {
     this.isRoundActive = false;
     const holePar = this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4);
 
+    // The board belongs to the end of a round, not to every hole. Cleared first,
+    // so a finished round can put it back up on the way through.
+    this.gameHUD?.showTraining(null);
+
     if (this.isPracticeMode) {
       this.gameHUD?.configureCompletionAction('↻ PLAY AGAIN');
     } else {
@@ -1484,6 +1551,8 @@ export class Game {
       };
       const isFinalHole = this.holeIndex === (this.source?.holes.length ?? 1) - 1;
       this.gameHUD?.configureCompletionAction(isFinalHole ? '↻ PLAY COURSE AGAIN' : 'NEXT HOLE →');
+
+      if (isFinalHole) this.finishRound();
     }
 
     // The card for the round so far, including the holes still to play.
@@ -1505,6 +1574,26 @@ export class Game {
       totalPar: completedScores.reduce((sum, score) => sum + score.par, 0)
     };
     this.gameHUD?.showCelebration(holeTotal, penaltyStrokes, holePar, courseProgress);
+  }
+
+  /**
+   * Bank the round and hand out what it was worth.
+   *
+   * A round is worth three sessions at par or better, two inside eight over, and
+   * one for anything else — finishing always earns something, because the round
+   * that taught you nothing is the one you most want to train after.
+   */
+  private finishRound(): void {
+    const played = this.completedHoleScores.filter(Boolean);
+    if (played.length === 0) return;
+
+    const strokes = played.reduce((sum, score) => sum + score.strokes, 0);
+    const par = played.reduce((sum, score) => sum + score.par, 0);
+    const sessions = sessionsEarned(strokes, par);
+
+    this.progress = recordRound(this.progress, strokes, par, sessions);
+    saveProgress(this.progress);
+    this.gameHUD?.showTraining(this.progress, sessions);
   }
 
   /**

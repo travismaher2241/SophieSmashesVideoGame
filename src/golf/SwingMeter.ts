@@ -23,6 +23,14 @@ export class SwingMeter {
   private powerValue: number = 0;      // 0.0 to 1.0
   private accuracyMarker: number = 1.0; // 1.0 (start of return) -> 0.0 (sweet spot) -> -1.0 (late limit)
   private accuracyError: number = 0;   // -1.0 (early) to +1.0 (late)
+  /**
+   * How much of a mistimed strike counts, 0 to 1.
+   *
+   * 1 is untrained: the miss is worth exactly what it was. Practice brings it
+   * down, which widens every band at once — the pure window, the slight one and
+   * the big miss — rather than picking one of them to be generous about.
+   */
+  private strikeForgiveness: number = 1;
 
   private powerSpeed: number = 1.1;     // Fills 0 -> 1 in ~0.9 seconds
   private accuracySpeed: number = 1.5;  // Travels 1.0 -> -1.0 in ~1.33 seconds (reaches 0 in ~0.67s)
@@ -52,6 +60,11 @@ export class SwingMeter {
 
   public getResult(): SwingResult | null {
     return this.result;
+  }
+
+  /** Set by the game from the player's training, per club. */
+  public setStrikeForgiveness(forgiveness: number): void {
+    this.strikeForgiveness = Math.max(0.1, Math.min(1, forgiveness));
   }
 
   public reset(): void {
@@ -128,7 +141,12 @@ export class SwingMeter {
     this.accuracyMarker = clampedMarker;
     this.accuracyError = -clampedMarker;
 
-    const absError = Math.abs(this.accuracyError);
+    // Training does not move the bands so much as make a miss count for less:
+    // a trained player is judged as though the marker stopped nearer the middle
+    // than it did. The launch deviation is scaled by the same amount, so a wider
+    // sweet spot really is a straighter ball rather than a kinder caption.
+    const judged = this.accuracyError * this.strikeForgiveness;
+    const absError = Math.abs(judged);
     let strikeQuality: StrikeQuality = 'PURE';
     let feedbackText = 'PURE!';
 
@@ -137,13 +155,13 @@ export class SwingMeter {
       feedbackText = 'PURE!';
     } else if (absError < 0.15) {
       strikeQuality = 'SLIGHT';
-      feedbackText = this.accuracyError < 0 ? 'SLIGHT — DRAW' : 'SLIGHT — FADE';
+      feedbackText = judged < 0 ? 'SLIGHT — DRAW' : 'SLIGHT — FADE';
     } else if (absError < 0.30) {
       strikeQuality = 'NOTICEABLE';
-      feedbackText = this.accuracyError < 0 ? 'EARLY — DRAW' : 'LATE — FADE';
+      feedbackText = judged < 0 ? 'EARLY — DRAW' : 'LATE — FADE';
     } else {
       strikeQuality = 'BIG_MISS';
-      feedbackText = this.accuracyError < 0 ? 'EARLY — HOOK' : 'LATE — SLICE';
+      feedbackText = judged < 0 ? 'EARLY — HOOK' : 'LATE — SLICE';
     }
 
     const powerRatio = Math.max(0.1, Math.min(1.0, this.powerValue));
@@ -152,14 +170,14 @@ export class SwingMeter {
     // Angular horizontal launch deviation: up to +/- 18 degrees
     // Early (error < 0): negative angle (Left / Pull)
     // Late (error > 0): positive angle (Right / Push)
-    const hookSliceAngleDegrees = this.accuracyError * 18.0;
+    const hookSliceAngleDegrees = judged * 18.0;
 
     // Ball curvature spin factor: -1.0 to +1.0
-    const curveSpinFactor = this.accuracyError;
+    const curveSpinFactor = judged;
 
     this.result = {
       powerRatio,
-      accuracyError: this.accuracyError,
+      accuracyError: judged,
       strikeQuality,
       feedbackText,
       isPerfect,
