@@ -1,5 +1,6 @@
 import { describeShotResult, ShotShape } from '../golf/ShotShape';
 import { Scorecard } from '../game/Scorecard';
+import { StatLine, TrainingAdvice } from '../game/RoundStats';
 import { ShotType, shotTypeProfile } from '../golf/ShotType';
 import {
   ABILITY_LABELS,
@@ -75,6 +76,9 @@ export class GameHUD {
   private celebrationProgressElem!: HTMLElement;
   private celebrationCardElem!: HTMLElement;
   private celebrationCardBody!: HTMLElement;
+  private statsElem!: HTMLElement;
+  private statsRowsElem!: HTMLElement;
+  private statsAdviceElem!: HTMLElement;
   private trainingElem!: HTMLElement;
   private trainingTitleElem!: HTMLElement;
   private trainingGridElem!: HTMLElement;
@@ -97,6 +101,8 @@ export class GameHUD {
   private puttTargetElem!: HTMLElement;
   private puttMeterScaleElem!: HTMLElement;
 
+  /** What the round's statistics say to train, so the board can point at it. */
+  private suggested: TrainingAdvice | null = null;
   private shotMode: ShotMode = 'FULL_SWING';
   private isPuttingMode: boolean = false;
   private lastInputTime: number = 0;
@@ -539,6 +545,46 @@ export class GameHUD {
   }
 
   /**
+   * How the round was played, not just what it scored.
+   *
+   * Four or five numbers, each against a bar showing how it compares with a
+   * round worth having. The bars are the point: eighteen holes of numbers tell
+   * you nothing about which part of the game cost you the round, and that is
+   * exactly the question the training board is about to ask.
+   *
+   * Passing null puts it away — it belongs to the end of a round.
+   */
+  public showRoundStats(lines: StatLine[] | null, advice: TrainingAdvice | null): void {
+    if (!this.statsElem) return;
+
+    if (!lines || lines.length === 0) {
+      this.statsElem.style.display = 'none';
+      this.suggested = null;
+      return;
+    }
+
+    this.statsRowsElem.innerHTML = lines
+      .map((line) => {
+        const tone = line.rating >= 0.85 ? '' : line.rating >= 0.6 ? ' is-fair' : ' is-poor';
+        return `
+          <div class="stat-row">
+            <span class="stat-label">${line.label}</span>
+            <span class="stat-bar"><span class="${tone.trim()}" style="width: ${Math.round(line.rating * 100)}%"></span></span>
+            <span class="stat-value">${line.value}<span class="stat-detail">${line.detail}</span></span>
+          </div>
+        `;
+      })
+      .join('');
+
+    this.suggested = advice;
+    this.statsAdviceElem.innerHTML = advice
+      ? `TRAIN <strong>${advice.discipline} ${advice.attribute}</strong> — ${advice.reason}.`
+      : '';
+
+    this.statsElem.style.display = 'block';
+  }
+
+  /**
    * The training board, after a finished round.
    *
    * Four disciplines, two tracks each, and however many sessions the round was
@@ -565,8 +611,12 @@ export class GameHUD {
       const labels = ABILITY_LABELS[discipline];
       const what = attribute === 'POWER' ? labels.power : labels.accuracy;
       const pips = '●'.repeat(level) + '○'.repeat(MAX_LEVEL - level);
+      const suggested =
+        !maxed &&
+        this.suggested?.discipline === discipline &&
+        this.suggested?.attribute === attribute;
 
-      return `<button class="train-btn${maxed ? ' is-maxed' : ''}"
+      return `<button class="train-btn${maxed ? ' is-maxed' : ''}${suggested ? ' is-suggested' : ''}"
         data-discipline="${discipline}" data-attribute="${attribute}"
         ${maxed || spare < 1 ? 'disabled' : ''} title="${what}">
         ${what}<span class="train-pips">${pips}</span>
@@ -729,7 +779,12 @@ export class GameHUD {
     this.celebrationModal.style.height = '100%';
     this.celebrationModal.style.backgroundColor = 'rgba(0, 20, 0, 0.88)';
     this.celebrationModal.style.justifyContent = 'center';
-    this.celebrationModal.style.alignItems = 'center';
+    // Scrolls rather than centres: with a scorecard, the round statistics and
+    // the training board on it, the end of a round is taller than a laptop
+    // screen, and a centred card puts the buttons off the bottom of it.
+    this.celebrationModal.style.alignItems = 'flex-start';
+    this.celebrationModal.style.overflowY = 'auto';
+    this.celebrationModal.style.padding = '12px 0';
     this.celebrationModal.style.zIndex = '100';
 
     Object.assign(this.penaltyBanner.style, {
@@ -1423,7 +1478,7 @@ export class GameHUD {
 
   private buildCelebrationModalHTML(): void {
     this.celebrationModal.innerHTML = `
-      <div style="background: #0f2b11; border: 4px solid #55ff55; border-radius: 12px; padding: 32px; text-align: center; max-width: 480px; box-shadow: 0 0 30px rgba(85, 255, 85, 0.5); font-family: 'Courier New', monospace; color: #ffffff;">
+      <div style="background: #0f2b11; border: 4px solid #55ff55; border-radius: 12px; padding: 24px 28px; text-align: center; max-width: 480px; margin: auto; box-shadow: 0 0 30px rgba(85, 255, 85, 0.5); font-family: 'Courier New', monospace; color: #ffffff;">
         <div style="color: #8ee89b; font-size: 11px; letter-spacing: 4px;">HOLE COMPLETE</div>
         <h1 id="celeb-result" style="color: #ffff55; font-size: 34px; margin: 8px 0 10px; text-shadow: 3px 3px #003300;">PAR</h1>
         <h2 id="celeb-stroke-text" style="color: #77ffff; font-size: 18px; margin-bottom: 16px;">Sophie holed the ball in 4 strokes!</h2>
@@ -1433,6 +1488,11 @@ export class GameHUD {
         <div id="celeb-card" style="display:none;">
           <div class="celeb-card-title">SCORECARD</div>
           <table id="celeb-card-table"><tbody></tbody></table>
+        </div>
+        <div id="celeb-stats" style="display:none;">
+          <div class="celeb-card-title">ROUND STATISTICS</div>
+          <div id="celeb-stats-rows"></div>
+          <div id="celeb-stats-advice"></div>
         </div>
         <div id="celeb-training" style="display:none;">
           <div class="celeb-card-title" id="celeb-training-title">TRAINING</div>
@@ -1513,6 +1573,27 @@ export class GameHUD {
           .train-btn:disabled { opacity: 0.45; cursor: default; }
           .train-btn.is-maxed { border-color: #55ff55; color: #8bff8b; }
 
+          #celeb-stats { margin-top: 12px; }
+          .stat-row {
+            display: grid; grid-template-columns: 66px 1fr 86px; gap: 7px;
+            align-items: center; margin-bottom: 4px;
+          }
+          .stat-row .stat-label { color: #8fbe97; font-size: 9px; letter-spacing: 1px; text-align: right; }
+          .stat-row .stat-bar { height: 9px; background: #091d0d; border: 1px solid #2f6b3a; }
+          .stat-row .stat-bar span { display: block; height: 100%; background: #55ff55; }
+          .stat-row .stat-bar span.is-poor { background: #ff8a6b; }
+          .stat-row .stat-bar span.is-fair { background: #ffe066; }
+          .stat-row .stat-value {
+            color: #fff07a; font-size: 12px; font-weight: 800; text-align: left;
+            font-variant-numeric: tabular-nums;
+          }
+          .stat-row .stat-detail { display: block; color: #8fbe97; font-size: 8px; font-weight: 400; }
+          #celeb-stats-advice {
+            margin-top: 8px; color: #aaffaa; font-size: 10px; line-height: 1.5;
+          }
+          #celeb-stats-advice strong { color: #fff07a; }
+          .train-btn.is-suggested { border-color: #fff07a; box-shadow: 0 0 0 1px #fff07a inset; }
+
           #celeb-score > div { border: 1px solid #4c9b59; background: #091d0d; padding: 8px; }
           #celeb-score span { display: block; color: #8fbe97; font-size: 9px; }
           #celeb-score strong { display: block; color: #fff07a; font-size: 22px; margin-top: 2px; }
@@ -1526,6 +1607,9 @@ export class GameHUD {
     this.celebrationProgressElem = this.celebrationModal.querySelector('#celeb-progress')!;
     this.celebrationCardElem = this.celebrationModal.querySelector('#celeb-card')!;
     this.celebrationCardBody = this.celebrationModal.querySelector('#celeb-card-table tbody')!;
+    this.statsElem = this.celebrationModal.querySelector('#celeb-stats')!;
+    this.statsRowsElem = this.celebrationModal.querySelector('#celeb-stats-rows')!;
+    this.statsAdviceElem = this.celebrationModal.querySelector('#celeb-stats-advice')!;
     this.trainingElem = this.celebrationModal.querySelector('#celeb-training')!;
     this.trainingTitleElem = this.celebrationModal.querySelector('#celeb-training-title')!;
     this.trainingGridElem = this.celebrationModal.querySelector('#celeb-training-grid')!;

@@ -51,10 +51,12 @@ import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
 import { buildScorecard } from './Scorecard';
+import { HoleStat, newRoundStats, statLines, suggestTraining, summariseRound } from './RoundStats';
 import {
   Attribute,
   carryMultiplier,
   Discipline,
+  disciplineForClub,
   puttLineErrorDegrees,
   puttPaceError,
   sessionsEarned,
@@ -267,6 +269,15 @@ export class Game {
    * ask eighteen different questions next time.
    */
   private roundSeed: number = newRoundSeed();
+
+  /** How each finished hole was played, for the card at the end of the round. */
+  private roundStats: HoleStat[] = newRoundStats();
+
+  /** The hole being played, gathered as it goes. */
+  private currentHoleStat: HoleStat | null = null;
+
+  /** Whether the tee shot was played with a wood, so it counts as a drive. */
+  private teeShotWithWood = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -570,6 +581,16 @@ export class Game {
     // Ball position at Tee
     this.strokeCount = 0;
     this.penaltyStrokes = 0;
+    this.currentHoleStat = {
+      par: this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4),
+      strokes: 0,
+      penalties: 0,
+      putts: 0,
+      teeShotLie: null,
+      driveDistanceMetres: null,
+      strokesToGreen: null
+    };
+    this.teeShotWithWood = false;
     this.swingExecuted = false;
     this.setShotShape('STRAIGHT');
     this.setWind(randomWind());
@@ -1135,6 +1156,7 @@ export class Game {
   private async startConfiguredRound(): Promise<void> {
     this.isPracticeMode = false;
     this.completedHoleScores = [];
+    this.roundStats = newRoundStats();
     this.roundSeed = newRoundSeed();
 
     if (this.holeIndex !== 0) {
@@ -1371,6 +1393,7 @@ export class Game {
     this.swingExecuted = true;
 
     this.strokeCount++;
+    if (this.currentHoleStat) this.currentHoleStat.putts++;
     this.ballRenderer?.clearTracer();
     this.shotOrigin = { x: this.ballPhysics.position.x, z: this.ballPhysics.position.z };
 
@@ -1419,6 +1442,13 @@ export class Game {
     // early still hooks. Shaping picks the shot; it does not strike it for you.
     const playedClub = this.effectiveClub();
     const shapedResult = applyShotShape(swingResult, this.shotShape, playedClub.carryMetres);
+
+    // Driving distance is a statistic about woods off a tee. A 7 iron laid up
+    // down a par 5 is not a drive, and averaging it in would say the player has
+    // lost forty metres.
+    if (this.strokeCount === 1) {
+      this.teeShotWithWood = disciplineForClub(this.clubManager.getCurrentClub()) === 'DRIVING';
+    }
 
     this.shotCarryMetres = null;
 
@@ -1649,6 +1679,10 @@ export class Game {
       this.gameHUD?.showBanner('IN THE TREES', describeTreeHit(treeHit.part, treeOutcome));
     }
 
+    // Before relief, deliberately: a tee shot that finished in the water did
+    // not find the fairway, whatever the drop zone it is about to be moved to
+    // happens to be sitting on.
+    this.noteShotFinished(false);
     this.applyPenaltyRelief();
 
     this.swingExecuted = false;
@@ -1685,13 +1719,53 @@ export class Game {
     this.stateManager.setState('ADDRESS');
   }
 
+  /**
+   * Fold the shot that has just finished into this hole's statistics.
+   *
+   * Called once per shot, from wherever the ball came to rest — including the
+   * bottom of the cup, where there is no lie to read and the answer is the
+   * green by definition.
+   */
+  private noteShotFinished(holed: boolean): void {
+    const hole = this.currentHoleStat;
+    if (!hole || !this.ballPhysics) return;
+
+    const lie = holed ? 'GREEN' : this.ballPhysics.getCurrentLie().type;
+
+    if (this.strokeCount === 1 && hole.teeShotLie === null) {
+      hole.teeShotLie = lie;
+      if (this.teeShotWithWood) {
+        hole.driveDistanceMetres = Math.hypot(
+          this.ballPhysics.position.x - this.shotOrigin.x,
+          this.ballPhysics.position.z - this.shotOrigin.z
+        );
+      }
+    }
+
+    // A green in regulation counts the strokes it took to get there, penalties
+    // included: a ball that reached the green in two after a penalty drop did
+    // not reach it in two.
+    if (hole.strokesToGreen === null && (holed || lie === 'GREEN')) {
+      hole.strokesToGreen = this.strokeCount + this.penaltyStrokes;
+    }
+  }
+
   private finishHoleForScorecard(holeTotal: number, penaltyStrokes: number): void {
+    this.noteShotFinished(true);
+    if (this.currentHoleStat) {
+      this.currentHoleStat.strokes = holeTotal;
+      this.currentHoleStat.penalties = penaltyStrokes;
+      this.roundStats[this.holeIndex] = this.currentHoleStat;
+      this.currentHoleStat = null;
+    }
+
     this.stateManager.setState('HOLED');
     this.isRoundActive = false;
     const holePar = this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4);
 
-    // The board belongs to the end of a round, not to every hole. Cleared first,
-    // so a finished round can put it back up on the way through.
+    // Both boards belong to the end of a round, not to every hole. Cleared
+    // first, so a finished round can put them back up on the way through.
+    this.gameHUD?.showRoundStats(null, null);
     this.gameHUD?.showTraining(null);
 
     if (this.isPracticeMode) {
@@ -1746,6 +1820,13 @@ export class Game {
 
     this.progress = recordRound(this.progress, strokes, par, sessions);
     saveProgress(this.progress);
+
+    // The statistics go up before the training board, and name what to spend
+    // the sessions on: the two were built for each other, and a round that
+    // three-putted six greens has already said what it needs.
+    const summary = summariseRound(this.roundStats.filter(Boolean));
+    const advice = suggestTraining(summary);
+    this.gameHUD?.showRoundStats(statLines(summary), advice);
     this.gameHUD?.showTraining(this.progress, sessions);
   }
 
