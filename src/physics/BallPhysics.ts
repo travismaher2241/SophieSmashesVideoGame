@@ -79,6 +79,34 @@ export class BallPhysics {
   private treeIgnoreSeconds = 0;
   private static readonly TREE_REHIT_DELAY = 0.4;
 
+  /**
+   * Landing speed at which the turf grips fully, in metres/second.
+   *
+   * Set at the slowest full shot there is — a flushed lob wedge arrives at 23 —
+   * so every full shot grips completely and the distances the game is tuned
+   * around are untouched. Only the short game lands slower than this.
+   */
+  private static readonly DIGGING_SPEED = 22;
+  /** Floor on the easing, so even the gentlest landing still loses something. */
+  private static readonly MIN_SKID_BITE = 0.15;
+
+  /**
+   * How much of the turf's grip a ball arriving at this speed gets.
+   *
+   * Squared, because what deforms the turf is the ball's energy and energy goes
+   * with the square of the speed. A linear falloff reached far too far up the
+   * bag: it was still easing a 7 iron's landing at 30m/s and added six metres to
+   * its roll. Squared, a full shot grips completely and a chip at half that
+   * speed gets a quarter of the grip, which is the running shot.
+   */
+  public static turfBite(landingSpeed: number): number {
+    const ratio = landingSpeed / BallPhysics.DIGGING_SPEED;
+    return Math.min(1, Math.max(BallPhysics.MIN_SKID_BITE, ratio * ratio));
+  }
+  /** Whether the ball has already met the ground since it was struck. */
+  private hasLandedThisShot = false;
+
+
   private clubSpin: number = 0;   // Spin / green-holding check factor (0.1 to 1.0)
   private curveSpin: number = 0;  // Lateral side spin factor (-1.0 to +1.0)
   private rollDuration: number = 0;
@@ -196,6 +224,7 @@ export class BallPhysics {
     this.lastTreeOutcome = null;
     this.treeJustStruck = null;
     this.treeIgnoreSeconds = 0;
+    this.hasLandedThisShot = false;
 
     if (club.isPutter) {
       // Putting launch: ground roll directly
@@ -422,9 +451,26 @@ export class BallPhysics {
       // Rebound normal velocity with restitution
       const reboundNormal = vNormal.multiplyScalar(-this.currentLie.restitution);
 
-      // Apply tangential impact friction (damps forward roll energy on contact)
-      // Club spin (high in irons/wedges) aggressively checks forward velocity
-      let effectiveImpactFriction = this.currentLie.impactFriction + this.clubSpin * 0.42;
+      // How much of the pace the ground takes, in two parts: the turf's own grip,
+      // and the check the ball's spin puts on it.
+      //
+      // The turf's grip eases off at low speed. It deforms with the energy put
+      // into it, so a ball arriving at a quarter of driver pace does not
+      // dissipate a quarter as much — it skates over the top instead of taking a
+      // divot. The ball's spin is not eased, because that check comes from the
+      // ball's own rotation and does not care how fast it arrived; easing both
+      // together took a flushed wedge's bite away with the chip's.
+      //
+      // Only the arrival from flight is eased. What happens on the skips after
+      // it is already the tuned behaviour, and letting those off turned a
+      // driver's roll from 26m into 46m: later bounces are slow by nature, so
+      // every one of them qualified.
+      const turfGrip = this.hasLandedThisShot
+        ? this.currentLie.impactFriction
+        : this.currentLie.impactFriction * BallPhysics.turfBite(this.velocity.length());
+      this.hasLandedThisShot = true;
+
+      let effectiveImpactFriction = turfGrip + this.clubSpin * 0.42;
 
       // On Green: extra spin bite from wedges
       if (this.currentLie.type === 'GREEN' && this.clubSpin > 0.3) {

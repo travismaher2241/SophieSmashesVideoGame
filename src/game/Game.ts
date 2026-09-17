@@ -11,10 +11,18 @@ import { TerrainLoader } from '../course/TerrainLoader';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { MouseRaycaster } from '../debug/MouseRaycaster';
 import { PlaytestSurfaceGenerator } from '../debug/PlaytestSurfaceGenerator';
-import { canPuttFromLie, ClubConfig, ClubManager, swingStyleForClub } from '../golf/Club';
+import { canPuttFromLie, ClubConfig, ClubManager, GOLF_CLUBS, swingStyleForClub } from '../golf/Club';
 import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
 import { adjacentShape, applyShotShape, ShotShape } from '../golf/ShotShape';
+import {
+  adjacentShotType,
+  applyShotType,
+  clubForShortShot,
+  shortGameAvailable,
+  ShotType,
+  suggestedShotType
+} from '../golf/ShotType';
 import { CALM, describeWind, randomWind, Wind } from '../golf/Wind';
 import { PuttMeter, PuttResult } from '../golf/PuttMeter';
 import { SophieGolfer } from '../golfer/SophieGolfer';
@@ -175,6 +183,17 @@ export class Game {
   private shotMode: ShotMode = 'FULL_SWING';
   /** The shape the player has chosen to hit. Reset to straight on each new shot. */
   private shotShape: ShotShape = 'STRAIGHT';
+  /**
+   * Chip, pitch, lob or the whole club.
+   *
+   * Offered instead of the shape control once the ball is inside short-game
+   * range, where the two controls swap: working a ball left or right matters
+   * over two hundred metres and not over twenty, and how the ball behaves when
+   * it lands matters over twenty and hardly at all over two hundred.
+   */
+  private shotType: ShotType = 'FULL';
+  /** Whether the short shots are on offer from where the ball is lying. */
+  private shortGameOn = false;
   /**
    * The wind on this hole.
    *
@@ -535,6 +554,7 @@ export class Game {
     this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
     this.setShotMode((isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING');
+    this.offerShortGame(distToCup, isOnGreen);
     this.flagRenderer?.setPuttingMode(this.shotMode === 'PUTTING');
 
     if (this.shotMode === 'PUTTING') {
@@ -597,8 +617,8 @@ export class Game {
     this.gameHUD = new GameHUD({
       onAimLeft: () => this.adjustAim(-0.06),
       onAimRight: () => this.adjustAim(0.06),
-      onShapeLeft: () => this.adjustShotShape(-1),
-      onShapeRight: () => this.adjustShotShape(1),
+      onShapeLeft: () => this.adjustShotSelector(-1),
+      onShapeRight: () => this.adjustShotSelector(1),
       onClubPrev: () => this.selectPrevClub(),
       onClubNext: () => this.selectNextClub(),
       onSwingTrigger: () => this.triggerSwingMeter(),
@@ -707,9 +727,9 @@ export class Game {
       } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') {
         this.selectNextClub();
       } else if (e.key === 'q' || e.key === 'Q') {
-        this.adjustShotShape(-1);
+        this.adjustShotSelector(-1);
       } else if (e.key === 'e' || e.key === 'E') {
-        this.adjustShotShape(1);
+        this.adjustShotSelector(1);
       } else if (e.key === 'm' || e.key === 'M') {
         this.toggleCameraMode();
       }
@@ -731,11 +751,80 @@ export class Game {
     });
   }
 
-  /** Work the ball left or right: draw, straight, fade. */
-  private adjustShotShape(direction: -1 | 1): void {
+  /**
+   * Decide whether the short shots are on offer from here, and pick one.
+   *
+   * The suggestion is a starting point, not a decision: close in it offers a
+   * chip, which spends most of its journey on the ground where it is
+   * predictable, and further out a pitch, where there is no room to run one.
+   * The player overrules it with the same control that shapes a full shot.
+   */
+  private offerShortGame(distanceToPinMetres: number, isOnGreen: boolean): void {
+    this.shortGameOn = shortGameAvailable(distanceToPinMetres, isOnGreen) && this.shotMode !== 'PUTTING';
+    const type = this.shortGameOn ? suggestedShotType(distanceToPinMetres) : 'FULL';
+    this.setShotType(type);
+
+    if (!this.shortGameOn) return;
+
+    this.takeClubForShot(type, distanceToPinMetres);
+  }
+
+  /**
+   * Put the club for this shot in her hands.
+   *
+   * Chosen for where the shot needs to land rather than for the distance to the
+   * pin — not the same thing once the ball is going to run. Chosen for the
+   * distance, it handed you a lob wedge at forty metres, whose pitch carries
+   * twenty-four.
+   */
+  private takeClubForShot(type: ShotType, distanceToPinMetres: number): void {
+    const club = clubForShortShot(GOLF_CLUBS, type, distanceToPinMetres);
+    if (!club) return;
+
+    this.clubManager.selectClubById(club.id);
+    this.syncSwingStyleToClub();
+  }
+
+  private distanceToPin(): number {
+    if (!this.ballPhysics) return 0;
+
+    return Math.hypot(
+      this.cupPosition.x - this.ballPhysics.position.x,
+      this.cupPosition.z - this.ballPhysics.position.z
+    );
+  }
+
+  private setShotType(type: ShotType): void {
+    this.shotType = type;
+    this.gameHUD?.setShotType(this.shortGameOn ? type : null);
+  }
+
+  /** The club as the chosen shot plays it — a chip is not a full wedge. */
+  private effectiveClub(): ClubConfig {
+    return applyShotType(this.clubManager.getCurrentClub(), this.shotType);
+  }
+
+  /**
+   * The one control, doing whichever job the ball's position calls for.
+   *
+   * Inside short-game range it picks the shot; outside it, it shapes the shot.
+   * Two controls would be one too many on a phone, and neither is any use where
+   * the other one is.
+   */
+  private adjustShotSelector(direction: -1 | 1): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
-    // Nothing to shape with a putter.
+    // Nothing to shape or flight with a putter.
     if (this.shotMode === 'PUTTING') return;
+
+    if (this.shortGameOn) {
+      const type = adjacentShotType(this.shotType, direction);
+      this.setShotType(type);
+      // The club follows the shot. Picking a lob and then having to find a club
+      // that lobs the right distance is two decisions for one choice; the club
+      // control is still there for anyone who wants a different one.
+      this.takeClubForShot(type, this.distanceToPin());
+      return;
+    }
 
     this.setShotShape(adjacentShape(this.shotShape, direction));
   }
@@ -1113,19 +1202,16 @@ export class Game {
     // rather than on the click that locked the accuracy.
     // The chosen shape is folded into the swing the player made, so a draw hit
     // early still hooks. Shaping picks the shot; it does not strike it for you.
-    const shapedResult = applyShotShape(
-      swingResult,
-      this.shotShape,
-      this.clubManager.getCurrentClub().carryMetres
-    );
+    const playedClub = this.effectiveClub();
+    const shapedResult = applyShotShape(swingResult, this.shotShape, playedClub.carryMetres);
 
     this.shotCarryMetres = null;
 
     this.sophieGolfer.playSwing(() => {
-      const club = this.clubManager.getCurrentClub();
-
-      // Launch ball physics
-      this.ballPhysics!.launch(club, shapedResult, this.aimAngleRadians);
+      // The club as the chosen shot plays it: a chip is a club that carries
+      // fifteen metres, comes out low and does not check, which is why none of
+      // this needed its own flight model.
+      this.ballPhysics!.launch(playedClub, shapedResult, this.aimAngleRadians);
       this.swingMeter.complete();
       this.stateManager.setState('BALL_FLIGHT');
     });
@@ -1266,7 +1352,7 @@ export class Game {
         this.strokeCount + this.penaltyStrokes,
         this.penaltyStrokes,
         distToCup,
-        this.clubManager.getCurrentClub(),
+        this.effectiveClub(),
         currentLie,
         this.cameraController.getMode(),
         // Read against the aim, so it updates as the player turns: what matters
@@ -1355,6 +1441,7 @@ export class Game {
     this.syncSwingStyleToClub();
     const club = this.clubManager.getCurrentClub();
     this.setShotMode((isOnGreen || club.isPutter) ? 'PUTTING' : 'FULL_SWING');
+    this.offerShortGame(remainingDist, isOnGreen);
     this.flagRenderer?.setPuttingMode(this.shotMode === 'PUTTING');
 
     if (this.shotMode === 'PUTTING') {

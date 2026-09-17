@@ -1,5 +1,6 @@
 import { describeShotResult, ShotShape } from '../golf/ShotShape';
 import { Scorecard } from '../game/Scorecard';
+import { ShotType, shotTypeProfile } from '../golf/ShotType';
 import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
@@ -19,6 +20,8 @@ export interface GameHUDHoleConfig {
 
 export class GameHUD {
   private shotShape: ShotShape = 'STRAIGHT';
+  /** Non-null while the selector is offering chip/pitch/lob instead of shape. */
+  private shotType: ShotType | null = null;
   private container: HTMLElement;
   private swingMeterContainer: HTMLElement;
   private puttMeterContainer: HTMLElement;
@@ -144,8 +147,35 @@ export class GameHUD {
   /** Show the shape the player has chosen. */
   public setShotShape(shape: ShotShape): void {
     this.shotShape = shape;
+    this.repaintShotSelector();
+  }
+
+  /**
+   * Put the shot-type choice in the selector, or hand it back to the shape.
+   *
+   * One control doing two jobs, because neither is any use where the other one
+   * is: you work a ball left or right over two hundred metres, and you decide
+   * how it lands over twenty. Two capsules would be one too many on a phone.
+   */
+  public setShotType(type: ShotType | null): void {
+    this.shotType = type;
+    this.repaintShotSelector();
+  }
+
+  private repaintShotSelector(): void {
     const name = this.container.querySelector('#hud-shape-name');
-    if (name) name.textContent = shape;
+    const hint = this.container.querySelector('#hud-shape-hint');
+    if (!name || !hint) return;
+
+    if (this.shotType) {
+      const profile = shotTypeProfile(this.shotType);
+      name.textContent = profile.label;
+      hint.textContent = `${profile.hint} · Q / E`;
+      return;
+    }
+
+    name.textContent = this.shotShape;
+    hint.textContent = 'SHAPE · Q / E';
   }
 
   /**
@@ -270,7 +300,8 @@ export class GameHUD {
     if (this.clubDetailElem) {
       this.clubDetailElem.textContent = club.isPutter
         ? 'Putting · 0° loft'
-        : `${club.carryMetres || club.maxDistanceMetres}m carry · ${club.launchAngleDeg || club.loftDegrees}° loft`;
+        : `${Math.round(club.carryMetres || club.maxDistanceMetres)}m carry · ` +
+          `${Math.round(club.launchAngleDeg || club.loftDegrees)}° loft`;
     }
     if (this.cameraBtnElem && !this.isPuttingMode) {
       this.cameraBtnElem.textContent = `VIEW · ${cameraMode}`;

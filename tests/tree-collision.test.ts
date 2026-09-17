@@ -134,8 +134,11 @@ describe('a ball meeting a tree', () => {
     const blocked = playShot('driver', [gumAt(215)], 0, scripted('DROP'));
 
     expect(blocked.outcome).toBe('DROP');
+    // Around the tree, not on down the hole. It trickles a few metres from where
+    // it lands, because a ball falling out of a tree arrives slowly and slow
+    // arrivals skid rather than plug.
     expect(blocked.distance).toBeGreaterThan(205);
-    expect(blocked.distance).toBeLessThan(225);
+    expect(blocked.distance).toBeLessThan(232);
   });
 
   it('carries the ball on past the tree when it rattles through', () => {
