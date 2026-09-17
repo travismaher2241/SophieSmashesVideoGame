@@ -1,5 +1,5 @@
 /**
- * Sophie Hills holes 2-9 generator.
+ * Sophie Hills holes 2-18 generator.
  *
  * Sophie Hills is a FICTIONAL gameplay course. These holes are original designs,
  * not traced from anywhere, and must never be presented as a real course.
@@ -190,6 +190,146 @@ const HOLES = [
     notes: [
       'Out of reach in two: a lay-up short of the creek, then a wedge in.',
       'Finishes back beside the clubhouse.'
+    ]
+  },
+
+  // --- the back nine -------------------------------------------------------
+  // Turns away from the clubhouse and works back along the ridge. Longer than
+  // the front on the whole, with the two short holes set against the wind.
+  {
+    number: 10,
+    name: 'Ironbark Turn',
+    par: 4,
+    length: 340,
+    climb: 6,
+    dogleg: { at: 0.55, offset: -34 },
+    fairwayWidth: 30,
+    green: { radiusX: 15, radiusZ: 14 },
+    bunkers: [
+      { at: 0.62, side: -20, radius: 8 },
+      { at: 0.97, side: 20, radius: 7 }
+    ],
+    path: { at: 0.08, side: 30, span: 90 },
+    notes: ['Bends left off the tee; the bunker on the corner is in range of a good drive.']
+  },
+  {
+    number: 11,
+    name: 'The Long Acre',
+    par: 5,
+    length: 480,
+    climb: -5,
+    dogleg: { at: 0.7, offset: 40 },
+    fairwayWidth: 34,
+    green: { radiusX: 17, radiusZ: 15 },
+    bunkers: [
+      { at: 0.55, side: 26, radius: 9 },
+      { at: 0.99, side: -24, radius: 8 }
+    ],
+    path: { at: 0.06, side: -34, span: 120 },
+    notes: ['Downhill and reachable in two for anyone who takes on the corner.']
+  },
+  {
+    number: 12,
+    name: 'Stockyard',
+    par: 3,
+    length: 155,
+    climb: 3,
+    fairwayWidth: 24,
+    green: { radiusX: 15, radiusZ: 13 },
+    bunkers: [
+      { at: 0.94, side: 18, radius: 7 },
+      { at: 1.02, side: -17, radius: 6 }
+    ],
+    notes: ['Short iron, but the green is ringed with sand.']
+  },
+  {
+    number: 13,
+    name: 'Shearers Rest',
+    par: 4,
+    length: 370,
+    climb: 9,
+    fairwayWidth: 30,
+    green: { radiusX: 16, radiusZ: 14 },
+    bunkers: [{ at: 0.96, side: -22, radius: 8 }],
+    path: { at: 0.1, side: 32, span: 100 },
+    notes: ['Straight and uphill. The second shot plays a club longer than it looks.']
+  },
+  {
+    number: 14,
+    name: 'Short Paddock',
+    par: 4,
+    length: 315,
+    climb: -3,
+    dogleg: { at: 0.5, offset: 26 },
+    fairwayWidth: 26,
+    green: { radiusX: 14, radiusZ: 13 },
+    bunkers: [
+      { at: 0.72, side: 18, radius: 8 },
+      { at: 0.98, side: -18, radius: 7 }
+    ],
+    notes: ['Short enough to tempt, narrow enough to punish. A wedge in from the fairway.']
+  },
+  {
+    number: 15,
+    name: 'Windmill',
+    par: 3,
+    length: 195,
+    climb: -7,
+    fairwayWidth: 26,
+    green: { radiusX: 17, radiusZ: 15 },
+    bunkers: [{ at: 0.93, side: 20, radius: 8 }],
+    notes: ['The long short hole, played downhill into whatever is blowing.']
+  },
+  {
+    number: 16,
+    name: 'Ridgeback',
+    par: 4,
+    length: 395,
+    climb: 12,
+    dogleg: { at: 0.6, offset: -30 },
+    fairwayWidth: 30,
+    green: { radiusX: 16, radiusZ: 14 },
+    bunkers: [
+      { at: 0.68, side: -24, radius: 9 },
+      { at: 0.99, side: 22, radius: 7 }
+    ],
+    path: { at: 0.07, side: 34, span: 110 },
+    notes: ['The hardest on the card: long, uphill and bending away.']
+  },
+  {
+    number: 17,
+    name: 'Dam Wall',
+    par: 4,
+    length: 350,
+    climb: -4,
+    fairwayWidth: 30,
+    green: { radiusX: 15, radiusZ: 14 },
+    // Set wide and late: a hazard the tee shot cannot reach, guarding the second
+    // shot instead. Anything nearer the line is a trap rather than a hazard —
+    // the player is aimed there by default and has no way round it.
+    water: [{ at: 0.88, halfLength: 15, halfWidth: 20, side: -46 }],
+    bunkers: [{ at: 0.97, side: 20, radius: 7 }],
+    path: { at: 0.09, side: 30, span: 95 },
+    notes: ['Water down the left of the approach. The miss is right.']
+  },
+  {
+    number: 18,
+    name: 'Homeward Again',
+    par: 5,
+    length: 520,
+    climb: 7,
+    dogleg: { at: 0.64, offset: 44 },
+    fairwayWidth: 32,
+    green: { radiusX: 18, radiusZ: 16 },
+    bunkers: [
+      { at: 0.58, side: -26, radius: 9 },
+      { at: 0.86, side: 24, radius: 8 },
+      { at: 1.0, side: -20, radius: 7 }
+    ],
+    path: { at: 0.05, side: 34, span: 130 },
+    notes: [
+      'Three shots for most, and a green big enough to hold the last of them.',
+      'Finishes at the clubhouse.'
     ]
   }
 ];
@@ -648,7 +788,7 @@ function main() {
     );
   }
 
-  console.log(`\nholes 2-9: par ${totalPar}, ${totalLength}m (hole 1 adds par 4, 337m)`);
+  console.log(`\nholes 2-18: par ${totalPar}, ${totalLength}m (hole 1 adds par 4, 337m)`);
 }
 
 main();

@@ -466,28 +466,52 @@ export class GameHUD {
     // there beside it — which is the number a golfer actually wants.
     const relativeClass = card.relativeToPar < 0 ? 'is-under' : card.relativeToPar > 0 ? 'is-over' : 'is-level';
 
-    const holeCells = card.holes
-      .map((hole) => `<th${hole.isCurrent ? ' class="is-current"' : ''}>${hole.number}</th>`)
-      .join('');
-    const parCells = card.holes.map((hole) => `<th>${hole.par}</th>`).join('');
-    const scoreCells = card.holes
-      .map((hole) => {
-        const classes = `score-${hole.result}${hole.isCurrent ? ' is-current' : ''}`;
-        return `<td class="${classes}">${hole.strokes ?? '·'}</td>`;
-      })
-      .join('');
+    // One block per nine, each with its own subtotal, then the round's total
+    // underneath. Eighteen columns across will not fit a phone, and a printed
+    // card does not lay them out that way either.
+    const blocks = card.rows.map((row) => {
+      const holeCells = row.holes
+        .map((hole) => `<th${hole.isCurrent ? ' class="is-current"' : ''}>${hole.number}</th>`)
+        .join('');
+      const parCells = row.holes.map((hole) => `<th>${hole.par}</th>`).join('');
+      const scoreCells = row.holes
+        .map((hole) => {
+          const classes = `score-${hole.result}${hole.isCurrent ? ' is-current' : ''}`;
+          return `<td class="${classes}">${hole.strokes ?? '·'}</td>`;
+        })
+        .join('');
+      const padding = '<th></th>'.repeat(Math.max(0, 9 - row.holes.length));
 
-    this.celebrationCardBody.innerHTML = `
-      <tr><td class="card-label">HOLE</td>${holeCells}<th class="card-total">TOT</th></tr>
-      <tr><td class="card-label">PAR</td>${parCells}<th class="card-total">${card.parTotal}</th></tr>
-      <tr>
-        <td class="card-label">SCORE</td>${scoreCells}
-        <td class="card-total">
-          ${card.holesPlayed > 0 ? card.strokesPlayed : '·'}
-          ${card.holesPlayed > 0 ? `<span class="card-total-rel ${relativeClass}">${card.relativeLabel}</span>` : ''}
-        </td>
-      </tr>
-    `;
+      return `
+        <tr><td class="card-label">HOLE</td>${holeCells}${padding}<th class="card-total">${row.label}</th></tr>
+        <tr><td class="card-label">PAR</td>${parCells}${padding}<th class="card-total">${row.par}</th></tr>
+        <tr class="card-row-end">
+          <td class="card-label">SCORE</td>${scoreCells}${padding}
+          <td class="card-total">${row.holesPlayed > 0 ? row.strokes : '·'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const total = card.rows.length > 1
+      ? `
+        <tr class="card-grand">
+          <td class="card-label">TOTAL</td>
+          <td colspan="9">${card.holesPlayed} of ${card.holes.length} holes · par ${card.parTotal}</td>
+          <td class="card-total">
+            ${card.holesPlayed > 0 ? card.strokesPlayed : '·'}
+            ${card.holesPlayed > 0 ? `<span class="card-total-rel ${relativeClass}">${card.relativeLabel}</span>` : ''}
+          </td>
+        </tr>`
+      : `
+        <tr class="card-grand">
+          <td class="card-label"></td>
+          <td colspan="9">par ${card.parTotal}</td>
+          <td class="card-total">
+            ${card.holesPlayed > 0 ? `<span class="card-total-rel ${relativeClass}">${card.relativeLabel}</span>` : ''}
+          </td>
+        </tr>`;
+
+    this.celebrationCardBody.innerHTML = blocks + total;
     this.celebrationCardElem.style.display = 'block';
   }
 
@@ -1374,6 +1398,17 @@ export class GameHUD {
           #celeb-card-table .score-WORSE { color: #ff8a6b; }
           #celeb-card-table .score-UNPLAYED { color: #46704e; }
           #celeb-card-table .is-current { outline: 2px solid #55ff55; outline-offset: -2px; }
+          #celeb-card-table .card-row-end td, #celeb-card-table .card-row-end th {
+            border-bottom: 2px solid #2f6b3a;
+          }
+          #celeb-card-table .card-grand td {
+            border: 0; padding-top: 5px; color: #8fbe97; font-size: 9px; font-weight: 700;
+            letter-spacing: 1px;
+          }
+          #celeb-card-table .card-grand .card-total {
+            background: #0b2410; color: #fff07a; font-size: 13px; font-weight: 800;
+            border: 1px solid #2f6b3a;
+          }
 
           #celeb-score > div { border: 1px solid #4c9b59; background: #091d0d; padding: 8px; }
           #celeb-score span { display: block; color: #8fbe97; font-size: 9px; }

@@ -3,16 +3,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Game, SOPHIE_HILLS_CONFIG } from '../src/game/Game';
 
-describe('Sophie Hills front nine', () => {
-  it('provides nine distinct holes totalling par 35', () => {
-    expect(SOPHIE_HILLS_CONFIG.holes).toHaveLength(9);
-    expect(SOPHIE_HILLS_CONFIG.totalPar).toBe(35);
-    expect(new Set(SOPHIE_HILLS_CONFIG.holes.map(hole => hole.holeName)).size).toBe(9);
+describe('Sophie Hills, eighteen holes', () => {
+  it('provides eighteen distinct holes totalling par 71', () => {
+    expect(SOPHIE_HILLS_CONFIG.holes).toHaveLength(18);
+    expect(SOPHIE_HILLS_CONFIG.totalPar).toBe(71);
+    expect(new Set(SOPHIE_HILLS_CONFIG.holes.map(hole => hole.holeName)).size).toBe(18);
   });
 
   it('keeps every playable layout within the terrain that hole loads', () => {
     let parTotal = 0;
-    for (let index = 1; index <= 9; index++) {
+    for (let index = 1; index <= 18; index++) {
       const id = String(index).padStart(2, '0');
       const path = resolve(process.cwd(), `public/courses/sophie-hills/hole-${id}/hole.json`);
       const hole = JSON.parse(readFileSync(path, 'utf8'));
@@ -38,6 +38,6 @@ describe('Sophie Hills front nine', () => {
       expect(hole.greenCentre.z).toBeLessThanOrEqual(maxZ);
       expect(hole.surfaces.length).toBeGreaterThanOrEqual(5);
     }
-    expect(parTotal).toBe(35);
+    expect(parTotal).toBe(71);
   });
 });

@@ -84,8 +84,8 @@ export interface GameSource {
 export const SOPHIE_HILLS_CONFIG: GameSource = {
   terrainPath: '/courses/sophie-hills',
   courseName: 'Sophie Hills',
-  courseSubtitle: 'Front Nine',
-  totalPar: 35,
+  courseSubtitle: 'Eighteen Holes',
+  totalPar: 71,
   holes: [
     // Every hole owns its heightfield. They used to share one 778x318m field, so
     // each had to be short enough to fit beside its neighbours — which left every
@@ -98,7 +98,16 @@ export const SOPHIE_HILLS_CONFIG: GameSource = {
     { holePath: '/courses/sophie-hills/hole-06', holeName: 'Billabong', par: 4, terrainPath: '/courses/sophie-hills/hole-06' },
     { holePath: '/courses/sophie-hills/hole-07', holeName: 'Ridge Runner', par: 4, terrainPath: '/courses/sophie-hills/hole-07' },
     { holePath: '/courses/sophie-hills/hole-08', holeName: 'Sandbelt Turn', par: 4, terrainPath: '/courses/sophie-hills/hole-08' },
-    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound', par: 5, terrainPath: '/courses/sophie-hills/hole-09' }
+    { holePath: '/courses/sophie-hills/hole-09', holeName: 'Homeward Bound', par: 5, terrainPath: '/courses/sophie-hills/hole-09' },
+    { holePath: '/courses/sophie-hills/hole-10', holeName: 'Ironbark Turn', par: 4, terrainPath: '/courses/sophie-hills/hole-10' },
+    { holePath: '/courses/sophie-hills/hole-11', holeName: 'The Long Acre', par: 5, terrainPath: '/courses/sophie-hills/hole-11' },
+    { holePath: '/courses/sophie-hills/hole-12', holeName: 'Stockyard', par: 3, terrainPath: '/courses/sophie-hills/hole-12' },
+    { holePath: '/courses/sophie-hills/hole-13', holeName: 'Shearers Rest', par: 4, terrainPath: '/courses/sophie-hills/hole-13' },
+    { holePath: '/courses/sophie-hills/hole-14', holeName: 'Short Paddock', par: 4, terrainPath: '/courses/sophie-hills/hole-14' },
+    { holePath: '/courses/sophie-hills/hole-15', holeName: 'Windmill', par: 3, terrainPath: '/courses/sophie-hills/hole-15' },
+    { holePath: '/courses/sophie-hills/hole-16', holeName: 'Ridgeback', par: 4, terrainPath: '/courses/sophie-hills/hole-16' },
+    { holePath: '/courses/sophie-hills/hole-17', holeName: 'Dam Wall', par: 4, terrainPath: '/courses/sophie-hills/hole-17' },
+    { holePath: '/courses/sophie-hills/hole-18', holeName: 'Homeward Again', par: 5, terrainPath: '/courses/sophie-hills/hole-18' }
   ]
 };
 

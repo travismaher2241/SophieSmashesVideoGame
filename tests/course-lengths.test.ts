@@ -40,8 +40,23 @@ function driveLanding(hole: any, distance: number) {
 }
 
 describe('Sophie Hills plays at credible lengths', () => {
-  it('keeps the card at par 35', () => {
-    expect(holes.reduce((total, hole) => total + hole.par, 0)).toBe(35);
+  it('keeps the card at par 71 over eighteen holes', () => {
+    expect(holes).toHaveLength(18);
+    expect(holes.reduce((total, hole) => total + hole.par, 0)).toBe(71);
+  });
+
+  it('gives each nine a shape of its own', () => {
+    const out = holes.slice(0, 9);
+    const back = holes.slice(9);
+
+    expect(out.reduce((total, hole) => total + hole.par, 0)).toBe(35);
+    expect(back.reduce((total, hole) => total + hole.par, 0)).toBe(36);
+    // Two short holes and at least one par 5 on each nine, so neither half is
+    // nine of the same hole.
+    for (const [name, nine] of [['out', out], ['in', back]] as const) {
+      expect(nine.filter((hole) => hole.par === 3), name).toHaveLength(2);
+      expect(nine.filter((hole) => hole.par === 5).length, name).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it('never lets a drive reach a par 4 green', () => {
@@ -65,11 +80,29 @@ describe('Sophie Hills plays at credible lengths', () => {
     }
   });
 
-  it('puts the par 5 out of reach in two', () => {
+  it('never lets a par 5 play as a long par 4', () => {
+    // The rule is that a par 5 has to ask for a third shot from somewhere, not
+    // that every one of them is unreachable — a par 5 you can get at with two
+    // good ones is the best hole on most cards. So: beyond a drive and a mid
+    // iron for all of them, and at least one genuine three-shotter.
+    const driver = GOLF_CLUBS.find((club) => club.id === 'driver')!;
     const threeWood = GOLF_CLUBS.find((club) => club.name === '3 WOOD')!;
-    for (const hole of holes.filter((entry) => entry.par === 5)) {
-      expect(hole.publishedLengthMetres).toBeGreaterThan(TYPICAL_DRIVE + threeWood.carryMetres * 1.1);
+    const midIron = GOLF_CLUBS.find((club) => club.id === '7iron')!;
+    const parFives = holes.filter((entry) => entry.par === 5);
+
+    expect(parFives.length).toBeGreaterThanOrEqual(2);
+
+    for (const hole of parFives) {
+      expect(
+        hole.publishedLengthMetres,
+        `${hole.holeId} is ${hole.publishedLengthMetres}m: a drive and a 7 iron get there`
+      ).toBeGreaterThan(TYPICAL_DRIVE + midIron.carryMetres);
     }
+
+    const outOfReach = parFives.filter(
+      (hole) => hole.publishedLengthMetres > TYPICAL_DRIVE + threeWood.carryMetres
+    );
+    expect(outOfReach.length, 'at least one par 5 needs three shots').toBeGreaterThanOrEqual(1);
   });
 
   it('keeps par 3s within a single club', () => {
@@ -116,10 +149,10 @@ describe('Sophie Hills plays at credible lengths', () => {
     }
   });
 
-  it('measures a total in the range a par 35 nine should be', () => {
+  it('measures a total in the range a par 71 course should be', () => {
     const total = holes.reduce((sum, hole) => sum + hole.publishedLengthMetres, 0);
-    expect(total).toBeGreaterThan(2700);
-    expect(total).toBeLessThan(3400);
+    expect(total).toBeGreaterThan(5400);
+    expect(total).toBeLessThan(6800);
   });
 
   it('matches each hole layout to its published length', () => {

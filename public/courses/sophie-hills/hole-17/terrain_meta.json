@@ -1,0 +1,40 @@
+{
+  "courseId": "sophie-hills",
+  "courseName": "Sophie Hills (Fictional)",
+  "holeId": "hole-17",
+  "holeNumber": 17,
+  "status": "fictional-gameplay-terrain",
+  "source": "Synthetic heightfield authored for Sophie Hills hole-17",
+  "sourceCRS": "EPSG:7855",
+  "sourceBoundsMGA55": {
+    "minEasting": 421000,
+    "minNorthing": 5793000,
+    "maxEasting": 421192,
+    "maxNorthing": 5793524
+  },
+  "gridSpacingMetres": 2,
+  "widthSamples": 97,
+  "heightSamples": 263,
+  "axisMapping": {
+    "columns": "worldX",
+    "rows": "worldZ",
+    "worldXExtentMetres": 192,
+    "worldZExtentMetres": 524,
+    "isNorthingProven": false,
+    "note": "Fictional coordinates for Sophie Hills hole-17. This terrain belongs to this hole alone."
+  },
+  "baseElevationMetres": 34.5,
+  "minElevationMetres": 29.367231650115418,
+  "maxElevationMetres": 35.36302746398751,
+  "binary": {
+    "file": "terrain.bin",
+    "type": "Float32",
+    "endianness": "little",
+    "order": "row-major",
+    "valueMeaning": "metres above baseElevationMetres",
+    "expectedValues": 25511,
+    "expectedBytes": 102044
+  },
+  "verticalScaleDefault": 1,
+  "warning": "Fictional synthetic terrain authored for Sophie Hills hole-17. It does not represent any real course."
+}
