@@ -11,7 +11,7 @@ import { TerrainLoader } from '../course/TerrainLoader';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { MouseRaycaster } from '../debug/MouseRaycaster';
 import { PlaytestSurfaceGenerator } from '../debug/PlaytestSurfaceGenerator';
-import { ClubManager, swingStyleForClub } from '../golf/Club';
+import { canPuttFromLie, ClubConfig, ClubManager, swingStyleForClub } from '../golf/Club';
 import { PenaltyRules } from '../golf/PenaltyRules';
 import { SwingMeter } from '../golf/SwingMeter';
 import { adjacentShape, applyShotShape, ShotShape } from '../golf/ShotShape';
@@ -733,10 +733,14 @@ export class Game {
     this.shotMode = mode;
     this.gameHUD?.setShotMode(mode);
 
+    // Whether the bag is reachable is a question about the lie, not about the
+    // stroke: on the fringe you may choose between a putter and a wedge, and
+    // hiding the selector the moment a putter was in hand stranded you there.
+    this.gameHUD?.setClubSelectorVisible(!this.isLockedToPutter());
+
     if (mode === 'PUTTING') this.setShotShape('STRAIGHT');
   }
 
-  /** Draw the hole's wind and hand it to the flight model. */
   /**
    * Point the shadow map at the course that just loaded.
    *
@@ -751,6 +755,7 @@ export class Game {
     this.sceneManager.fitShadowsToCourse(extent.x, extent.z);
   }
 
+  /** Draw the hole's wind and hand it to the flight model. */
   private setWind(wind: Wind): void {
     this.wind = wind;
     this.ballPhysics?.setWind(wind);
@@ -773,22 +778,37 @@ export class Game {
     this.sophieGolfer?.setSwingStyle(swingStyleForClub(club));
   }
 
+  /**
+   * Whether this club can be played from where the ball is lying.
+   *
+   * Only the putter is ever ruled out, and only off the green and its fringe.
+   * Taking it from a tee was a misclick you could not undo: choosing it put the
+   * HUD into putting, and putting hides the club selector, so the way back was
+   * gone with it.
+   */
+  private canSelectClub = (club: ClubConfig): boolean =>
+    !club.isPutter || canPuttFromLie(this.ballPhysics?.getCurrentLie().type);
+
+  /** On the putting surface itself there is no choice to make. */
+  private isLockedToPutter(): boolean {
+    return this.ballPhysics?.getCurrentLie().type === 'GREEN';
+  }
+
   private selectNextClub(): void {
-    if (this.stateManager.getState() !== 'ADDRESS') return;
-    if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
-    this.clubManager.selectNextClub();
-    const club = this.clubManager.getCurrentClub();
-    this.setShotMode(club.isPutter ? 'PUTTING' : 'FULL_SWING');
-    this.syncSwingStyleToClub();
+    this.changeClub((manager) => manager.selectNextClub(this.canSelectClub));
   }
 
   private selectPrevClub(): void {
+    this.changeClub((manager) => manager.selectPrevClub(this.canSelectClub));
+  }
+
+  private changeClub(pick: (manager: ClubManager) => void): void {
     if (this.stateManager.getState() !== 'ADDRESS') return;
-    if (this.ballPhysics?.getCurrentLie().type === 'GREEN') return; // Locked to Putter on green
-    this.clubManager.selectPrevClub();
+    if (this.isLockedToPutter()) return;
+
+    pick(this.clubManager);
     this.syncSwingStyleToClub();
-    const club = this.clubManager.getCurrentClub();
-    this.setShotMode(club.isPutter ? 'PUTTING' : 'FULL_SWING');
+    this.setShotMode(this.clubManager.getCurrentClub().isPutter ? 'PUTTING' : 'FULL_SWING');
   }
 
   private toggleCameraMode(): void {

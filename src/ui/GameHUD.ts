@@ -148,14 +148,26 @@ export class GameHUD {
     if (name) name.textContent = shape;
   }
 
+  /**
+   * Show or hide the bag.
+   *
+   * Kept apart from the shot mode, because the two are different questions. The
+   * mode says which stroke is being played; this says whether there is a choice
+   * of club to be made. They agree on the green, where the putter is the only
+   * club — but on the fringe you may putt or chip, and tying the selector to the
+   * mode meant picking the putter there took the selector away with it.
+   */
+  public setClubSelectorVisible(visible: boolean): void {
+    if (this.clubSelectorCapsule) {
+      this.clubSelectorCapsule.style.display = visible ? 'flex' : 'none';
+    }
+  }
+
   public setShotMode(mode: ShotMode): void {
     this.shotMode = mode;
     const isPutting = mode === 'PUTTING';
     this.isPuttingMode = isPutting;
 
-    if (this.clubSelectorCapsule) {
-      this.clubSelectorCapsule.style.display = isPutting ? 'none' : 'flex';
-    }
     // No shaping a putt: the ball never leaves the ground, so there is nothing to
     // bend. The control goes away on the green rather than sitting there showing
     // a draw the stroke will not play.

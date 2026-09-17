@@ -69,15 +69,24 @@ describe('shot shape on the green', () => {
     }
   });
 
-  it('hides the shape control alongside the club selector, which is also fixed on the green', () => {
+  it('keeps the bag reachable while putting, and hides it only where the club is fixed', () => {
+    // These used to be one switch, and that was the bug: choosing a putter off
+    // the green put the HUD into putting, putting hid the club selector, and the
+    // way back to a real club went with it. The mode says which stroke is being
+    // played; the lie says whether there is a club to choose.
     const dom = installMockDocument();
 
     try {
       const hud = new GameHUD({});
-      hud.setShotMode('PUTTING');
 
-      expect(dom.select('#hud-club-capsule').style.display).toBe('none');
+      hud.setShotMode('PUTTING');
+      hud.setClubSelectorVisible(true);
+      expect(dom.select('#hud-club-capsule').style.display).toBe('flex');
       expect(dom.select('#hud-shape-capsule').style.display).toBe('none');
+
+      // On the putting surface itself there is no choice to make.
+      hud.setClubSelectorVisible(false);
+      expect(dom.select('#hud-club-capsule').style.display).toBe('none');
     } finally {
       dom.restore();
     }

@@ -25,6 +25,19 @@ export function swingStyleForClub(club: ClubConfig): SwingStyle {
   return club.id.includes('wood') || club.id === 'driver' ? 'DRIVER' : 'IRON';
 }
 
+/**
+ * Lies you may take the putter from.
+ *
+ * A putter off a tee or out of the rough is not a shot, it is a misclick — and
+ * it used to be one you could not undo, because choosing it switched the HUD to
+ * putting and putting hides the club selector. So the club is simply not on
+ * offer until the ball is on the green or on its fringe, which is also the only
+ * place anyone would use it.
+ */
+export function canPuttFromLie(lieType: string | undefined): boolean {
+  return lieType === 'GREEN' || lieType === 'FRINGE';
+}
+
 export const GOLF_CLUBS: ClubConfig[] = [
   {
     id: 'driver',
@@ -228,13 +241,33 @@ export class ClubManager {
     return this.currentIndex;
   }
 
-  public selectNextClub(): ClubConfig {
-    this.currentIndex = (this.currentIndex + 1) % GOLF_CLUBS.length;
-    return this.getCurrentClub();
+  /**
+   * Step through the bag, passing over anything this lie will not allow.
+   *
+   * Skipping rather than stopping keeps the control predictable: a press always
+   * changes the club, and the one club you cannot play is simply not in the
+   * cycle. If nothing is playable the selection stays where it is rather than
+   * looping for ever.
+   */
+  public selectNextClub(isSelectable: (club: ClubConfig) => boolean = () => true): ClubConfig {
+    return this.step(1, isSelectable);
   }
 
-  public selectPrevClub(): ClubConfig {
-    this.currentIndex = (this.currentIndex - 1 + GOLF_CLUBS.length) % GOLF_CLUBS.length;
+  public selectPrevClub(isSelectable: (club: ClubConfig) => boolean = () => true): ClubConfig {
+    return this.step(-1, isSelectable);
+  }
+
+  private step(direction: 1 | -1, isSelectable: (club: ClubConfig) => boolean): ClubConfig {
+    const count = GOLF_CLUBS.length;
+
+    for (let tried = 1; tried <= count; tried++) {
+      const next = ((this.currentIndex + direction * tried) % count + count) % count;
+      if (isSelectable(GOLF_CLUBS[next])) {
+        this.currentIndex = next;
+        return this.getCurrentClub();
+      }
+    }
+
     return this.getCurrentClub();
   }
 
