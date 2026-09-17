@@ -34,9 +34,15 @@ export class RetroMaterials {
     const roughTex = this.createRoughTexture();
     const roughMat = this.createMat(0x3a7632, roughTex, 0.95, 0.02);
     this.materials.set('ROUGH', roughMat);
-    this.materials.set('DEEP_ROUGH', roughMat);
     this.materials.set('GENERAL_AREA', roughMat);
     this.materials.set('BASE_TERRAIN', roughMat);
+
+    // Deep rough shared the rough's material exactly, so grass that costs you
+    // nearly twice as much distance and half your control looked no different
+    // from grass that costs a little of each. Darker and duller, on the same
+    // texture: the ladder from fairway down reads as one surface getting worse,
+    // rather than as four unrelated greens.
+    this.materials.set('DEEP_ROUGH', this.createMat(0x2f6425, roughTex, 0.98, 0.01));
 
     // The first cut sits between fairway and rough in the rules, and now looks it.
     // Sharing the rough material meant authored semi-rough was invisible, so a
