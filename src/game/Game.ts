@@ -1228,20 +1228,25 @@ export class Game {
   }
 
   private async handleScorecardAction(): Promise<void> {
-    this.gameHUD?.hideCelebration();
-
     if (this.isPracticeMode) {
+      this.gameHUD?.hideCelebration();
       if (this.playtestLayout) this.initPlaytestLayout(this.playtestLayout);
       return;
     }
 
     const nextHoleIndex = this.holeIndex + 1;
     if (nextHoleIndex < (this.source?.holes.length ?? 0)) {
+      // The card stays up until the next hole is on screen. Taking it away
+      // first left the finished hole's HUD — its strokes, its "HOLED!" — over a
+      // camera still parked on the green of a hole that is no longer loaded,
+      // for as long as the new heightfield took to fetch.
       await this.loadCourseHole(nextHoleIndex);
+      this.gameHUD?.hideCelebration();
       if (this.configuredLayout) this.initPlaytestLayout(this.configuredLayout);
       return;
     }
 
+    this.gameHUD?.hideCelebration();
     await this.startConfiguredRound();
   }
 

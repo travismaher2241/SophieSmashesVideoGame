@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildHoleMapView, distanceMarkers } from '../src/ui/HoleMap';
+import { previewLayoutFor } from '../src/ui/HolePreview';
 import { HoleFlyby } from '../src/rendering/HoleFlyby';
 import { SOPHIE_HILLS_CONFIG } from '../src/game/Game';
 import { HoleConfig } from '../src/course/HoleData';
@@ -188,5 +189,34 @@ describe('the flyby', () => {
     expect(Number.isFinite(frame.position.x)).toBe(true);
     expect(Number.isFinite(frame.position.y)).toBe(true);
     expect(Number.isFinite(frame.target.y)).toBe(true);
+  });
+});
+
+describe('how the preview lays itself out', () => {
+  const phone = { width: 390, height: 844 };
+  const phoneLandscape = { width: 844, height: 390 };
+  const desktop = { width: 1280, height: 800 };
+
+  it('keeps the map up beside the flyby where there is room for both', () => {
+    expect(previewLayoutFor(desktop, true)).toEqual({ compact: false, mapShown: true });
+  });
+
+  it('holds the map back on a phone, so the flyby is the thing on screen', () => {
+    // The fault this pins: the card filled a phone end to end, so the camera
+    // move it was captioning played entirely behind it. The preview showed a
+    // drawing of the hole and hid the hole.
+    expect(previewLayoutFor(phone, true)).toEqual({ compact: true, mapShown: false });
+  });
+
+  it('treats a landscape phone as narrow too', () => {
+    // Wide enough by width, nowhere near tall enough: the card would still be
+    // most of the screen.
+    expect(previewLayoutFor(phoneLandscape, true)).toEqual({ compact: true, mapShown: false });
+  });
+
+  it('shows the map on a phone when the map is what was asked for', () => {
+    // Opened from the HUD partway up a hole there is no flyby to cover, and
+    // hiding the map behind a button would hide the only thing wanted.
+    expect(previewLayoutFor(phone, false)).toEqual({ compact: true, mapShown: true });
   });
 });
