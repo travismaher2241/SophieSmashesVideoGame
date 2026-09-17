@@ -16,14 +16,18 @@ export interface TitleScreenOptions {
   onStart: () => void;
   onOpenPractice?: () => void;
   onTeeChange?: (choice: TeeBoxId) => void;
+  onPreviewsChange?: (show: boolean) => void;
 }
 
 export class TitleScreen {
   private readonly container: HTMLElement;
   private readonly onTeeChange?: (choice: TeeBoxId) => void;
+  private readonly onPreviewsChange?: (show: boolean) => void;
+  private previewsOn = true;
 
   constructor(options: TitleScreenOptions) {
     this.onTeeChange = options.onTeeChange;
+    this.onPreviewsChange = options.onPreviewsChange;
     this.container = document.createElement('div');
     this.container.setAttribute('role', 'dialog');
     this.container.setAttribute('aria-label', 'Sophie Smashes title screen');
@@ -40,6 +44,7 @@ export class TitleScreen {
         </div>
         <div class="title-tees" id="title-tees"></div>
         <button id="btn-title-start" class="title-primary">START ROUND</button>
+        <button id="btn-title-previews" class="title-toggle">HOLE FLYOVER: ON</button>
         <div class="title-controls">SPACE: SWING &nbsp; A/D: AIM &nbsp; W/S: CLUB &nbsp; M: VIEW</div>
       </div>
       <style>
@@ -89,6 +94,13 @@ export class TitleScreen {
         .title-primary { width: 100%; font: bold 16px 'Courier New', monospace; cursor: pointer; border-radius: 6px; padding: 14px; border: 3px solid #b4ff9a; background: #269b3c; color: white; box-shadow: 0 4px 0 #0b4c1a; letter-spacing: 2px; }
         .title-primary:hover { background: #38bd50; transform: translateY(-1px); }
         .title-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #0b4c1a; }
+        .title-toggle {
+          width: 100%; margin-top: 8px; padding: 9px; cursor: pointer; border-radius: 6px;
+          border: 2px solid #3f7d52; background: #0b2413; color: #9bd6aa;
+          font: bold 11px 'Courier New', monospace; letter-spacing: 2px;
+        }
+        .title-toggle:hover { border-color: #6fc084; color: #eafff0; }
+        .title-toggle.is-off { color: #7b8f82; }
         .title-controls { margin-top: 18px; color: #9bc8a5; font-size: 10px; line-height: 1.6; }
         @media (max-width: 620px) {
           .title-card { padding: 24px 18px 20px; }
@@ -107,6 +119,9 @@ export class TitleScreen {
     this.container.style.zIndex = '120';
 
     this.container.querySelector('#btn-title-start')?.addEventListener('click', options.onStart);
+    this.container.querySelector('#btn-title-previews')?.addEventListener('click', () => {
+      this.onPreviewsChange?.(!this.previewsOn);
+    });
     document.body.appendChild(this.container);
   }
 
@@ -159,6 +174,21 @@ export class TitleScreen {
         `;
       }
     }
+  }
+
+  /**
+   * Show whether the hole flyover is on.
+   *
+   * It lives here as well as on the card because SKIP PREVIEWS is one tap away
+   * from PLAY HOLE: turning them off by accident should not be permanent.
+   */
+  public setPreviewsOn(on: boolean): void {
+    this.previewsOn = on;
+    const button = this.container.querySelector('#btn-title-previews');
+    if (!button) return;
+
+    button.textContent = `HOLE FLYOVER: ${on ? 'ON' : 'OFF'}`;
+    button.classList.toggle('is-off', !on);
   }
 
   public setVisible(visible: boolean): void {

@@ -163,6 +163,11 @@ export class GameHUD {
     document.body.appendChild(this.penaltyBanner);
   }
 
+  /** True on a screen narrow enough that the HUD is in its phone layout. */
+  private isNarrow(): boolean {
+    return typeof window !== 'undefined' && window.innerWidth <= 560;
+  }
+
   public setVisible(visible: boolean): void {
     this.container.style.display = visible ? 'block' : 'none';
     if (!visible) {
@@ -327,13 +332,21 @@ export class GameHUD {
       this.clubNameElem.textContent = club.displayName || club.name;
     }
     if (this.clubDetailElem) {
+      // "230m carry · 11° loft" does not fit a phone's club capsule and was
+      // being cut to "230m carry · 11° l…". The numbers are the point; the
+      // words around them are not.
+      const carry = Math.round(club.carryMetres || club.maxDistanceMetres);
+      const loft = Math.round(club.launchAngleDeg || club.loftDegrees);
       this.clubDetailElem.textContent = club.isPutter
-        ? 'Putting · 0° loft'
-        : `${Math.round(club.carryMetres || club.maxDistanceMetres)}m carry · ` +
-          `${Math.round(club.launchAngleDeg || club.loftDegrees)}° loft`;
+        ? (this.isNarrow() ? 'Putting' : 'Putting · 0° loft')
+        : this.isNarrow()
+          ? `${carry}m · ${loft}°`
+          : `${carry}m carry · ${loft}° loft`;
     }
     if (this.cameraBtnElem && !this.isPuttingMode) {
-      this.cameraBtnElem.textContent = `VIEW · ${cameraMode}`;
+      // The mode's name is worth having where there is room for it. On a phone
+      // it is what pushed MENU off the edge of the top bar.
+      this.cameraBtnElem.textContent = this.isNarrow() ? 'VIEW' : `VIEW · ${cameraMode}`;
     }
   }
 
@@ -1163,13 +1176,31 @@ export class GameHUD {
           #hud-title { font-size: 11px; }
 
           .hud-bottombar {
-            grid-template-columns: 1.25fr 0.7fr 1fr;
+            grid-template-columns: 1.2fr 0.62fr 1.05fr;
             grid-template-areas:
               "club aim shape"
               "swing swing swing";
             gap: 5px;
             max-width: none;
           }
+          /*
+           * Let the three capsules shrink to their track.
+           *
+           * The shape readout held a 74px floor and its arrows refused to
+           * shrink, so the capsule needed 128px of a 123px column and the right
+           * arrow was drawn past the edge of the phone. A grid item does not
+           * shrink below its content unless it is told it may.
+           */
+          .hud-bottombar > * { min-width: 0; overflow: hidden; }
+          .hud-shape-readout { min-width: 0; }
+          /* Keyboard help on a screen with no keyboard. */
+          #hud-shape-hint { display: none; }
+          #hud-shape-name { font-size: 10px; overflow: hidden; text-overflow: ellipsis; }
+          .hud-ctrl-btn { padding: 6px 6px; }
+
+          /* Three buttons where there were two: the row needs the room back. */
+          .hud-nav-actions { gap: 3px; padding: 3px 4px; }
+          .hud-nav-actions .hud-btn { padding: 5px 7px; font-size: 10px; }
           #hud-club-capsule { grid-area: club; }
           .hud-aim-controls { grid-area: aim; }
           #hud-shape-capsule { grid-area: shape; }

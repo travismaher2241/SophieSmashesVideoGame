@@ -219,6 +219,25 @@ describe('the chosen tee is remembered', () => {
     expect(loadProgress(storage).teeChoice).toBe('FORWARD');
   });
 
+  it('keeps the hole flyover on until it is turned off, and can turn it back on', () => {
+    // A setting that can only be switched off is a trap: SKIP PREVIEWS sits one
+    // tap from PLAY HOLE, and there was nowhere to undo it.
+    const storage = fakeStorage();
+    expect(newProgress().showHolePreviews).toBe(true);
+
+    saveProgress({ ...newProgress(), showHolePreviews: false }, storage);
+    expect(loadProgress(storage).showHolePreviews).toBe(false);
+
+    saveProgress({ ...loadProgress(storage), showHolePreviews: true }, storage);
+    expect(loadProgress(storage).showHolePreviews).toBe(true);
+  });
+
+  it('leaves the flyover on for a save that predates the setting', () => {
+    const storage = fakeStorage();
+    storage.setItem('sophie-smashes-progress-v1', JSON.stringify({ roundsPlayed: 3 }));
+    expect(loadProgress(storage).showHolePreviews).toBe(true);
+  });
+
   it('ignores a tee it does not recognise', () => {
     const storage = fakeStorage();
     storage.setItem('sophie-smashes-progress-v1', JSON.stringify({ teeChoice: 'LADIES' }));

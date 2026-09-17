@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { CameraController } from '../camera/CameraController';
+import { CameraController, CameraMode } from '../camera/CameraController';
 import { CandidateAnnotations } from '../course/CandidateAnnotations';
 import { GeoTransform } from '../course/GeoTransform';
 import { CandidateHole6Alignment, getCandidateHole6Alignment } from '../course/CandidateHoleAlignment';
@@ -481,6 +481,7 @@ export class Game {
       totalPar: source.totalPar
     });
     this.titleScreen?.setTeeChoice(this.progress.teeChoice, this.teeChoices());
+    this.titleScreen?.setPreviewsOn(this.progress.showHolePreviews);
 
     this.configureGameHUD();
   }
@@ -727,6 +728,22 @@ export class Game {
     this.titleScreen?.setTeeChoice(choice, this.teeChoices());
   }
 
+  /**
+   * Turn the pre-shot flyover on or off.
+   *
+   * Reachable from the title screen as well as from the SKIP PREVIEWS button on
+   * the card, because a setting you can only ever turn off is a trap: one tap
+   * on a button beside PLAY HOLE and the flyovers are gone for good with
+   * nothing anywhere to bring them back.
+   */
+  public setShowHolePreviews(show: boolean): void {
+    if (this.progress.showHolePreviews === show) return;
+
+    this.progress = { ...this.progress, showHolePreviews: show };
+    saveProgress(this.progress);
+    this.titleScreen?.setPreviewsOn(show);
+  }
+
   /** The tees the opening hole offers, for the title screen to choose between. */
   private teeChoices(): Array<{ id: TeeBoxId; name: string; lengthMetres: number }> {
     return teeOptions(this.holeConfig).map((teeBox) => ({
@@ -791,8 +808,7 @@ export class Game {
     this.holePreview = new HolePreview({
       onPlay: () => this.dismissHolePreview(),
       onTurnOff: () => {
-        this.progress = { ...this.progress, showHolePreviews: false };
-        saveProgress(this.progress);
+        this.setShowHolePreviews(false);
         this.dismissHolePreview();
       }
     });
@@ -804,9 +820,11 @@ export class Game {
       totalPar: this.source?.totalPar ?? 35,
       onStart: () => void this.startConfiguredRound(),
       onOpenPractice: () => void this.enterResearchMode(),
-      onTeeChange: (choice) => this.setTeeChoice(choice)
+      onTeeChange: (choice) => this.setTeeChoice(choice),
+      onPreviewsChange: (show) => this.setShowHolePreviews(show)
     });
     this.titleScreen.setTeeChoice(this.progress.teeChoice, this.teeChoices());
+    this.titleScreen.setPreviewsOn(this.progress.showHolePreviews);
 
     // 2. Playtest Layout HUD (used for research mode / provisional layout)
     this.layoutHUD = new PlaytestLayoutHUD(
@@ -1065,6 +1083,12 @@ export class Game {
     this.shotMode = mode;
     this.gameHUD?.setShotMode(mode);
 
+    // On the green the VIEW button becomes READ GREEN, so a camera mode
+    // switched on for a look up the hole had no way back: the putt was played
+    // from wherever that camera happened to be, with the HUD reading 4m to the
+    // pin over a view of the whole hole. The putting view comes back by itself.
+    if (mode === 'PUTTING') this.setCameraMode('GOLF');
+
     // Whether the bag is reachable is a question about the lie, not about the
     // stroke: on the fringe you may choose between a putter and a wedge, and
     // hiding the selector the moment a putter was in hand stranded you there.
@@ -1146,11 +1170,23 @@ export class Game {
 
   private toggleCameraMode(): void {
     if (!this.cameraController) return;
-    const current = this.cameraController.getMode();
-    const next = current === 'GOLF' ? 'OVERHEAD' : 'GOLF';
-    this.cameraController.setMode(next);
-    this.treeRenderer?.setVisible(next !== 'OVERHEAD');
-    this.sceneManager.setOverheadMode(next === 'OVERHEAD');
+    this.setCameraMode(this.cameraController.getMode() === 'GOLF' ? 'OVERHEAD' : 'GOLF');
+  }
+
+  /**
+   * Put the camera in a mode, and dress the scene for it.
+   *
+   * The trees come down for the overhead view because from above they are a
+   * canopy over the hole you are trying to look at. Every route into a camera
+   * mode goes through here, so the scene can never be left dressed for a view
+   * it is no longer in.
+   */
+  private setCameraMode(mode: CameraMode): void {
+    if (!this.cameraController || this.cameraController.getMode() === mode) return;
+
+    this.cameraController.setMode(mode);
+    this.treeRenderer?.setVisible(mode !== 'OVERHEAD');
+    this.sceneManager.setOverheadMode(mode === 'OVERHEAD');
   }
 
   private async startConfiguredRound(): Promise<void> {
@@ -1433,6 +1469,12 @@ export class Game {
 
     if (this.swingExecuted) return;
     this.swingExecuted = true;
+
+    // The overhead view is for looking at the hole, not for playing it: the
+    // ball is followed by its own camera once it is struck, and the trees are
+    // hidden while that view is selected — so a drive would ricochet off
+    // timber that was not on screen.
+    this.setCameraMode('GOLF');
 
     this.strokeCount++;
     this.ballRenderer?.clearTracer();
