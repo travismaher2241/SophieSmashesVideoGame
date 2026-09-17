@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { SurfaceQuery, LieInfo, SURFACE_PROPERTIES } from '../course/SurfaceQuery';
+import { SurfaceQuery, LieInfo, SurfaceType, SURFACE_PROPERTIES } from '../course/SurfaceQuery';
 import { TerrainQuery } from '../course/TerrainQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingResult } from '../golf/SwingMeter';
@@ -52,6 +52,20 @@ export class BallPhysics {
   private trees: readonly TreeObstacle[] = [];
   /** Set for one shot when the ball has been through a tree, for the readout. */
   public lastTreeHit: TreeHit | null = null;
+
+  /**
+   * Counters for things that happen during a step rather than at rest.
+   *
+   * The renderer and the sound want to know the moment the ball hits the ground
+   * or a tree, but `lastTreeHit` is read once the ball has stopped and says
+   * nothing about when. A counter can be compared against a caller's own copy
+   * each frame, which costs nothing and cannot be missed the way a flag that
+   * has to be cleared can.
+   */
+  public groundContacts = 0;
+  public treeContacts = 0;
+  /** Speed and surface of the most recent ground contact, in m/s. */
+  public lastContact: { speed: number; surface: SurfaceType; firstOfShot: boolean } | null = null;
   /** What the tree did with it, for the readout. */
   public lastTreeOutcome: TreeOutcome | null = null;
 
@@ -410,6 +424,7 @@ export class BallPhysics {
    */
   private hitTree(hit: TreeHit): void {
     this.lastTreeHit = hit;
+    this.treeContacts++;
 
     // Stand the ball just off the tree so the next step starts outside it.
     const clearance = 0.02;
@@ -444,6 +459,13 @@ export class BallPhysics {
 
     // Only process impact if ball is moving into the ground
     if (vDotN < 0) {
+      this.groundContacts++;
+      this.lastContact = {
+        speed: this.velocity.length(),
+        surface: this.currentLie.type,
+        firstOfShot: !this.hasLandedThisShot
+      };
+
       // Decompose velocity into normal and tangential components
       const vNormal = normal.clone().multiplyScalar(vDotN);
       const vTangential = this.velocity.clone().sub(vNormal);
@@ -573,6 +595,7 @@ export class BallPhysics {
         this.velocity.z = (this.velocity.z - 2 * into * hit.normalZ) * 0.2;
         this.velocity.y = 0;
         this.lastTreeHit = hit;
+        this.treeContacts++;
         return;
       }
     }

@@ -18,6 +18,8 @@ export interface Progress {
   teeChoice: TeeBoxId;
   /** Whether to fly each hole before the tee shot. */
   showHolePreviews: boolean;
+  /** Whether the game makes any sound. */
+  soundOn: boolean;
 }
 
 const STORAGE_KEY = 'sophie-smashes-progress-v1';
@@ -29,7 +31,8 @@ export function newProgress(): Progress {
     roundsPlayed: 0,
     bestRelativeToPar: null,
     teeChoice: DEFAULT_TEE,
-    showHolePreviews: true
+    showHolePreviews: true,
+    soundOn: true
   };
 }
 
@@ -67,7 +70,8 @@ export function loadProgress(storage: Storage | undefined = safeStorage()): Prog
       teeChoice: TEE_BOX_IDS.includes(parsed.teeChoice as TeeBoxId) ? (parsed.teeChoice as TeeBoxId) : DEFAULT_TEE,
       // Previews are on for a player who has never said otherwise, and a save
       // that says nothing about them is such a player.
-      showHolePreviews: typeof parsed.showHolePreviews === 'boolean' ? parsed.showHolePreviews : true
+      showHolePreviews: typeof parsed.showHolePreviews === 'boolean' ? parsed.showHolePreviews : true,
+      soundOn: typeof parsed.soundOn === 'boolean' ? parsed.soundOn : true
     };
   } catch {
     return newProgress();

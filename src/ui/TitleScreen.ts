@@ -17,17 +17,21 @@ export interface TitleScreenOptions {
   onOpenPractice?: () => void;
   onTeeChange?: (choice: TeeBoxId) => void;
   onPreviewsChange?: (show: boolean) => void;
+  onSoundChange?: (on: boolean) => void;
 }
 
 export class TitleScreen {
   private readonly container: HTMLElement;
   private readonly onTeeChange?: (choice: TeeBoxId) => void;
   private readonly onPreviewsChange?: (show: boolean) => void;
+  private readonly onSoundChange?: (on: boolean) => void;
   private previewsOn = true;
+  private soundOn = true;
 
   constructor(options: TitleScreenOptions) {
     this.onTeeChange = options.onTeeChange;
     this.onPreviewsChange = options.onPreviewsChange;
+    this.onSoundChange = options.onSoundChange;
     this.container = document.createElement('div');
     this.container.setAttribute('role', 'dialog');
     this.container.setAttribute('aria-label', 'Sophie Smashes title screen');
@@ -44,7 +48,10 @@ export class TitleScreen {
         </div>
         <div class="title-tees" id="title-tees"></div>
         <button id="btn-title-start" class="title-primary">START ROUND</button>
-        <button id="btn-title-previews" class="title-toggle">HOLE FLYOVER: ON</button>
+        <div class="title-toggles">
+          <button id="btn-title-previews" class="title-toggle">FLYOVER: ON</button>
+          <button id="btn-title-sound" class="title-toggle">SOUND: ON</button>
+        </div>
         <div class="title-controls">SPACE: SWING &nbsp; A/D: AIM &nbsp; W/S: CLUB &nbsp; M: VIEW</div>
       </div>
       <style>
@@ -94,8 +101,9 @@ export class TitleScreen {
         .title-primary { width: 100%; font: bold 16px 'Courier New', monospace; cursor: pointer; border-radius: 6px; padding: 14px; border: 3px solid #b4ff9a; background: #269b3c; color: white; box-shadow: 0 4px 0 #0b4c1a; letter-spacing: 2px; }
         .title-primary:hover { background: #38bd50; transform: translateY(-1px); }
         .title-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #0b4c1a; }
+        .title-toggles { display: flex; gap: 8px; margin-top: 8px; }
         .title-toggle {
-          width: 100%; margin-top: 8px; padding: 9px; cursor: pointer; border-radius: 6px;
+          flex: 1; padding: 9px; cursor: pointer; border-radius: 6px;
           border: 2px solid #3f7d52; background: #0b2413; color: #9bd6aa;
           font: bold 11px 'Courier New', monospace; letter-spacing: 2px;
         }
@@ -121,6 +129,9 @@ export class TitleScreen {
     this.container.querySelector('#btn-title-start')?.addEventListener('click', options.onStart);
     this.container.querySelector('#btn-title-previews')?.addEventListener('click', () => {
       this.onPreviewsChange?.(!this.previewsOn);
+    });
+    this.container.querySelector('#btn-title-sound')?.addEventListener('click', () => {
+      this.onSoundChange?.(!this.soundOn);
     });
     document.body.appendChild(this.container);
   }
@@ -187,7 +198,17 @@ export class TitleScreen {
     const button = this.container.querySelector('#btn-title-previews');
     if (!button) return;
 
-    button.textContent = `HOLE FLYOVER: ${on ? 'ON' : 'OFF'}`;
+    button.textContent = `FLYOVER: ${on ? 'ON' : 'OFF'}`;
+    button.classList.toggle('is-off', !on);
+  }
+
+  /** Show whether the game is making any sound. */
+  public setSoundOn(on: boolean): void {
+    this.soundOn = on;
+    const button = this.container.querySelector('#btn-title-sound');
+    if (!button) return;
+
+    button.textContent = `SOUND: ${on ? 'ON' : 'OFF'}`;
     button.classList.toggle('is-off', !on);
   }
 

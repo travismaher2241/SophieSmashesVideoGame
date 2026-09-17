@@ -64,6 +64,8 @@ import {
   trained
 } from './Abilities';
 import { loadProgress, Progress, recordRound, saveProgress } from './Progress';
+import { AudioEngine } from '../audio/AudioEngine';
+import { landingSoundFor, swingSoundFor } from '../audio/SoundBank';
 import { newRoundSeed, pinForHole, selectedTeeBox, TeeBoxId, teeOptions } from './RoundSetup';
 
 export interface GameHoleSource {
@@ -201,6 +203,7 @@ export class Game {
   private debugOverlay?: DebugOverlay;
   private annotationTool?: AnnotationTool;
   private titleScreen?: TitleScreen;
+  private audio: AudioEngine = new AudioEngine();
   private holePreview?: HolePreview;
   private holeFlyby?: HoleFlyby;
 
@@ -278,6 +281,10 @@ export class Game {
 
   /** Whether the tee shot was played with a wood, so it counts as a drive. */
   private teeShotWithWood = false;
+
+  /** Contact counters last heard, so each bounce and tree is sounded once. */
+  private soundedGroundContacts = 0;
+  private soundedTreeContacts = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -482,6 +489,7 @@ export class Game {
     });
     this.titleScreen?.setTeeChoice(this.progress.teeChoice, this.teeChoices());
     this.titleScreen?.setPreviewsOn(this.progress.showHolePreviews);
+    this.titleScreen?.setSoundOn(this.progress.soundOn);
 
     this.configureGameHUD();
   }
@@ -821,10 +829,13 @@ export class Game {
       onStart: () => void this.startConfiguredRound(),
       onOpenPractice: () => void this.enterResearchMode(),
       onTeeChange: (choice) => this.setTeeChoice(choice),
-      onPreviewsChange: (show) => this.setShowHolePreviews(show)
+      onPreviewsChange: (show) => this.setShowHolePreviews(show),
+      onSoundChange: (on) => this.setSoundOn(on)
     });
     this.titleScreen.setTeeChoice(this.progress.teeChoice, this.teeChoices());
     this.titleScreen.setPreviewsOn(this.progress.showHolePreviews);
+    this.titleScreen.setSoundOn(this.progress.soundOn);
+    this.audio.setEnabled(this.progress.soundOn);
 
     // 2. Playtest Layout HUD (used for research mode / provisional layout)
     this.layoutHUD = new PlaytestLayoutHUD(
@@ -880,6 +891,12 @@ export class Game {
   }
 
   private setupKeyboardEvents(): void {
+    // A browser will not start audio until the player has touched the page, so
+    // the first thing they do — whatever it is — is what starts it.
+    const startAudio = () => this.audio.resume();
+    window.addEventListener('pointerdown', startAudio, { passive: true });
+    window.addEventListener('keydown', startAudio);
+
     window.addEventListener('keydown', (e) => {
       const state = this.stateManager.getState();
 
@@ -1118,6 +1135,7 @@ export class Game {
   }
 
   private setShotShape(shape: ShotShape): void {
+    if (shape !== this.shotShape) this.audio.play('UI');
     this.shotShape = shape;
     this.gameHUD?.setShotShape(shape);
     this.aimingGuideRenderer?.setShotShape(shape);
@@ -1163,6 +1181,9 @@ export class Game {
     if (this.stateManager.getState() !== 'ADDRESS') return;
     if (this.isLockedToPutter()) return;
 
+    // After the guards, so a control that did nothing does not click as though
+    // it did.
+    this.audio.play('UI');
     pick(this.clubManager);
     this.syncSwingStyleToClub();
     this.setShotMode(this.clubManager.getCurrentClub().isPutter ? 'PUTTING' : 'FULL_SWING');
@@ -1396,9 +1417,14 @@ export class Game {
       this.sophieGolfer?.resetPose();
       // She stays at address through the meter. The swing plays once power and
       // accuracy are both locked in, so it runs as one uninterrupted motion.
+      this.audio.play('METER_START');
       this.swingMeter.trigger(); // Click 1: READY -> POWER_RUNNING
     } else if (state === 'SWINGING') {
       const newMeterState = this.swingMeter.trigger();
+
+      // Click 2 locks the power. It gets the higher note, so the rhythm of a
+      // swing can be heard as well as watched.
+      if (newMeterState === 'ACCURACY_RUNNING') this.audio.play('METER_POWER');
 
       if (newMeterState === 'IMPACT' || newMeterState === 'COMPLETE') {
         // Click 3: Locked accuracy -> Strike impact and launch ball
@@ -1418,6 +1444,7 @@ export class Game {
         this.cupPosition.z - this.ballPhysics!.position.z
       );
       this.puttMeter.reset(distToCup);
+      this.audio.play('METER_START');
       this.puttMeter.triggerPuttAction(); // Begins CHARGING
       this.gameHUD?.updatePuttMeter(this.puttMeter);
     } else if (state === 'SWINGING') {
@@ -1443,6 +1470,7 @@ export class Game {
     // The stroke plays out and the ball leaves when the putter reaches it, the
     // same way a full swing works. Nothing is set moving before then.
     this.sophieGolfer.playPutt(() => {
+      this.audio.play('PUTT', { gain: 0.5 + Math.min(1, puttResult.intendedDistanceMetres / 14) });
       this.puttingPhysics!.launchPutt(
         puttResult.intendedDistanceMetres,
         this.aimAngleRadians,
@@ -1500,6 +1528,14 @@ export class Game {
     this.shotCarryMetres = null;
 
     this.sophieGolfer.playSwing(() => {
+      // At impact rather than on the click that locked the meter: the ball
+      // leaves part-way through the animation, and the sound belongs with it.
+      this.audio.play(swingSoundFor(playedClub), {
+        // A three-quarter swing is quieter than a flush one.
+        gain: 0.55 + 0.45 * shapedResult.powerRatio,
+        // A thin or heavy strike does not ring the way a flush one does.
+        pitch: shapedResult.isPerfect ? 1 : 1 - Math.min(0.12, Math.abs(shapedResult.accuracyError) * 0.15)
+      });
       // The club as the chosen shot plays it: a chip is a club that carries
       // fifteen metres, comes out low and does not check, which is why none of
       // this needed its own flight model.
@@ -1552,6 +1588,7 @@ export class Game {
 
         if (pState === 'HOLED') {
           const holeTotal = this.strokeCount + this.penaltyStrokes;
+          this.soundHoledOut(holeTotal);
           this.gameHUD?.showPuttingFeedback(0, true, false);
           this.finishHoleForScorecard(holeTotal, this.penaltyStrokes);
         } else if (pState === 'REST') {
@@ -1565,11 +1602,13 @@ export class Game {
       } else {
         const ballState = this.ballPhysics!.update(dt, this.cupPosition);
         this.updateFlightReadout(ballState);
+        this.soundBallContacts();
 
         if (ballState === 'ROLLING') {
           this.stateManager.setState('BALL_ROLLING');
         } else if (ballState === 'HOLED') {
           const holeTotal = this.strokeCount + this.penaltyStrokes;
+          this.soundHoledOut(holeTotal);
           this.finishHoleForScorecard(holeTotal, this.penaltyStrokes);
         } else if (ballState === 'REST') {
           this.onBallStoppedAtRest();
@@ -1711,6 +1750,64 @@ export class Game {
     if (ballState === 'REST' || ballState === 'HOLED') {
       this.gameHUD?.settleFlightDistance();
     }
+  }
+
+  /**
+   * Sound whatever the ball has just hit.
+   *
+   * Driven off the physics' own counters rather than off its state, because a
+   * bounce is an event inside a step: by the time the state is read the ball is
+   * airborne again and the contact has been and gone. Comparing counters means
+   * a frame that contained three bounces plays three of them.
+   */
+  private soundBallContacts(): void {
+    const physics = this.ballPhysics;
+    if (!physics) return;
+
+    if (physics.treeContacts !== this.soundedTreeContacts) {
+      this.soundedTreeContacts = physics.treeContacts;
+      this.audio.play('TREE');
+    }
+
+    if (physics.groundContacts !== this.soundedGroundContacts) {
+      const skipped = physics.groundContacts - this.soundedGroundContacts;
+      this.soundedGroundContacts = physics.groundContacts;
+
+      const contact = physics.lastContact;
+      if (!contact) return;
+
+      // A ball settling makes dozens of tiny contacts; only the ones with pace
+      // in them are worth hearing, and the arrival from flight is the loudest
+      // thing that happens to a golf ball apart from the strike.
+      if (contact.speed < 3 && !contact.firstOfShot) return;
+      if (skipped > 1 && !contact.firstOfShot && contact.speed < 8) return;
+
+      const force = Math.min(1, contact.speed / 28);
+      this.audio.play(landingSoundFor(contact.surface), {
+        gain: 0.35 + 0.65 * force,
+        pitch: 0.9 + 0.3 * force
+      });
+    }
+  }
+
+  /** The cup, and a crowd for a hole worth one. */
+  private soundHoledOut(holeTotal: number): void {
+    this.audio.play('HOLED');
+
+    const par = this.isPracticeMode ? 4 : (this.holeConfig?.par ?? 4);
+    if (holeTotal <= par - 1) this.audio.play('CHEER', { gain: holeTotal <= par - 2 ? 1 : 0.7 });
+  }
+
+  /** Turn the sound on or off, and remember which. */
+  public setSoundOn(on: boolean): void {
+    this.audio.setEnabled(on);
+    if (on) this.audio.resume();
+
+    if (this.progress.soundOn !== on) {
+      this.progress = { ...this.progress, soundOn: on };
+      saveProgress(this.progress);
+    }
+    this.titleScreen?.setSoundOn(on);
   }
 
   private onBallStoppedAtRest(): void {
@@ -1894,6 +1991,7 @@ export class Game {
 
     if (!ruling) return;
 
+    this.audio.play('PENALTY');
     this.penaltyStrokes += ruling.penaltyStrokes;
     this.ballPhysics.setPosition(ruling.dropPosition.x, ruling.dropPosition.z);
     this.gameHUD?.showPenalty(ruling.headline, ruling.detail);
