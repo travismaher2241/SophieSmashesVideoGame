@@ -1217,7 +1217,14 @@ export class GameHUD {
           #hud-title { font-size: 11px; }
 
           .hud-bottombar {
-            grid-template-columns: 1.2fr 0.62fr 1.05fr;
+            /*
+             * The shape control holds the longest word on the bar — STRAIGHT —
+             * and the aim control holds the shortest. Sharing the row evenly cut
+             * "STRAIGHT" to "STRAIG..." on a 320px screen, so the room goes
+             * where the text is: the club needs only "DRIVER" over "242m · 11°",
+             * and the aim control is two arrows and three letters.
+             */
+            grid-template-columns: 1fr 0.5fr 1.35fr;
             grid-template-areas:
               "club aim shape"
               "swing swing swing";
@@ -1236,7 +1243,11 @@ export class GameHUD {
           .hud-shape-readout { min-width: 0; }
           /* Keyboard help on a screen with no keyboard. */
           #hud-shape-hint { display: none; }
-          #hud-shape-name { font-size: 10px; overflow: hidden; text-overflow: ellipsis; }
+          /* Sized with room to spare: this label is the longest word on the
+             bar, and a phone without Courier New draws it in whatever monospace
+             it has, which may be wider than the one it was measured in. */
+          #hud-shape-name { font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; }
+          .hud-shape-readout { padding: 0 1px; }
           .hud-ctrl-btn { padding: 6px 6px; }
 
           /* Three buttons where there were two: the row needs the room back. */
@@ -1261,9 +1272,46 @@ export class GameHUD {
           .hud-swing-btn { font-size: 14px; padding: 11px 6px; }
         }
 
+        /*
+         * The narrowest screens people actually hold.
+         *
+         * Everything on the bottom row gives up a few pixels rather than one
+         * control taking them all from its neighbour: the arrows narrow, the
+         * gaps close, and the club's carry line goes, since the club's name is
+         * the part that matters when the row is this tight.
+         */
+        @media (max-width: 400px) {
+          .hud-ctrl-btn { padding: 6px 4px; font-size: 11px; }
+          .hud-bottombar { gap: 4px; }
+          .hud-club-selector, .hud-aim-controls, .hud-shape-controls { padding: 3px 2px; }
+          /*
+           * A wedge gets two lines rather than an ellipsis.
+           *
+           * "PITCHING WEDGE" is fourteen characters and the club capsule is a
+           * third of a narrow screen, so on one line it came out as "PITCHING
+           * WED...". The capsule has the height to spare — it is already two
+           * lines deep for the carry underneath — so the name wraps instead.
+           */
+          #hud-club-name { white-space: normal; line-height: 1.05; }
+        }
+
+        /*
+         * The narrowest screens in use.
+         *
+         * Three labelled controls do not fit across 320px: something has to
+         * give up its text, and AIM is the one that loses least by it. The
+         * arrows are the control, they sit under a golfer with her aim line
+         * drawn in front of her, and the words either side of them — the club
+         * and the shape — carry a value you cannot read off the hole. Above
+         * this width the label stays, because there it fits.
+         */
         @media (max-width: 360px) {
+          .hud-aim-label { display: none; }
+          .hud-aim-controls { justify-content: space-around; }
           .hud-shot-info { font-size: 9px; }
           #hud-club-detail { display: none; }
+          #hud-shape-name { font-size: 9px; }
+          .hud-aim-label { font-size: 8.5px; }
         }
       </style>
     `;

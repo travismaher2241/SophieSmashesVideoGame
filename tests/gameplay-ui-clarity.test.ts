@@ -15,6 +15,8 @@ import { TerrainQuery } from '../src/course/TerrainQuery';
 import { TerrainData } from '../src/course/TerrainData';
 import { GOLF_CLUBS } from '../src/golf/Club';
 import { GameHUD } from '../src/ui/GameHUD';
+import { SHOT_SHAPES, shapeProfile } from '../src/golf/ShotShape';
+import { shotTypeProfile } from '../src/golf/ShotType';
 import { TitleScreen } from '../src/ui/TitleScreen';
 import { SURFACE_PROPERTIES } from '../src/course/SurfaceQuery';
 
@@ -282,5 +284,30 @@ describe('Surface Lie Player-Facing Vocabulary Tests', () => {
     expect(SURFACE_PROPERTIES.GREEN.name).toBe('Green');
     expect(SURFACE_PROPERTIES.BUNKER.name).toBe('Bunker');
     expect(SURFACE_PROPERTIES.FRINGE.name).toBe('Fringe');
+  });
+});
+
+describe('the words on the shot selector fit the control that holds them', () => {
+  /**
+   * Room for the longest label, in characters.
+   *
+   * The bottom bar puts three controls across the screen, and on a 320px phone
+   * the shape capsule gets about 130 of those pixels — two arrows and the word
+   * between them. "STRAIGHT" is eight characters and fills it; a longer label
+   * would be cut to "STRAIG...", which is what it did on a phone before the row
+   * was rebalanced. A label added later has this budget to live within.
+   */
+  const LONGEST_LABEL = 8;
+
+  it('keeps every shot shape short enough to print', () => {
+    for (const shape of SHOT_SHAPES) {
+      expect(shapeProfile(shape).label.length, shape).toBeLessThanOrEqual(LONGEST_LABEL);
+    }
+  });
+
+  it('keeps every short-game label short enough to print', () => {
+    for (const type of ['FULL', 'CHIP', 'PITCH', 'LOB'] as const) {
+      expect(shotTypeProfile(type).label.length, type).toBeLessThanOrEqual(LONGEST_LABEL);
+    }
   });
 });
