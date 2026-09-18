@@ -51,6 +51,7 @@ import { TitleScreen } from '../ui/TitleScreen';
 import { GameStateManager, GameStateType } from './GameState';
 import { PlaytestLayoutConfig, PlaytestLayoutManager } from './PlaytestLayout';
 import { buildScorecard } from './Scorecard';
+import { runningRoundScore } from './RoundScore';
 import { HoleStat, newRoundStats, statLines, suggestTraining, summariseRound } from './RoundStats';
 import {
   Attribute,
@@ -636,7 +637,23 @@ export class Game {
       this.greenBreakRenderer?.setVisible(false);
     }
 
+    this.pushRoundScore();
     this.presentHole();
+  }
+
+  /**
+   * Put the round's score on the bar.
+   *
+   * Pushed when it can have changed — a hole laid out, a hole holed out — rather
+   * than recomputed every frame, since it only moves eighteen times a round.
+   * Practice has no round, so it gets nothing.
+   */
+  private pushRoundScore(): void {
+    this.gameHUD?.updateRoundScore(
+      this.isPracticeMode || this.source?.isResearchMode
+        ? null
+        : runningRoundScore(this.completedHoleScores)
+    );
   }
 
   /**
@@ -1926,6 +1943,7 @@ export class Game {
       const isFinalHole = this.holeIndex === (this.source?.holes.length ?? 1) - 1;
       this.gameHUD?.configureCompletionAction(isFinalHole ? '↻ PLAY COURSE AGAIN' : 'NEXT HOLE →');
 
+      this.pushRoundScore();
       if (isFinalHole) this.finishRound();
     }
 

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildScorecard, HoleScore } from '../src/game/Scorecard';
+import { runningRoundScore } from '../src/game/RoundScore';
 import { SOPHIE_HILLS_CONFIG } from '../src/game/Game';
 
 const PARS = [4, 3, 4, 4, 3, 4, 4, 4, 5];
@@ -109,5 +110,42 @@ describe('the pars the card is drawn from', () => {
     const summed = SOPHIE_HILLS_CONFIG.holes.reduce((total, hole) => total + hole.par, 0);
 
     expect(summed).toBe(SOPHIE_HILLS_CONFIG.totalPar);
+  });
+});
+
+describe('the score on the HUD while the round is played', () => {
+  it('reads level par before a hole has been finished', () => {
+    const score = runningRoundScore([]);
+    expect(score).toMatchObject({ holesPlayed: 0, strokes: 0, par: 0, relativeToPar: 0, relativeLabel: 'E' });
+  });
+
+  it('measures against the par of the holes played, not the whole course', () => {
+    // Standing on the 5th at level par is level par, not thirteen under. The
+    // scorecard learned this the hard way; the bar must not relearn it.
+    const score = runningRoundScore([
+      { strokes: 4, par: 4 },
+      { strokes: 3, par: 3 },
+      { strokes: 5, par: 4 },
+      { strokes: 4, par: 4 }
+    ]);
+
+    expect(score.holesPlayed).toBe(4);
+    expect(score.par).toBe(15);
+    expect(score.strokes).toBe(16);
+    expect(score.relativeLabel).toBe('+1');
+  });
+
+  it('counts under par with its sign', () => {
+    expect(runningRoundScore([{ strokes: 3, par: 4 }, { strokes: 4, par: 5 }]).relativeLabel).toBe('-2');
+  });
+
+  it('ignores holes that have not been played', () => {
+    // The round's array is indexed by hole, so a round resumed on the 3rd has
+    // gaps in it. A gap is not a zero.
+    const played = [{ strokes: 5, par: 4 }, undefined, { strokes: 3, par: 3 }];
+    const score = runningRoundScore(played);
+
+    expect(score.holesPlayed).toBe(2);
+    expect(score.relativeLabel).toBe('+1');
   });
 });

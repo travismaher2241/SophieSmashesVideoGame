@@ -16,7 +16,7 @@ import { LieInfo } from '../course/SurfaceQuery';
 import { ClubConfig } from '../golf/Club';
 import { SwingMeter } from '../golf/SwingMeter';
 import { PuttMeter } from '../golf/PuttMeter';
-import { summarizeRoundScore } from '../game/RoundScore';
+import { RunningRoundScore, summarizeRoundScore } from '../game/RoundScore';
 
 export type ShotMode = 'FULL_SWING' | 'PUTTING';
 
@@ -61,6 +61,7 @@ export class GameHUD {
   private strokeElem!: HTMLElement;
   private distElem!: HTMLElement;
   private lieElem!: HTMLElement;
+  private roundElem!: HTMLElement;
   private windElem!: HTMLElement;
   private clubSelectorCapsule!: HTMLElement;
   private shapeCapsuleElem!: HTMLElement;
@@ -348,6 +349,30 @@ export class GameHUD {
       // it is what pushed MENU off the edge of the top bar.
       this.cameraBtnElem.textContent = this.isNarrow() ? 'VIEW' : `VIEW · ${cameraMode}`;
     }
+  }
+
+  /**
+   * The round's score, on the bar while it is being played.
+   *
+   * Null in practice, where there is no round to keep a score for. Everything
+   * else on that capsule is about the shot in hand; this is the only thing on
+   * the screen that says how the day is going.
+   */
+  public updateRoundScore(score: RunningRoundScore | null): void {
+    if (!this.roundElem) return;
+
+    if (!score) {
+      this.roundElem.innerHTML = '';
+      return;
+    }
+
+    const tone = score.relativeToPar < 0 ? 'is-under' : score.relativeToPar > 0 ? 'is-over' : 'is-level';
+    const through = score.holesPlayed === 0
+      ? 'THRU &mdash;'
+      : `THRU ${score.holesPlayed}`;
+
+    this.roundElem.innerHTML =
+      `ROUND <strong class="${tone}">${score.relativeLabel}</strong> &middot; ${through}`;
   }
 
   public updateSwingMeter(swingMeter: SwingMeter): void {
@@ -844,6 +869,7 @@ export class GameHUD {
           <span id="hud-dist" class="hud-accent">234.0 m TO PIN</span>
           <span id="hud-wind">WIND CALM</span>
           <span id="hud-lie">LIE <strong style="color: #68d391;">TEE (100%)</strong></span>
+          <span id="hud-round" class="hud-round"></span>
         </div>
 
         <div class="hud-capsule hud-nav-actions">
@@ -934,6 +960,18 @@ export class GameHUD {
         #hud-title { font-weight: 800; font-size: 11px; color: #fbd38d; white-space: nowrap; }
         #hud-subtitle { font-size: 9px; color: #cbd5e0; white-space: nowrap; }
         .hud-shot-info { gap: 10px; font-weight: 700; }
+        /* The round's score, kept apart from the shot's numbers by a rule: it
+           is the one reading on the bar that is not about this shot. */
+        .hud-round {
+          padding-left: 10px;
+          border-left: 1px solid rgba(255, 255, 255, 0.18);
+          color: #e2e8f0;
+        }
+        .hud-round:empty { display: none; }
+        .hud-round strong { font-weight: 800; }
+        .hud-round .is-under { color: #8bff8b; }
+        .hud-round .is-level { color: #ffffff; }
+        .hud-round .is-over { color: #ffb36b; }
         .hud-highlight { color: #f6e05e; }
         .hud-accent { color: #63b3ed; }
         .hud-nav-actions { margin-left: auto; gap: 4px; padding: 3px 6px; }
@@ -1173,6 +1211,9 @@ export class GameHUD {
           /* Each reading stays whole: a wind that needs two lines takes two
              lines, rather than breaking across "336.3 m TO / PIN". */
           .hud-shot-info > span { white-space: nowrap; }
+          /* The rule before the score divides it from the shot's numbers on one
+             line; wrapped onto its own line it is just a mark hanging in space. */
+          .hud-round { padding-left: 0; border-left: 0; }
           #hud-title { font-size: 11px; }
 
           .hud-bottombar {
@@ -1230,6 +1271,7 @@ export class GameHUD {
     this.strokeElem = this.container.querySelector('#hud-stroke')!;
     this.distElem = this.container.querySelector('#hud-dist')!;
     this.lieElem = this.container.querySelector('#hud-lie')!;
+    this.roundElem = this.container.querySelector('#hud-round')!;
     this.windElem = this.container.querySelector('#hud-wind')!;
     this.clubSelectorCapsule = this.container.querySelector('#hud-club-capsule')!;
     this.shapeCapsuleElem = this.container.querySelector('#hud-shape-capsule')!;
